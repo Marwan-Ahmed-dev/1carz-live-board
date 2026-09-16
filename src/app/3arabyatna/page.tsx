@@ -41,7 +41,7 @@ export default function MyCarsPage() {
 
   const { cars, loading } = useCars({
     priority: priorityFilter,
-    username: userData?.username,
+    uid: user?.uid,
     minPrice,
     maxPrice,
   });

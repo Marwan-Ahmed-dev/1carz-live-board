@@ -116,7 +116,7 @@ export async function deleteCar(id: string): Promise<void> {
  */
 export function subscribeToCars(
   callback: (cars: Car[]) => void,
-  filters: { priority?: Priority; minPrice?: number; maxPrice?: number; username?: string | null } = {}
+  filters: { priority?: Priority; minPrice?: number; maxPrice?: number; uid?: string | null } = {}
 ): () => void {
   const ref = collection(db, CARS_COLLECTION);
   const constraints: QueryConstraint[] = [];

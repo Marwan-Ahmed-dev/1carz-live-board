@@ -6,15 +6,18 @@ import { subscribeToUsers } from '@/lib/users';
 import { AppUser } from '@/lib/types';
 
 interface UserAssignmentSelectorProps {
-  /** القيم الحالية */
-  value: string[]; // ['all'] أو ['username1', 'username2']
+  /** القيم الحالية — قيم الـ UIDs (أو 'all') */
+  value: string[]; // ['all'] أو ['uid1', 'uid2']
   onChange: (val: string[]) => void;
 }
 
 /**
  * Multi-select component لتحديد المستخدمين المعينين لعربية
  * - وضع 1: "الكل" (assigned_to = ['all'])
- * - وضع 2: "مستخدمين محددين" (checkbox list للـ onboarded users)
+ * - وضع 2: "مستخدمين محددين" (checkbox list لكل المستخدمين المسجلين)
+ *
+ * ✅ FIX: بنعرض كل المستخدمين (حتى اللي ما عملوش onboarding لسه)
+ *    لأن الـ assignment بيستخدم الـ UID (مش الـ username).
  */
 export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelectorProps) {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -24,8 +27,9 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
   // الاشتراك في real-time updates
   useEffect(() => {
     const unsub = subscribeToUsers((all) => {
-      // نُظهر فقط الـ onboarded users (اللي عندهم username)
-      setUsers(all.filter((u) => u.username !== null));
+      // ✅ FIX: بنعرض كل المستخدمين، مش بس الـ onboarded
+      // (الـ assignment بيستخدم الـ UID اللي موجود لكل user)
+      setUsers(all);
       setLoading(false);
     });
     return () => unsub();
@@ -41,15 +45,17 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     return users.filter(
       (u) =>
         u.username?.toLowerCase().includes(s) ||
-        u.email.toLowerCase().includes(s)
+        u.email.toLowerCase().includes(s) ||
+        u.uid.toLowerCase().includes(s)
     );
   }, [users, search]);
 
-  const toggleUser = (username: string) => {
+  // ✅ نـtoggle بالـ UID (مش الـ username)
+  const toggleUser = (uid: string) => {
     if (isAll) return; // معطّل في وضع "الكل"
-    const newVal = selected.includes(username)
-      ? selected.filter((u) => u !== username)
-      : [...selected, username];
+    const newVal = selected.includes(uid)
+      ? selected.filter((u) => u !== uid)
+      : [...selected, uid];
     onChange(newVal.length === 0 ? ['all'] : newVal);
   };
 
@@ -61,6 +67,9 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     // إذا كنا في "الكل" وفارغين، حافظ على 'all' حتى يختار المستخدم
     onChange(selected.length > 0 ? selected : ['all']);
   };
+
+  // helper لعرض اسم المستخدم — username لو موجود، غير كده email
+  const displayName = (u: AppUser): string => u.username || u.email.split('@')[0];
 
   return (
     <div className="space-y-3">
@@ -130,25 +139,33 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
             ) : filteredUsers.length === 0 ? (
               <div className="p-4 text-center text-admin-text-muted text-sm">
                 {users.length === 0
-                  ? 'لا يوجد مستخدمين مسجلين بعد'
+                  ? 'لا يوجد مستخدمين مسجلين بعد — ادعُ المستخدمين من خلال تسجيل الدخول'
                   : 'لا توجد نتائج'}
               </div>
             ) : (
               <ul className="divide-y divide-admin-border">
                 {filteredUsers.map((u) => {
-                  const isSelected = selected.includes(u.username!);
+                  const isSelected = selected.includes(u.uid);
+                  const isOnboarded = u.username !== null;
                   return (
                     <li key={u.uid}>
                       <label className="flex items-center gap-3 px-3 py-2.5 hover:bg-admin-card cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => toggleUser(u.username!)}
+                          onChange={() => toggleUser(u.uid)}
                           className="w-4 h-4 rounded border-admin-border text-admin-accent focus:ring-admin-accent cursor-pointer"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-bold text-admin-text truncate">
-                            {u.username}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-admin-text truncate">
+                              {displayName(u)}
+                            </span>
+                            {!isOnboarded && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-admin-text-muted/20 text-admin-text-muted">
+                                لم يستكمل
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-admin-text-muted truncate">
                             {u.email}

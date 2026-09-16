@@ -45,7 +45,10 @@ export interface Car {
   image_url: string; // رابط الصورة الرئيسية
   condition: CarCondition; // جودة العربية
   is_featured: boolean; // مميزة (تعرض badge "قيدوي")
-  assigned_to: string[]; // ['all'] أو ['username1', 'username2']
+  // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل
+  // حتى لو المستخدم ما عملش onboarding لسه.
+  // ['all'] = لكل المستخدمين، ['uid1', 'uid2'] = لهؤلاء بس
+  assigned_to: string[];
   created_at: Timestamp | null;
   updated_at: Timestamp | null;
 }

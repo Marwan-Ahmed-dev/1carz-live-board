@@ -11,11 +11,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.role == 'admin';
     }
 
-    // جلب username للمستخدم الحالي (للتحقق من assignment)
-    function getUserName(uid) {
-      return get(/databases/$(database)/documents/users/$(uid)).data.username;
-    }
-
     // ============== Users Collection ==============
     // المستخدم يمكنه قراءة / كتابة ملفه الشخصي فقط
     // الأدمن يقدر يقرأ ويعدل ويحذف كل الملفات
@@ -32,14 +27,12 @@ service cloud.firestore {
     }
 
     // ============== Cars Collection ==============
-    // المستخدم العادي: يقرأ العربيات النشطة المخصصة له أو 'all'
-    // الأدمن: قراءة / كتابة / حذف الكل
+    // ✅ FIX: بنستخدم الـ UID بدل الـ username للـ assignment.
+    // ده بيسمح للأدمن إنه يخصص عربيات لمستخدمين حتى لو ما عملوش onboarding لسه.
+    // 'all' = كل المستخدمين، uid = مستخدم محدد
     match /cars/{carId} {
-      // التحقق من أن العربية مخصصة للمستخدم
       function isAssignedToMe() {
-        let myName = getUserName(request.auth.uid);
-        return myName != null
-          && (resource.data.assigned_to.hasAny([myName, 'all']));
+        return resource.data.assigned_to.hasAny([request.auth.uid, 'all']);
       }
 
       allow read: if isAdmin() || (

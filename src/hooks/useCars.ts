@@ -8,7 +8,7 @@ import { Car, PriorityFilter } from '@/lib/types';
 
 export interface UseCarsOptions {
   priority?: PriorityFilter; // فلتر الأولوية (all, mine, top, high, medium, low)
-  username?: string | null; // اسم المستخدم الحالي (للـ 'mine' filter)
+  uid?: string | null; // الـ UID للمستخدم الحالي (للـ 'mine' filter)
   minPrice?: number;
   maxPrice?: number;
 }
@@ -44,9 +44,12 @@ export function useCars(opts: UseCarsOptions = {}) {
     if (opts.priority && opts.priority !== 'all' && opts.priority !== 'mine') {
       filtered = filtered.filter((c) => c.priority === opts.priority);
     }
-    // فلتر 'mine' - اعرض فقط العربيات المخصصة للمستخدم أو 'all'
-    if (opts.priority === 'mine' && opts.username) {
-      filtered = filtered.filter((c) => c.assigned_to.includes(opts.username!) || c.assigned_to.includes('all'));
+    // ✅ FIX: فلتر 'mine' يستخدم الـ UID (مش الـ username) عشان
+    // الـ assigned_to مخزّن بـ UIDs
+    if (opts.priority === 'mine' && opts.uid) {
+      filtered = filtered.filter(
+        (c) => c.assigned_to.includes(opts.uid!) || c.assigned_to.includes('all')
+      );
     }
     // فلتر السعر (fallback لو ما استخدمتش query في subscribe)
     if (opts.minPrice != null) {
@@ -56,7 +59,7 @@ export function useCars(opts: UseCarsOptions = {}) {
       filtered = filtered.filter((c) => c.price <= opts.maxPrice!);
     }
     return filtered;
-  }, [allCars, opts.priority, opts.username, opts.minPrice, opts.maxPrice]);
+  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice]);
 
   return { cars, allCars, loading, error };
 }
