@@ -1,0 +1,229 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Plus,
+  Edit3,
+  Trash2,
+  Search,
+  Star,
+  Flame,
+  ChevronUp,
+  ChevronDown,
+  AlertCircle,
+} from 'lucide-react';
+import { subscribeToCars, deleteCar } from '@/lib/cars';
+import { Car, Priority } from '@/lib/types';
+import { LoadingState } from '@/components/LoadingState';
+import { EmptyState } from '@/components/EmptyState';
+import { useToast } from '@/hooks/useToast';
+
+const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string }> = {
+  top: { label: 'قصوى', icon: Flame, color: 'text-orange-400 bg-orange-500/15' },
+  high: { label: 'عالية', icon: Star, color: 'text-amber-400 bg-amber-500/15' },
+  medium: { label: 'متوسطة', icon: ChevronUp, color: 'text-slate-300 bg-slate-500/15' },
+  low: { label: 'منخفضة', icon: ChevronDown, color: 'text-slate-500 bg-slate-700/30' },
+};
+
+function formatPrice(price: number): string {
+  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(price);
+}
+
+export default function AdminCarsPage() {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [cars, setCars] = useState<Car[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToCars((c) => {
+      setCars(c);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // فلترة + بحث
+  const filtered = useMemo(() => {
+    let list = cars;
+    if (priorityFilter !== 'all') {
+      list = list.filter((c) => c.priority === priorityFilter);
+    }
+    if (search.trim()) {
+      const s = search.trim().toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.title.toLowerCase().includes(s) ||
+          c.code.toLowerCase().includes(s) ||
+          c.description.toLowerCase().includes(s)
+      );
+    }
+    return list;
+  }, [cars, priorityFilter, search]);
+
+  const handleDelete = async (id: string, title: string) => {
+    if (!confirm(`هل تريد حذف "${title}"؟\nهذا الإجراء لا يمكن التراجع عنه.`)) return;
+    setDeletingId(id);
+    try {
+      await deleteCar(id);
+      showToast('تم حذف العربية بنجاح', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'فشل الحذف', 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-admin-text">إدارة العربيات</h1>
+          <p className="text-sm text-admin-text-muted mt-1">
+            {filtered.length} من {cars.length} عربية
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/admin/cars/new')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm transition-colors"
+        >
+          <Plus size={18} />
+          <span className="hidden sm:inline">عربية جديدة</span>
+          <span className="sm:hidden">إضافة</span>
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-admin-card border border-admin-border rounded-2xl p-3 space-y-3">
+        {/* Search */}
+        <div className="relative">
+          <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-admin-text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ابحث بالعنوان أو الكود..."
+            className="w-full pr-9 pl-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-sm"
+          />
+        </div>
+
+        {/* Priority pills */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {(['all', 'top', 'high', 'medium', 'low'] as const).map((p) => {
+            const active = priorityFilter === p;
+            return (
+              <button
+                key={p}
+                onClick={() => setPriorityFilter(p)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${
+                  active
+                    ? 'bg-admin-accent text-admin-bg'
+                    : 'bg-admin-bg text-admin-text-muted border border-admin-border hover:text-admin-text'
+                }`}
+              >
+                {p === 'all' ? 'الكل' : PRIORITY_META[p as Priority].label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && <LoadingState count={4} variant="list" />}
+
+      {/* Empty */}
+      {!loading && filtered.length === 0 && (
+        <EmptyState
+          title={cars.length === 0 ? 'لا توجد عربيات' : 'لا توجد نتائج'}
+          description={
+            cars.length === 0
+              ? 'ابدأ بإضافة أول عربية للوحة التحكم'
+              : 'جرب تغيير الفلتر أو مصطلح البحث'
+          }
+        />
+      )}
+
+      {/* List */}
+      {!loading && filtered.length > 0 && (
+        <div className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden">
+          <ul className="divide-y divide-admin-border">
+            {filtered.map((c) => {
+              const meta = PRIORITY_META[c.priority];
+              const Icon = meta.icon;
+              return (
+                <li key={c.id} className="p-3 hover:bg-admin-bg transition-colors">
+                  <div className="flex items-start gap-3">
+                    {/* صورة */}
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
+                      {c.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                      )}
+                    </div>
+
+                    {/* معلومات */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-1.5 mb-1">
+                        <h3 className="text-sm sm:text-base font-bold text-admin-text truncate flex-1">
+                          {c.title}
+                        </h3>
+                        {c.is_featured && <Star size={14} className="text-admin-accent flex-shrink-0" fill="currentColor" />}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
+                        <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
+                          {c.code}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}>
+                          <Icon size={10} />
+                          {meta.label}
+                        </span>
+                        {c.status !== 'active' && (
+                          <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 font-bold">
+                            {c.status === 'reserved' ? 'محجوزة' : c.status === 'sold' ? 'مباعة' : 'غير معروضة'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="badge-number text-base sm:text-lg font-bold text-admin-accent">
+                        {formatPrice(c.price)} <span className="text-xs font-medium text-admin-text-muted">ج.م</span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
+                        className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors"
+                        aria-label="تعديل"
+                      >
+                        <Edit3 size={16} className="text-admin-text-muted" />
+                      </button>
+                      <button
+                        onClick={() => c.id && handleDelete(c.id, c.title)}
+                        disabled={deletingId === c.id}
+                        className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
+                        aria-label="حذف"
+                      >
+                        {deletingId === c.id ? (
+                          <AlertCircle size={16} className="text-red-400 animate-pulse" />
+                        ) : (
+                          <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

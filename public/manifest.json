@@ -1,0 +1,44 @@
+{
+  "name": "1CARZ LIVE BOARD",
+  "short_name": "1CARZ",
+  "description": "لوحة العربيات الحية - تطبيق عرض السيارات",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF7F0",
+  "theme_color": "#FCD34D",
+  "categories": ["business", "lifestyle", "shopping"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "كل العربيات",
+      "short_name": "الكل",
+      "description": "عرض كل العربيات المتاحة",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "عربياتي",
+      "short_name": "عربياتي",
+      "description": "العربيات المخصصة لك",
+      "url": "/3arabyatna",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

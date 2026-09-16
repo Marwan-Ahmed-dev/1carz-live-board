@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'admin';
+    }
+
+    // جلب username للمستخدم الحالي (للتحقق من assignment)
+    function getUserName(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.username;
+    }
+
+    // ============== Users Collection ==============
+    // المستخدم يمكنه قراءة / كتابة ملفه الشخصي فقط
+    // الأدمن يقدر يقرأ ويعدل ويحذف كل الملفات
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == uid
+                    && request.resource.data.uid == uid;
+      // التحديث: لا يمكن تغيير uid أو email أو created_at
+      allow update: if isSignedIn() && request.auth.uid == uid
+                    && !('uid' in request.resource.data.diff(resource.data).affectedKeys())
+                    && !('email' in request.resource.data.diff(resource.data).affectedKeys())
+                    && !('created_at' in request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if isAdmin();
+    }
+
+    // ============== Cars Collection ==============
+    // المستخدم العادي: يقرأ العربيات النشطة المخصصة له أو 'all'
+    // الأدمن: قراءة / كتابة / حذف الكل
+    match /cars/{carId} {
+      // التحقق من أن العربية مخصصة للمستخدم
+      function isAssignedToMe() {
+        let myName = getUserName(request.auth.uid);
+        return myName != null
+          && (resource.data.assigned_to.hasAny([myName, 'all']));
+      }
+
+      allow read: if isAdmin() || (
+        isSignedIn()
+        && resource.data.status == 'active'
+        && isAssignedToMe()
+      );
+
+      // الكتابة للأدمن فقط
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

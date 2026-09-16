@@ -1,0 +1,13 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/3arabyatna/page": "app/3arabyatna/page.js",
+  "/car/[id]/page": "app/car/[id]/page.js",
+  "/login/page": "app/login/page.js",
+  "/onboarding/page": "app/onboarding/page.js",
+  "/page": "app/page.js",
+  "/admin/cars/[id]/page": "app/admin/cars/[id]/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/admin/cars/new/page": "app/admin/cars/new/page.js",
+  "/admin/cars/page": "app/admin/cars/page.js",
+  "/admin/users/page": "app/admin/users/page.js"
+}

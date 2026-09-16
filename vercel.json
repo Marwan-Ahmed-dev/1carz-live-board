@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["fra1"],
+  "buildCommand": "next build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "outputDirectory": ".next",
+  "rewrites": [
+    { "source": "/sw.js", "destination": "/sw.js" },
+    { "source": "/manifest.json", "destination": "/manifest.json" },
+    { "source": "/icons/:path*", "destination": "/icons/:path*" }
+  ]
+}
