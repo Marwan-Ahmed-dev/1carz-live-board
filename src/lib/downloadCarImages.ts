@@ -1,4 +1,12 @@
 const FETCH_TIMEOUT_MS = 25000;
+const DOWNLOAD_GAP_MS = 550;
+
+function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent || ""
+  );
+}
 
 function crc32(bytes: Uint8Array): number {
   let crc = ~0;
@@ -28,6 +36,10 @@ function concatBytes(parts: Uint8Array[]): Uint8Array {
     offset += p.length;
   }
   return out;
+}
+
+function bytesToBlobPart(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 function createZip(files: Array<{ name: string; data: Uint8Array }>): Blob {
@@ -92,42 +104,43 @@ function createZip(files: Array<{ name: string; data: Uint8Array }>): Blob {
     u16(0),
   ]);
 
-  const zipBytes = concatBytes([localPart, centralPart, end]);
-  const zipBuffer = zipBytes.buffer.slice(
-    zipBytes.byteOffset,
-    zipBytes.byteOffset + zipBytes.byteLength
-  ) as ArrayBuffer;
-  return new Blob([zipBuffer], { type: 'application/zip' });
+  return new Blob([bytesToBlobPart(concatBytes([localPart, centralPart, end]))], {
+    type: "application/zip",
+  });
 }
 
 function guessExt(blob: Blob, url: string): string {
-  const fromType = blob.type.split('/')[1];
-  if (fromType && /^[a-z0-9]+$/i.test(fromType) && !fromType.includes('octet')) {
-    return fromType === 'jpeg' ? 'jpg' : fromType;
+  const fromType = blob.type.split("/")[1];
+  if (fromType && /^[a-z0-9]+$/i.test(fromType) && !fromType.includes("octet")) {
+    return fromType === "jpeg" ? "jpg" : fromType;
   }
   const fromUrl = url.match(/\.(jpe?g|png|webp|gif|bmp)(?:$|\?)/i);
-  return fromUrl ? fromUrl[1].replace('jpeg', 'jpg').toLowerCase() : 'jpg';
+  return fromUrl ? fromUrl[1].replace("jpeg", "jpg").toLowerCase() : "jpg";
 }
 
 function safeBaseName(name: string): string {
-  const cleaned = name.replace(/[^\w\u0600-\u06FF-]+/g, '_').replace(/^_+|_+$/g, '');
-  return cleaned || 'car';
+  const cleaned = name.replace(/[^\w\u0600-\u06FF-]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || "car";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function triggerDownload(blob: Blob, filename: string) {
   const href = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = href;
   a.download = filename;
-  a.rel = 'noopener';
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 2000);
+  setTimeout(() => URL.revokeObjectURL(href), 8000);
 }
 
 function nextImageProxyUrl(imageUrl: string): string {
-  const params = new URLSearchParams({ url: imageUrl, w: '2048', q: '90' });
+  const params = new URLSearchParams({ url: imageUrl, w: "2048", q: "90" });
   return `/_next/image?${params.toString()}`;
 }
 
@@ -136,9 +149,9 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
       signal: controller.signal,
     });
   } finally {
@@ -149,16 +162,11 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
 async function blobFromResponse(res: Response): Promise<Blob> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
-  if (!blob || blob.size === 0) throw new Error('empty image');
+  if (!blob || blob.size === 0) throw new Error("empty image");
   return blob;
 }
 
-/**
- * Firebase getBlob hangs when Storage CORS is missing.
- * Try the public download URL, then the same-origin Next image proxy.
- */
 async function fetchImageBlob(url: string): Promise<Blob> {
-  // Same-origin first: Firebase Storage CORS blocks getBlob/fetch from the PWA origin.
   try {
     return await blobFromResponse(await fetchWithTimeout(nextImageProxyUrl(url), FETCH_TIMEOUT_MS));
   } catch {
@@ -170,23 +178,30 @@ async function fetchImageBlob(url: string): Promise<Blob> {
 export async function downloadAllCarImages(urls: string[], baseName: string): Promise<void> {
   const unique = [...new Set(urls.filter(Boolean))];
   if (unique.length === 0) {
-    throw new Error('لا توجد صور للتحميل');
+    throw new Error("لا توجد صور للتحميل");
   }
 
   const base = safeBaseName(baseName);
-  const files: Array<{ name: string; data: Uint8Array }> = [];
+  const mobile = isMobileDevice();
 
-  for (let i = 0; i < unique.length; i++) {
-    const url = unique[i];
-    const blob = await fetchImageBlob(url);
-    const data = new Uint8Array(await blob.arrayBuffer());
-    files.push({ name: `${base}-${i + 1}.${guessExt(blob, url)}`, data });
-  }
-
-  if (files.length === 1) {
-    triggerDownload(new Blob([files[0].data.buffer.slice(files[0].data.byteOffset, files[0].data.byteOffset + files[0].data.byteLength) as ArrayBuffer]), files[0].name);
+  if (!mobile && unique.length > 1) {
+    const files: Array<{ name: string; data: Uint8Array }> = [];
+    for (let i = 0; i < unique.length; i++) {
+      const blob = await fetchImageBlob(unique[i]);
+      files.push({
+        name: `${base}-${i + 1}.${guessExt(blob, unique[i])}`,
+        data: new Uint8Array(await blob.arrayBuffer()),
+      });
+    }
+    triggerDownload(createZip(files), `${base}-images.zip`);
     return;
   }
 
-  triggerDownload(createZip(files), `${base}-images.zip`);
+  for (let i = 0; i < unique.length; i++) {
+    const blob = await fetchImageBlob(unique[i]);
+    triggerDownload(blob, `${base}-${i + 1}.${guessExt(blob, unique[i])}`);
+    if (i < unique.length - 1) {
+      await sleep(DOWNLOAD_GAP_MS);
+    }
+  }
 }
