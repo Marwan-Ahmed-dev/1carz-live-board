@@ -1,7 +1,6 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import { Star, Car as CarIcon } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
 
@@ -47,11 +46,9 @@ function translatePriority(p: string): string {
 
 export function CarCard({ car }: CarCardProps) {
   const isFeatured = car.is_featured;
+  // ✅ FIX: الكارت مش pressable — لا hover scale، لا pointer، لا navigation
   return (
-    <Link
-      href={`/car/${car.id}`}
-      className="group block bg-bg-card hover:bg-bg-card-hover rounded-2xl overflow-hidden shadow-soft hover:shadow-medium border border-border-soft card-hover transition-all"
-    >
+    <div className="bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
       {/* Badge "قيدوي" للمميزة */}
       {isFeatured && (
         <div className="absolute z-10 m-2">
@@ -70,7 +67,7 @@ export function CarCard({ car }: CarCardProps) {
             alt={car.title}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            className="object-cover"
           />
         ) : (
           <div className="flex items-center justify-center w-full h-full">
@@ -92,17 +89,12 @@ export function CarCard({ car }: CarCardProps) {
             {car.description}
           </p>
         )}
-        <div className="flex items-center justify-between gap-2 text-xs text-text-muted mb-3">
+        <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span className="badge-number bg-bg-primary px-2 py-0.5 rounded">{car.code}</span>
           <span>{translateCondition(car.condition)}</span>
         </div>
-        <button
-          type="button"
-          className="w-full py-2 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
-        >
-          عرض التفاصيل
-        </button>
+        {/* ✅ FIX: شيلنا زرار "عرض التفاصيل" — الكارت بقى read-only */}
       </div>
-    </Link>
+    </div>
   );
 }

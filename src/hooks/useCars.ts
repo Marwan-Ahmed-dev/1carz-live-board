@@ -23,19 +23,19 @@ export function useCars(opts: UseCarsOptions = {}) {
 
   useEffect(() => {
     setLoading(true);
+    // ✅ FIX: مش بنبعت الـ price filter للسيرفر عشان Firestore بيحتاج
+    // composite index للـ where + orderBy. الفلتر بيتعمل client-side في useMemo تحت.
     const unsub = subscribeToCars(
       (cars) => {
         setAllCars(cars);
         setLoading(false);
       },
       {
-        minPrice: opts.minPrice,
-        maxPrice: opts.maxPrice,
         // priority filter نتعامل معاه client-side بعدين
       }
     );
     return () => unsub();
-  }, [opts.minPrice, opts.maxPrice]);
+  }, []);
 
   // فلترة client-side (security)
   const cars = useMemo(() => {

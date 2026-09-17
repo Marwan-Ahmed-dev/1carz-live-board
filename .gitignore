@@ -45,3 +45,6 @@ ui-debug.log
 logs/
 *.log
 .vercel
+
+# Firebase service account key (NEVER commit)
+scripts/serviceAccountKey.json

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCars, groupByPriority } from '@/hooks/useCars';
 import { Header } from '@/components/Header';
@@ -116,19 +115,6 @@ export default function HomePage() {
                 </section>
               );
             })}
-          </div>
-        )}
-
-        {/* زر سريع لـ 3arabyatna */}
-        {!loading && totalCount > 0 && (
-          <div className="pt-4 flex justify-center">
-            <button
-              onClick={() => router.push('/3arabyatna')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-bg-card hover:bg-bg-card-hover border border-border-soft text-text-secondary text-sm font-medium transition-colors"
-            >
-              <Heart size={16} className="text-accent-yellow-hover" />
-              <span>عربياتي فقط</span>
-            </button>
           </div>
         )}
       </main>

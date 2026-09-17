@@ -12,10 +12,14 @@ service cloud.firestore {
     }
 
     // ============== Users Collection ==============
-    // المستخدم يمكنه قراءة / كتابة ملفه الشخصي فقط
-    // الأدمن يقدر يقرأ ويعدل ويحذف كل الملفات
+    // ✅ FIX: بنسمح بالـ list queries للمستخدمين المسجلين عشان
+    // الـ username uniqueness check في الـ onboarding يشتغل.
+    // الـ get محصور على الملف الشخصي فقط (أو الأدمن).
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // قراءة ملف واحد: بس الملف بتاعك أو الأدمن
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // list/query: أي مستخدم مسجل (للتحقق من توفر username)
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == uid
                     && request.resource.data.uid == uid;
       // التحديث: لا يمكن تغيير uid أو email أو created_at
@@ -27,7 +31,7 @@ service cloud.firestore {
     }
 
     // ============== Cars Collection ==============
-    // ✅ FIX: بنستخدم الـ UID بدل الـ username للـ assignment.
+    // ✅ بنستخدم الـ UID بدل الـ username للـ assignment.
     // ده بيسمح للأدمن إنه يخصص عربيات لمستخدمين حتى لو ما عملوش onboarding لسه.
     // 'all' = كل المستخدمين، uid = مستخدم محدد
     match /cars/{carId} {
