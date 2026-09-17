@@ -11,13 +11,15 @@ interface PriorityButtonsProps {
 
 /**
  * شريط الأزرار الستة لتصفية الأولوية
- * [الكل]  [3arabyati]  [قصوى]  [عالية]  [متوسطة]  [منخفضة]
+ * [الكل]  [عربياتنا]  [قصوى]  [عالية]  [متوسطة]  [منخفضة]
+ *
+ * "عربياتنا" هو اختصار لـ "عربياتي" (my cars) — بيعرض العربيات المخصصة لي.
  */
 export function PriorityButtons({ current, onChange }: PriorityButtonsProps) {
   const router = useRouter();
   const buttons: Array<{ key: PriorityFilter; label: string; show?: boolean }> = [
     { key: 'all', label: 'الكل' },
-    { key: 'mine', label: '3arabyati' },
+    { key: 'mine', label: 'عربياتنا' },
     { key: 'top', label: 'قصوى' },
     { key: 'high', label: 'عالية' },
     { key: 'medium', label: 'متوسطة' },

@@ -1,9 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { Star, Car as CarIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Star, Car as CarIcon, Eye } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
 import { formatPrice, formatRelativeDate } from '@/lib/format';
+import { CopyButton } from '@/components/CopyButton';
 
 interface CarCardProps {
   car: CarType;
@@ -37,10 +39,14 @@ function translatePriority(p: string): string {
 }
 
 export function CarCard({ car }: CarCardProps) {
+  const router = useRouter();
   const isFeatured = car.is_featured;
   const additionalCount = car.additional_images?.length || 0;
   const totalImages = (car.image_url ? 1 : 0) + additionalCount;
-  // ✅ FIX: الكارت مش pressable — لا hover scale، لا pointer، لا navigation
+
+  // نص "نسخ" — عنوان + سعر + كود
+  const copyText = `${car.title} - ${formatPrice(car.price)} ج.م (كود: ${car.code})`;
+
   return (
     <div className="bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
       {/* Badge "قيدوي" للمميزة */}
@@ -105,7 +111,25 @@ export function CarCard({ car }: CarCardProps) {
             {formatRelativeDate(car.created_at)}
           </div>
         )}
-        {/* ✅ FIX: شيلنا زرار "عرض التفاصيل" — الكارت بقى read-only */}
+
+        {/* ✅ FIX: أزرار تحت الكارت — عرض التفاصيل + نسخ الكود + نسخ التفاصيل */}
+        <div className="mt-2 flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (car.id) router.push(`/car/${car.id}`);
+            }}
+            className="flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-[11px] sm:text-xs font-bold transition-colors cursor-pointer"
+            aria-label="عرض التفاصيل"
+          >
+            <Eye size={12} className="sm:hidden" />
+            <Eye size={14} className="hidden sm:inline" />
+            <span>عرض التفاصيل</span>
+          </button>
+          <CopyButton text={car.code} label="كود" size="sm" />
+          <CopyButton text={copyText} label="نسخ" size="sm" />
+        </div>
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     const unsub = subscribeToUsers((all) => {
       // ✅ FIX: بنعرض كل المستخدمين، مش بس الـ onboarded
       // (الـ assignment بيستخدم الـ UID اللي موجود لكل user)
+      console.log('[UserAssignmentSelector] users snapshot:', all.length, all.map((u) => u.uid));
       setUsers(all);
       setLoading(false);
     });
@@ -139,8 +140,8 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
             ) : filteredUsers.length === 0 ? (
               <div className="p-4 text-center text-admin-text-muted text-sm">
                 {users.length === 0
-                  ? 'لا يوجد مستخدمين مسجلين بعد — ادعُ المستخدمين من خلال تسجيل الدخول'
-                  : 'لا توجد نتائج'}
+                  ? 'لا يوجد مستخدمين مسجلين بعد — اطلب من المستخدمين تسجيل الدخول أولاً'
+                  : 'لا توجد نتائج — جرّب كلمة بحث أخرى'}
               </div>
             ) : (
               <ul className="divide-y divide-admin-border">

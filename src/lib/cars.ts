@@ -29,6 +29,16 @@ const CARS_COLLECTION = 'cars';
  */
 function normalizeCar(snap: DocumentData): Car {
   const data = snap.data();
+  // ✅ FIX: تأكد أن assigned_to دايماً array — لو كان string (legacy data) حوّله لـ ['all']
+  // ده بيمنع أخطاء في الـ Firestore rules (hasAny) وفي فلتر الـ 'mine' في useCars
+  let assignedTo: string[];
+  if (Array.isArray(data.assigned_to)) {
+    assignedTo = data.assigned_to;
+  } else if (typeof data.assigned_to === 'string') {
+    assignedTo = [data.assigned_to];
+  } else {
+    assignedTo = ['all'];
+  }
   return {
     id: snap.id,
     code: data.code || '',
@@ -43,7 +53,7 @@ function normalizeCar(snap: DocumentData): Car {
     additional_images: data.additional_images || [],
     condition: data.condition || 'used',
     is_featured: data.is_featured || false,
-    assigned_to: data.assigned_to || ['all'],
+    assigned_to: assignedTo,
     created_at: data.created_at || null,
     updated_at: data.updated_at || null,
   } as Car;

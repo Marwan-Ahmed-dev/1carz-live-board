@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { use } from 'react';
+import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -12,16 +11,23 @@ import { CarForm } from '@/components/admin/CarForm';
 import { NewCarInput, Car } from '@/lib/types';
 import { useToast } from '@/hooks/useToast';
 
-export default function EditCarPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditCarPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
   const router = useRouter();
   const { showToast } = useToast();
-  const { id } = use(params);
+  // ✅ FIX: بنتعامل مع params سواء كان Promise (Next.js 15) أو object مباشر (Next.js 14)
+  // الـ use() بيقبل both — لو object عادي بيرجعه زي ما هو
+  const resolvedParams = use(params as any) as { id: string };
+  const id = resolvedParams?.id;
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setError('معرّف العربية غير موجود');
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const c = await fetchCar(id);
@@ -31,6 +37,7 @@ export default function EditCarPage({ params }: { params: Promise<{ id: string }
           setCar(c);
         }
       } catch (err: any) {
+        console.error('[EditCarPage] failed to load car:', err);
         setError(err.message || 'فشل تحميل العربية');
       } finally {
         setLoading(false);

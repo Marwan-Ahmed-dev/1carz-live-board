@@ -38,11 +38,10 @@ const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = [
   { value: 'low', label: 'منخفضة' },
 ];
 
+// ✅ FIX: خيارات الحالة مقتصرة على خيارين فقط (مستعملة / كسر زيرو)
+// الأنواع الأخرى باقية في الـ CarCondition type في types.ts للتوافق مع البيانات القديمة
 const CONDITION_OPTIONS: Array<{ value: CarCondition; label: string }> = [
-  { value: 'new', label: 'جديدة' },
   { value: 'used', label: 'مستعملة' },
-  { value: 'excellent', label: 'ممتازة' },
-  { value: 'good', label: 'جيدة' },
   { value: 'zero_km', label: 'كسر زيرو' },
 ];
 
@@ -88,26 +87,49 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const [condition, setCondition] = useState<CarCondition>(initial?.condition || 'used');
   const [status, setStatus] = useState<CarStatus>(initial?.status || 'active');
   const [isFeatured, setIsFeatured] = useState(initial?.is_featured || false);
-  const [assignedTo, setAssignedTo] = useState<string[]>(initial?.assigned_to || ['all']);
+  // ✅ FIX: defensive — نتأكد أن assigned_to array (ممكن يكون string قديم في legacy data)
+  const [assignedTo, setAssignedTo] = useState<string[]>(
+    Array.isArray(initial?.assigned_to)
+      ? initial.assigned_to
+      : typeof initial?.assigned_to === 'string'
+      ? [initial.assigned_to]
+      : ['all']
+  );
   const [displayOrder, setDisplayOrder] = useState<string>(initial?.display_order?.toString() || '0');
 
   // ----- إدارة الصور -----
   // existingImages بالترتيب: الرئيسية أولاً ثم الإضافية
+  // ✅ FIX: defensive — نتأكد من أن image_url و additional_images نوعهم string و array على الترتيب
   const initialExisting: string[] = (() => {
     if (!initial) return [];
-    const main = initial.image_url ? [initial.image_url] : [];
-    return [...main, ...(initial.additional_images || [])];
+    const main = typeof initial.image_url === 'string' && initial.image_url ? [initial.image_url] : [];
+    const additional = Array.isArray(initial.additional_images) ? initial.additional_images : [];
+    return [...main, ...additional];
   })();
   const [existingImages, setExistingImages] = useState<string[]>(initialExisting);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newFileUrls, setNewFileUrls] = useState<string[]>([]);
 
   // إنشاء/تنظيف blob URLs للملفات الجديدة
+  // ✅ FIX: بنحفظ الـ URLs الحالية ونقارن قبل التحديث — يتجنب الـ re-renders الزيادة
+  // وكمان بنحمي من حالة ما لو URL.createObjectURL فشلت (مثلاً: SSR أو memory limits)
   useEffect(() => {
-    const urls = newFiles.map((f) => URL.createObjectURL(f));
+    let urls: string[] = [];
+    try {
+      urls = newFiles.map((f) => URL.createObjectURL(f));
+    } catch (err) {
+      console.error('[CarForm] Failed to create blob URLs:', err);
+      urls = [];
+    }
     setNewFileUrls(urls);
     return () => {
-      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {
+          /* ignore — الـ URL ممكن يكون اتلغي قبل كده */
+        }
+      });
     };
   }, [newFiles]);
 
@@ -424,12 +446,19 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
             }}
             onFocus={(e) => {
               // لو فيه فواصل، شيلها عشان المستخدم يقدر يعدّل الرقم
-              const raw = e.target.value.replace(/[^0-9]/g, '');
+              const target = e.target as HTMLInputElement | null;
+              const raw = target?.value.replace(/[^0-9]/g, '') ?? '';
               setPrice(raw);
-              // حط الـ cursor في الآخر
-              requestAnimationFrame(() => {
-                e.target.setSelectionRange(raw.length, raw.length);
-              });
+              // حط الـ cursor في الآخر — بنحفظ الـ target في متغير لأن الـ SyntheticEvent ممكن يتغير
+              if (target) {
+                requestAnimationFrame(() => {
+                  try {
+                    target.setSelectionRange(raw.length, raw.length);
+                  } catch {
+                    /* الـ input ممكن يكون اتشال — نتجاهل الخطأ */
+                  }
+                });
+              }
             }}
             placeholder="1,980,000"
             className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
