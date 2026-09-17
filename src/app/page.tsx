@@ -109,7 +109,7 @@ export default function HomePage() {
                   </div>
 
                   {/* شبكة العربيات */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
                     {list.map((car) => (
                       <CarCard key={car.id} car={car} />
                     ))}
@@ -128,7 +128,7 @@ export default function HomePage() {
                     {normalCars.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
                   {normalCars.map((car) => (
                     <CarCard key={car.id} car={car} />
                   ))}

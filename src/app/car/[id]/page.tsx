@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -14,13 +14,17 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Share2,
+  Maximize2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
 import { Car as CarType, CarStatus, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
-import { formatPrice } from '@/lib/format';
+import { CopyButton } from '@/components/CopyButton';
+import { Lightbox } from '@/components/Lightbox';
+import { formatPrice, formatRelativeDate, formatFullDate } from '@/lib/format';
 
 const STATUS_META: Record<CarStatus, { label: string; color: string }> = {
   active: { label: 'متاحة', color: 'bg-green-100 text-green-700' },
@@ -37,19 +41,12 @@ const CONDITION_META: Record<CarCondition, string> = {
   zero_km: 'كسر زيرو',
 };
 
-function formatDate(timestamp: any): string {
-  if (!timestamp) return '-';
-  try {
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return new Intl.DateTimeFormat('ar-EG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(date);
-  } catch {
-    return '-';
-  }
-}
+const PRIORITY_META: Record<string, string> = {
+  top: 'قصوى',
+  high: 'عالية',
+  medium: 'متوسطة',
+  low: 'منخفضة',
+};
 
 export default function CarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -58,6 +55,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // unwrap params (Next.js 14+ dynamic API)
   const { id } = use(params);
@@ -91,19 +89,28 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     setActiveImageIdx(0);
   }, [car?.id]);
 
+  // قائمة كل الصور (الرئيسية + الإضافية)
+  const allImages = useMemo(
+    () => (car ? [car.image_url, ...(car.additional_images || [])].filter(Boolean) : []),
+    [car]
+  );
+  const activeImage = allImages[activeImageIdx] || car?.image_url || '';
+
+  // رابط الـ WhatsApp للتواصل (مع الأدمن)
   const whatsappNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '';
-  const whatsappMessage = car
+  const contactMessage = car
     ? `استفسار عن العربية: ${car.title} (${car.code}) - السعر: ${formatPrice(car.price)} ج.م`
     : 'استفسار من تطبيق 1CARZ';
   const whatsappUrl = whatsappNumber
-    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`
+    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(contactMessage)}`
     : '#';
 
-  // قائمة كل الصور (الرئيسية + الإضافية)
-  const allImages: string[] = car
-    ? [car.image_url, ...(car.additional_images || [])].filter(Boolean)
-    : [];
-  const activeImage = allImages[activeImageIdx] || car?.image_url || '';
+  // رابط الـ WhatsApp SHARE (مشاركة عامة، بدون رقم محدد)
+  const shareMessage = car
+    ? `🚗 ${car.title}\n📋 كود: ${car.code}\n💰 السعر: ${formatPrice(car.price)} ج.م${car.description ? `\n\n${car.description}` : ''}\n\nمن تطبيق 1CARZ`
+    : 'عربية من تطبيق 1CARZ';
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`;
 
   if (authLoading) {
     return (
@@ -142,7 +149,10 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
             {/* Image Gallery */}
             <div className="space-y-2">
               {/* الصورة الرئيسية */}
-              <div className="relative w-full aspect-[16/10] bg-bg-card rounded-2xl overflow-hidden striped-bg">
+              <div
+                className="relative w-full aspect-[16/10] bg-bg-card rounded-2xl overflow-hidden striped-bg cursor-pointer group"
+                onClick={() => setLightboxOpen(true)}
+              >
                 {activeImage ? (
                   <Image
                     src={activeImage}
@@ -157,9 +167,25 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                     <CarIcon size={80} className="text-text-muted opacity-30" strokeWidth={1.5} />
                   </div>
                 )}
+                {/* زر تكبير (يظهر على hover) */}
+                {activeImage && (
+                  <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLightboxOpen(true);
+                      }}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors"
+                      aria-label="تكبير الصورة"
+                    >
+                      <Maximize2 size={16} />
+                    </button>
+                  </div>
+                )}
                 {/* Badge "قيدوي" */}
                 {car.is_featured && (
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 group-hover:opacity-0 transition-opacity">
                     <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
                       <Star size={14} fill="currentColor" />
                       قيدوي
@@ -168,24 +194,30 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 )}
                 {/* عداد الصور */}
                 {allImages.length > 1 && (
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 z-10">
                     <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-black/70 text-white text-xs font-bold backdrop-blur-sm">
                       {activeImageIdx + 1} / {allImages.length}
                     </span>
                   </div>
                 )}
-                {/* أزرار prev/next */}
+                {/* أزرار prev/next — لا تفتح الـ lightbox */}
                 {allImages.length > 1 && (
                   <>
                     <button
-                      onClick={() => setActiveImageIdx((idx) => (idx - 1 + allImages.length) % allImages.length)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIdx((idx) => (idx - 1 + allImages.length) % allImages.length);
+                      }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
                       aria-label="السابق"
                     >
                       <ChevronRight size={20} />
                     </button>
                     <button
-                      onClick={() => setActiveImageIdx((idx) => (idx + 1) % allImages.length)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIdx((idx) => (idx + 1) % allImages.length);
+                      }}
                       className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
                       aria-label="التالي"
                     >
@@ -223,9 +255,22 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
             {/* Title + Price */}
             <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
-              <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-3">
-                {car.title}
-              </h1>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <h1 className="text-2xl sm:text-3xl font-bold text-text-primary flex-1">
+                  {car.title}
+                </h1>
+                {/* زر مشاركة WhatsApp */}
+                <a
+                  href={whatsappShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition-colors flex-shrink-0"
+                  aria-label="مشاركة عبر واتساب"
+                  title="مشاركة عبر واتساب"
+                >
+                  <Share2 size={18} />
+                </a>
+              </div>
               <div className="price-display text-3xl sm:text-4xl text-accent-yellow-hover">
                 {formatPrice(car.price)} <span className="text-lg font-medium text-text-secondary">ج.م</span>
               </div>
@@ -233,13 +278,18 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
             {/* Meta grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* الكود — مع زر نسخ */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
-                <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
-                  <Tag size={14} />
-                  الكود
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                    <Tag size={14} />
+                    الكود
+                  </div>
+                  <CopyButton text={car.code} label="نسخ الكود" size="sm" />
                 </div>
                 <div className="badge-number text-sm font-bold text-text-primary">{car.code}</div>
               </div>
+              {/* الحالة */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
                 <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
                   <Shield size={14} />
@@ -247,18 +297,17 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 </div>
                 <div className="text-sm font-bold text-text-primary">{CONDITION_META[car.condition]}</div>
               </div>
+              {/* الأولوية */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
                 <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
                   <Star size={14} />
                   الأولوية
                 </div>
                 <div className="text-sm font-bold text-text-primary">
-                  {car.priority === 'top' && 'قصوى'}
-                  {car.priority === 'high' && 'عالية'}
-                  {car.priority === 'medium' && 'متوسطة'}
-                  {car.priority === 'low' && 'منخفضة'}
+                  {PRIORITY_META[car.priority]}
                 </div>
               </div>
+              {/* التوفر */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
                 <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
                   <Calendar size={14} />
@@ -272,17 +321,20 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
               </div>
             </div>
 
-            {/* Description */}
+            {/* Description — مع زر نسخ */}
             {car.description && (
               <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
-                <h3 className="text-sm font-bold text-text-secondary mb-2">الوصف</h3>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-bold text-text-secondary">الوصف</h3>
+                  <CopyButton text={car.description} label="نسخ الوصف" size="sm" variant="inline" />
+                </div>
                 <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
                   {car.description}
                 </p>
               </div>
             )}
 
-            {/* WhatsApp CTA */}
+            {/* WhatsApp CTA — للتواصل مع الأدمن */}
             {car.status === 'active' && (
               <a
                 href={whatsappUrl}
@@ -299,13 +351,28 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
               </a>
             )}
 
-            {/* Timestamps */}
-            <div className="text-center text-xs text-text-muted pt-2">
-              أُضيفت في {formatDate(car.created_at)}
-            </div>
+            {/* Timestamps — تاريخ نسبي + hover للتفاصيل */}
+            {car.created_at && (
+              <div
+                className="text-center text-xs text-text-muted pt-2"
+                title={formatFullDate(car.created_at)}
+              >
+                {formatRelativeDate(car.created_at)}
+              </div>
+            )}
           </>
         )}
       </main>
+
+      {/* Lightbox */}
+      {lightboxOpen && car && allImages.length > 0 && (
+        <Lightbox
+          images={allImages}
+          startIndex={activeImageIdx}
+          alt={car.title}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }
