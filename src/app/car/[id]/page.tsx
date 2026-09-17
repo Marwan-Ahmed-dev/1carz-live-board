@@ -76,15 +76,24 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
 
   // Subscribe to car
   useEffect(() => {
-    if (!id) return;
+    if (!id || authLoading || !user) return;
     setLoading(true);
-    const unsub = subscribeToCar(id, (c) => {
-      setCar(c);
-      setLoading(false);
-      if (!c) setError('العربية غير موجودة');
-    });
+    setError(null);
+    const unsub = subscribeToCar(
+      id,
+      (c) => {
+        setCar(c);
+        setLoading(false);
+        if (!c) setError('العربية غير موجودة');
+      },
+      (err) => {
+        setLoading(false);
+        setCar(null);
+        setError(err.message?.includes('permission') ? 'لا تملك صلاحية لرؤية هذه العربية' : 'تعذر تحميل العربية');
+      }
+    );
     return () => unsub();
-  }, [id]);
+  }, [id, user, authLoading]);
 
   // Reset active image when car changes
   useEffect(() => {
@@ -111,10 +120,13 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const shareMessage = car
     ? `🚗 ${car.title}\n📋 كود: ${car.code}\n💰 السعر: ${formatPrice(car.price)} ج.م${car.description ? `\n\n${car.description}` : ''}\n\nمن تطبيق 1CARZ`
     : 'عربية من تطبيق 1CARZ';
-  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const [shareUrl, setShareUrl] = useState('');
+  useEffect(() => {
+    setShareUrl(window.location.href);
+  }, [id]);
   const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`;
 
-  if (authLoading) {
+  if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 size={32} className="animate-spin text-accent-yellow" />
@@ -187,7 +199,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                 )}
                 {/* Badge "قيدوي" */}
                 {car.is_featured && (
-                  <div className="absolute top-3 right-3 group-hover:opacity-0 transition-opacity">
+                  <div className="absolute bottom-3 right-3 z-10">
                     <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
                       <Star size={14} fill="currentColor" />
                       قيدوي

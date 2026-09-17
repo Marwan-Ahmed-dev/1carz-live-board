@@ -97,9 +97,13 @@ export async function uploadCarImages(
 /**
  * حذف صورة من Storage بالـ URL
  */
-export async function deleteCarImage(imageUrl: string): Promise<void> {
+export async function deleteCarImage(imageUrlOrPath: string): Promise<void> {
   try {
-    const storageRef = ref(storage, imageUrl);
+    const path = imageUrlOrPath.startsWith('http')
+      ? extractStoragePath(imageUrlOrPath)
+      : imageUrlOrPath;
+    if (!path) return;
+    const storageRef = ref(storage, path);
     await deleteObject(storageRef);
   } catch (err) {
     console.error('Failed to delete image:', err);
@@ -136,4 +140,37 @@ export function extractStoragePath(imageUrl: string): string | null {
   } catch {
     return null;
   }
+}
+
+export interface CarImageSlotExisting {
+  kind: 'existing';
+  url: string;
+}
+
+export interface CarImageSlotNew {
+  kind: 'new';
+  file: File;
+}
+
+export type CarImageSlot = CarImageSlotExisting | CarImageSlotNew;
+
+/**
+ * يرفع الصور الجديدة ويحافظ على ترتيب الخانات (الموجودة + الجديدة مخلوطة).
+ */
+export async function resolveCarImages(
+  carId: string,
+  slots: CarImageSlot[]
+): Promise<{ main: string; additional: string[] }> {
+  const urls: string[] = [];
+  for (const slot of slots) {
+    if (slot.kind === 'existing') {
+      urls.push(slot.url);
+    } else {
+      urls.push(await uploadCarImage(slot.file, carId));
+    }
+  }
+  return {
+    main: urls[0] || '',
+    additional: urls.slice(1),
+  };
 }

@@ -2,11 +2,16 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // صور العربيات - قراءة عامة، كتابة للأدمن فقط
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+
     match /cars/{carId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.token.role == 'admin';
-      allow delete: if request.auth != null && request.auth.token.role == 'admin';
+      // Download URLs with tokens still work for <img>. Listing a folder
+      // must not be public — that leaked unpublished photos by car id.
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write, delete: if isAdmin();
     }
   }
 }

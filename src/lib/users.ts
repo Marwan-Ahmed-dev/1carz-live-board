@@ -15,10 +15,8 @@ import { db } from './firebase';
 import { AppUser } from './types';
 
 const USERS_COLLECTION = 'users';
+const USERNAMES_COLLECTION = 'usernames';
 
-/**
- * تحويل DocumentData إلى AppUser
- */
 function normalizeUser(snap: any): AppUser {
   const data = snap.data();
   return {
@@ -31,18 +29,17 @@ function normalizeUser(snap: any): AppUser {
   } as AppUser;
 }
 
-/**
- * جلب كل المستخدمين (لـ admin فقط)
- */
+/** مفتاح فريد غير حساس لحالة الأحرف، المسافات المتعددة تتحول لشرطة سفلية */
+export function normalizeUsernameKey(username: string): string {
+  return username.trim().replace(/\s+/g, '_').toLowerCase();
+}
+
 export async function fetchAllUsers(): Promise<AppUser[]> {
   const ref = collection(db, USERS_COLLECTION);
   const snap = await getDocs(ref);
   return snap.docs.map(normalizeUser);
 }
 
-/**
- * جلب المستخدمين الذين اختاروا username فقط
- */
 export async function fetchOnboardedUsers(): Promise<AppUser[]> {
   const ref = collection(db, USERS_COLLECTION);
   const q = query(ref, where('username', '!=', null));
@@ -50,20 +47,14 @@ export async function fetchOnboardedUsers(): Promise<AppUser[]> {
   return snap.docs.map(normalizeUser);
 }
 
-/**
- * التحقق من توفر اسم المستخدم (uniqueness check)
- */
 export async function checkUsernameAvailable(username: string): Promise<boolean> {
   if (!username || username.length < 3) return false;
-  const ref = collection(db, USERS_COLLECTION);
-  const q = query(ref, where('username', '==', username));
-  const snap = await getDocs(q);
-  return snap.empty;
+  const key = normalizeUsernameKey(username);
+  if (!key) return false;
+  const snap = await getDoc(doc(db, USERNAMES_COLLECTION, key));
+  return !snap.exists();
 }
 
-/**
- * Real-time listener على كل المستخدمين
- */
 export function subscribeToUsers(callback: (users: AppUser[]) => void): () => void {
   const ref = collection(db, USERS_COLLECTION);
   return onSnapshot(
@@ -78,35 +69,27 @@ export function subscribeToUsers(callback: (users: AppUser[]) => void): () => vo
   );
 }
 
-/**
- * تحديث last_seen عند فتح التطبيق
- */
 export async function touchLastSeen(uid: string): Promise<void> {
   const ref = doc(db, USERS_COLLECTION, uid);
   await updateDoc(ref, { last_seen: serverTimestamp() });
 }
 
-/**
- * البحث عن مستخدم بالـ username
- */
 export async function findUserByUsername(username: string): Promise<AppUser | null> {
-  const ref = collection(db, USERS_COLLECTION);
-  const q = query(ref, where('username', '==', username));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return normalizeUser(snap.docs[0]);
+  const key = normalizeUsernameKey(username);
+  const reserved = await getDoc(doc(db, USERNAMES_COLLECTION, key));
+  if (!reserved.exists()) return null;
+  const uid = reserved.data()?.uid as string | undefined;
+  if (!uid) return null;
+  const userSnap = await getDoc(doc(db, USERS_COLLECTION, uid));
+  if (!userSnap.exists()) return null;
+  return normalizeUser(userSnap);
 }
 
-/**
- * جلب عداد العربيات المخصصة لمستخدم معين
- */
-export async function countAssignedCars(username: string): Promise<number> {
-  // نستخدم client-side filter لأن Firestore ما يدعمش array contains OR بشكل مريح
-  // للـ MVP نُرجع كل العربيات ونحسب client-side
+export async function countAssignedCars(uid: string): Promise<number> {
   const ref = collection(db, 'cars');
   const snap = await getDocs(ref);
   return snap.docs.filter((d) => {
     const assigned = d.data().assigned_to || [];
-    return assigned.includes(username) || assigned.includes('all');
+    return assigned.includes(uid) || assigned.includes('all');
   }).length;
 }

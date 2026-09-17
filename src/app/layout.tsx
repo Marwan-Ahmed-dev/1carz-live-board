@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Cairo, Inter } from 'next/font/google';
 import { ToastProvider } from '@/hooks/useToast';
+import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import './globals.css';
 
 // خط عربي: Cairo
@@ -61,6 +62,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="1CARZ" />
       </head>
       <body className="font-arabic">
+        <ServiceWorkerRegister />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

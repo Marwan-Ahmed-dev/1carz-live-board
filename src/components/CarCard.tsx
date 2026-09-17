@@ -48,7 +48,7 @@ export function CarCard({ car }: CarCardProps) {
   const copyText = `${car.title} - ${formatPrice(car.price)} ج.م (كود: ${car.code})`;
 
   return (
-    <div className="bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
+    <div className="relative bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
       {/* Badge "قيدوي" للمميزة */}
       {isFeatured && (
         <div className="absolute z-10 m-1.5 sm:m-2">

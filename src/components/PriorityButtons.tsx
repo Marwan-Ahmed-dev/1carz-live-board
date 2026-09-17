@@ -19,7 +19,7 @@ export function PriorityButtons({ current, onChange }: PriorityButtonsProps) {
   const router = useRouter();
   const buttons: Array<{ key: PriorityFilter; label: string; show?: boolean }> = [
     { key: 'all', label: 'الكل' },
-    { key: 'mine', label: 'عربياتنا' },
+    { key: 'mine', label: 'عربياتي' },
     { key: 'top', label: 'قصوى' },
     { key: 'high', label: 'عالية' },
     { key: 'medium', label: 'متوسطة' },
@@ -34,7 +34,13 @@ export function PriorityButtons({ current, onChange }: PriorityButtonsProps) {
           return (
             <button
               key={b.key}
-              onClick={() => onChange(b.key)}
+              onClick={() => {
+                if (b.key === 'mine') {
+                  router.push('/3arabyatna');
+                  return;
+                }
+                onChange(b.key);
+              }}
               className={`px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                 active
                   ? 'bg-accent-yellow text-text-primary shadow-soft'

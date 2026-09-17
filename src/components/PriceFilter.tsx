@@ -20,8 +20,16 @@ export function PriceFilter({ onApply, initialMin, initialMax }: PriceFilterProp
   const [maxVal, setMaxVal] = useState<string>(initialMax?.toString() || '');
 
   const handleApply = () => {
-    const min = minVal ? parseFloat(minVal) : undefined;
-    const max = maxVal ? parseFloat(maxVal) : undefined;
+    const minRaw = minVal.trim() ? Number(minVal) : undefined;
+    const maxRaw = maxVal.trim() ? Number(maxVal) : undefined;
+    const min = minRaw != null && Number.isFinite(minRaw) ? minRaw : undefined;
+    const max = maxRaw != null && Number.isFinite(maxRaw) ? maxRaw : undefined;
+    if (min != null && max != null && min > max) {
+      onApply(max, min);
+      setMinVal(String(max));
+      setMaxVal(String(min));
+      return;
+    }
     onApply(min, max);
   };
 

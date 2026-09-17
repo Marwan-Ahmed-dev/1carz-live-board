@@ -42,10 +42,13 @@ export default function AdminCarsPage() {
   const [fixReport, setFixReport] = useState<CarFixReport | null>(null);
 
   useEffect(() => {
-    const unsub = subscribeToCars((c) => {
-      setCars(c);
-      setLoading(false);
-    });
+    const unsub = subscribeToCars(
+      (c) => {
+        setCars(c);
+        setLoading(false);
+      },
+      { onError: () => setLoading(false) }
+    );
     return () => unsub();
   }, []);
 
@@ -53,8 +56,9 @@ export default function AdminCarsPage() {
     if (!confirm(
       'سيتم فحص كل العربيات وإصلاح:\n' +
         '• assigned_to فاضي/ناقص → يتحوّل لـ [\'all\']\n' +
-        '• status ناقص أو \'inactive\' → يتحوّل لـ \'active\' (عشان المستخدمين يشوفوها)\n' +
-        "• 'sold' و 'reserved' ما هيتغيروش (متعمد من الأدمن)\n\n" +
+        '• usernames قديمة في assigned_to → تتحوّل لـ UIDs\n' +
+        '• status ناقص → يتحوّل لـ \'active\'\n' +
+        "• 'sold' و 'reserved' و 'inactive' ما هيتغيروش (متعمد من الأدمن)\n\n" +
         'متأكد؟'
     )) return;
     setFixing(true);

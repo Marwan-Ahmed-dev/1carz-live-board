@@ -2,7 +2,7 @@
 // نُهيّئ مرة واحدة فقط على مستوى الـ module (singleton pattern)
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
@@ -21,13 +21,5 @@ const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) 
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
-
-// نضبط persistence على browserLocalPersistence عشان "تذكرني" يشتغل
-// هذا الـ setPersistence يُستدعى مرة واحدة عند أول تحميل
-if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch((err) => {
-    console.error('Failed to set auth persistence:', err);
-  });
-}
 
 export default app;

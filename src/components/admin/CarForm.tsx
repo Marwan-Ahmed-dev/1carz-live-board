@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
-import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE } from '@/lib/storage';
+import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE, CarImageSlot } from '@/lib/storage';
 import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
 import { formatPriceInput, parsePriceInput } from '@/lib/format';
@@ -21,8 +21,7 @@ interface CarFormProps {
    */
   onSave: (
     data: NewCarInput,
-    keptExistingImages: string[],
-    newFiles: File[],
+    imageSlots: CarImageSlot[],
     removedExistingImages: string[]
   ) => Promise<void>;
   /** عنوان الـ form */
@@ -90,49 +89,37 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
       : ['all']
   );
 
-  // ----- إدارة الصور -----
-  // existingImages بالترتيب: الرئيسية أولاً ثم الإضافية
-  // ✅ FIX: defensive — نتأكد من أن image_url و additional_images نوعهم string و array على الترتيب
+  type FormImageSlot =
+    | { id: string; kind: 'existing'; url: string }
+    | { id: string; kind: 'new'; file: File; url: string };
+
   const initialExisting: string[] = (() => {
     if (!initial) return [];
     const main = typeof initial.image_url === 'string' && initial.image_url ? [initial.image_url] : [];
     const additional = Array.isArray(initial.additional_images) ? initial.additional_images : [];
     return [...main, ...additional];
   })();
-  const [existingImages, setExistingImages] = useState<string[]>(initialExisting);
-  const [newFiles, setNewFiles] = useState<File[]>([]);
-  const [newFileUrls, setNewFileUrls] = useState<string[]>([]);
 
-  // إنشاء/تنظيف blob URLs للملفات الجديدة
-  // ✅ FIX: بنحفظ الـ URLs الحالية ونقارن قبل التحديث — يتجنب الـ re-renders الزيادة
-  // وكمان بنحمي من حالة ما لو URL.createObjectURL فشلت (مثلاً: SSR أو memory limits)
+  const [slots, setSlots] = useState<FormImageSlot[]>(() =>
+    initialExisting.map((url, i) => ({ id: `existing-${i}`, kind: 'existing', url }))
+  );
+
   useEffect(() => {
-    let urls: string[] = [];
-    try {
-      urls = newFiles.map((f) => URL.createObjectURL(f));
-    } catch (err) {
-      console.error('[CarForm] Failed to create blob URLs:', err);
-      urls = [];
-    }
-    setNewFileUrls(urls);
     return () => {
-      urls.forEach((u) => {
-        try {
-          URL.revokeObjectURL(u);
-        } catch {
-          /* ignore — الـ URL ممكن يكون اتلغي قبل كده */
+      slots.forEach((s) => {
+        if (s.kind === 'new') {
+          try {
+            URL.revokeObjectURL(s.url);
+          } catch {
+            /* ignore */
+          }
         }
       });
     };
-  }, [newFiles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // previews = existing + new blob URLs
-  const newFilePreviews = useMemo(
-    () => [...existingImages, ...newFileUrls],
-    [existingImages, newFileUrls]
-  );
-
-  const totalImageCount = existingImages.length + newFiles.length;
+  const totalImageCount = slots.length;
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +128,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // validation لكل ملف
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       if (f.size > MAX_IMAGE_SIZE) {
@@ -154,43 +140,47 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
       }
     }
 
-    // validation للعدد الإجمالي
-    const newTotal = existingImages.length + newFiles.length + files.length;
+    const newTotal = slots.length + files.length;
     if (newTotal > MAX_CAR_IMAGES) {
       setError(
-        `الحد الأقصى ${MAX_CAR_IMAGES} صورة. ممكن تضيف ${MAX_CAR_IMAGES - existingImages.length - newFiles.length} فقط.`
+        `الحد الأقصى ${MAX_CAR_IMAGES} صورة. ممكن تضيف ${MAX_CAR_IMAGES - slots.length} فقط.`
       );
       return;
     }
 
     setError(null);
-    setNewFiles([...newFiles, ...files]);
-    // reset الـ input عشان يقدر يختار نفس الملف تاني
+    const added: FormImageSlot[] = files.map((file, i) => ({
+      id: `new-${Date.now()}-${i}`,
+      kind: 'new',
+      file,
+      url: URL.createObjectURL(file),
+    }));
+    setSlots((prev) => [...prev, ...added]);
     e.target.value = '';
   };
 
-  const removeExistingImage = (idx: number) => {
-    setExistingImages(existingImages.filter((_, i) => i !== idx));
+  const removeSlot = (idx: number) => {
+    setSlots((prev) => {
+      const target = prev[idx];
+      if (target?.kind === 'new') {
+        try {
+          URL.revokeObjectURL(target.url);
+        } catch {
+          /* ignore */
+        }
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
   };
 
-  const removeNewFile = (idx: number) => {
-    setNewFiles(newFiles.filter((_, i) => i !== idx));
-  };
-
-  const moveExistingImage = (idx: number, direction: 'up' | 'down') => {
-    const next = [...existingImages];
-    const target = direction === 'up' ? idx - 1 : idx + 1;
-    if (target < 0 || target >= next.length) return;
-    [next[idx], next[target]] = [next[target], next[idx]];
-    setExistingImages(next);
-  };
-
-  const moveNewFile = (idx: number, direction: 'up' | 'down') => {
-    const next = [...newFiles];
-    const target = direction === 'up' ? idx - 1 : idx + 1;
-    if (target < 0 || target >= next.length) return;
-    [next[idx], next[target]] = [next[target], next[idx]];
-    setNewFiles(next);
+  const moveSlot = (idx: number, direction: 'up' | 'down') => {
+    setSlots((prev) => {
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
   };
 
   const validate = (): string | null => {
@@ -215,8 +205,12 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
     }
     setSubmitting(true);
     try {
-      // حساب الصور اللي اتشالت من الـ existing
-      const removedExistingImages = initialExisting.filter((url) => !existingImages.includes(url));
+      const keptExisting = slots.filter((s) => s.kind === 'existing').map((s) => s.url);
+      const removedExistingImages = initialExisting.filter((url) => !keptExisting.includes(url));
+      const imageSlots: CarImageSlot[] = slots.map((s) =>
+        s.kind === 'existing' ? { kind: 'existing', url: s.url } : { kind: 'new', file: s.file }
+      );
+      const firstExisting = slots.find((s) => s.kind === 'existing');
 
       const data: NewCarInput = {
         code: code.trim(),
@@ -225,18 +219,13 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         description: description.trim(),
         priority,
         status,
-        image_url: existingImages[0] || '', // الرئيسية
-        additional_images: existingImages.slice(1), // الإضافية من الـ existing
+        image_url: firstExisting?.url || '',
+        additional_images: keptExisting.slice(firstExisting ? 1 : 0),
         condition,
         is_featured: isFeatured,
         assigned_to: assignedTo,
       };
-      // الـ parent مسؤول عن:
-      // 1. رفع newFiles للـ Storage
-      // 2. حذف removedExistingImages من الـ Storage
-      // 3. بناء القائمة النهائية (keptExistingImages + uploaded URLs)
-      // 4. تحديث الـ Firestore document
-      await onSave(data, existingImages, newFiles, removedExistingImages);
+      await onSave(data, imageSlots, removedExistingImages);
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء الحفظ');
       showToast(err.message || 'فشل الحفظ', 'error');
@@ -266,27 +255,24 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         </div>
 
         {/* شبكة الصور */}
-        {newFilePreviews.length > 0 && (
+        {slots.length > 0 && (
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-3">
-            {newFilePreviews.map((url, idx) => {
+            {slots.map((slot, idx) => {
               const isMain = idx === 0;
-              const isNewFile = idx >= existingImages.length;
-              const newFileIdx = isNewFile ? idx - existingImages.length : -1;
-              const existingIdx = isNewFile ? -1 : idx;
+              const isNewFile = slot.kind === 'new';
               return (
                 <div
-                  key={`${idx}-${url.slice(-20)}`}
+                  key={slot.id}
                   className={`relative aspect-square bg-admin-bg rounded-xl overflow-hidden striped-bg group border-2 ${
                     isMain ? 'border-admin-accent' : 'border-admin-border'
                   }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={url}
+                    src={slot.url}
                     alt={`صورة ${idx + 1}`}
                     className="w-full h-full object-cover"
                   />
-                  {/* شارة "رئيسية" */}
                   {isMain && (
                     <div className="absolute top-1 right-1">
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-admin-accent text-admin-bg text-[10px] font-bold">
@@ -294,7 +280,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
                       </span>
                     </div>
                   )}
-                  {/* شارة "جديدة" */}
                   {isNewFile && !isMain && (
                     <div className="absolute top-1 right-1">
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
@@ -302,44 +287,39 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
                       </span>
                     </div>
                   )}
-                  {/* أزرار التحكم */}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                    {/* تحريك لأعلى */}
                     {idx > 0 && (
                       <button
                         type="button"
-                        onClick={() => isNewFile ? moveNewFile(newFileIdx, 'up') : moveExistingImage(existingIdx, 'up')}
+                        onClick={() => moveSlot(idx, 'up')}
                         className="w-7 h-7 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-admin-bg"
                         aria-label="رفع"
                       >
                         <ArrowUp size={12} />
                       </button>
                     )}
-                    {/* تحريك لأسفل */}
-                    {idx < newFilePreviews.length - 1 && (
+                    {idx < slots.length - 1 && (
                       <button
                         type="button"
-                        onClick={() => isNewFile ? moveNewFile(newFileIdx, 'down') : moveExistingImage(existingIdx, 'down')}
+                        onClick={() => moveSlot(idx, 'down')}
                         className="w-7 h-7 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-admin-bg"
                         aria-label="إنزال"
                       >
                         <ArrowDown size={12} />
                       </button>
                     )}
-                    {/* حذف */}
                     <button
                       type="button"
-                      onClick={() => isNewFile ? removeNewFile(newFileIdx) : removeExistingImage(existingIdx)}
+                      onClick={() => removeSlot(idx)}
                       className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white"
                       aria-label="حذف"
                     >
                       <XCircle size={14} />
                     </button>
                   </div>
-                  {/* زر الحذف في الموبايل (دائماً ظاهر) */}
                   <button
                     type="button"
-                    onClick={() => isNewFile ? removeNewFile(newFileIdx) : removeExistingImage(existingIdx)}
+                    onClick={() => removeSlot(idx)}
                     className="sm:hidden absolute top-1 left-1 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white"
                     aria-label="حذف"
                   >

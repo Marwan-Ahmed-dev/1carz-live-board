@@ -21,7 +21,7 @@ const PRIORITY_META: Record<Priority, { label: string; accent: string }> = {
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, userData, loading: authLoading, needsOnboarding } = useAuth();
+  const { user, userData, loading: authLoading, needsOnboarding, error: authError } = useAuth();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
@@ -38,7 +38,7 @@ export default function HomePage() {
     }
   }, [user, authLoading, needsOnboarding, router]);
 
-  const { cars, loading } = useCars({
+  const { cars, loading, error } = useCars({
     priority: priorityFilter,
     uid: user?.uid,
     minPrice,
@@ -49,7 +49,26 @@ export default function HomePage() {
   const totalCount = cars.length;
 
   // حماية من عرض الصفحة قبل استقرار الـ auth
-  if (authLoading || !user || !userData || needsOnboarding) {
+  if (authLoading || !user || needsOnboarding) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingState count={6} />
+      </div>
+    );
+  }
+
+  if (authError && !userData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <EmptyState
+          title="تعذر تحميل الحساب"
+          description={authError}
+        />
+      </div>
+    );
+  }
+
+  if (!userData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingState count={6} />
@@ -78,8 +97,14 @@ export default function HomePage() {
         {/* حالة التحميل */}
         {loading && <LoadingState count={6} />}
 
-        {/* حالة فارغة */}
-        {!loading && totalCount === 0 && (
+        {!loading && error && (
+          <EmptyState
+            title="تعذر تحميل العربيات"
+            description="حصل خطأ أثناء جلب العربيات. حاول تحديث الصفحة."
+          />
+        )}
+
+        {!loading && !error && totalCount === 0 && (
           <EmptyState
             title="لا توجد عربيات حالياً"
             description="سيتم إضافة عربيات جديدة قريباً. تابعنا!"
@@ -87,7 +112,7 @@ export default function HomePage() {
         )}
 
         {/* الأقسام حسب الأولوية */}
-        {!loading && totalCount > 0 && (
+        {!loading && !error && totalCount > 0 && (
           <div className="space-y-6">
             {(['top', 'high', 'medium', 'low'] as Priority[]).map((p) => {
               const list = groups[p];

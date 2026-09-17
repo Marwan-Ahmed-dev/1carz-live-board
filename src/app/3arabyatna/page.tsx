@@ -39,9 +39,10 @@ export default function MyCarsPage() {
     }
   }, [user, authLoading, needsOnboarding, router]);
 
-  const { cars, loading } = useCars({
-    priority: priorityFilter,
+  const { cars, loading, error } = useCars({
+    priority: priorityFilter === 'mine' ? 'all' : priorityFilter,
     uid: user?.uid,
+    assignedOnly: true,
     minPrice,
     maxPrice,
   });
@@ -68,8 +69,8 @@ export default function MyCarsPage() {
             <Heart size={20} className="text-accent-yellow-hover" fill="currentColor" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-text-primary">عربياتنا</h1>
-            <p className="text-xs text-text-muted">كل العربيات المعروضة</p>
+            <h1 className="text-xl font-bold text-text-primary">عربياتي</h1>
+            <p className="text-xs text-text-muted">العربيات المخصصة لك</p>
           </div>
         </div>
 
@@ -89,17 +90,24 @@ export default function MyCarsPage() {
         {/* حالة التحميل */}
         {loading && <LoadingState count={6} />}
 
-        {/* حالة فارغة */}
-        {!loading && cars.length === 0 && (
+        {!loading && error && (
           <EmptyState
             icon={<Heart size={40} className="text-text-muted" strokeWidth={1.5} />}
-            title="لا توجد عربيات"
-            description="ستظهر هنا كل العربيات المتاحة في التطبيق"
+            title="تعذر تحميل العربيات"
+            description="حصل خطأ أثناء جلب العربيات. حاول تحديث الصفحة."
+          />
+        )}
+
+        {!loading && !error && cars.length === 0 && (
+          <EmptyState
+            icon={<Heart size={40} className="text-text-muted" strokeWidth={1.5} />}
+            title="لا توجد عربيات مخصصة لك"
+            description="عندما يعيّن لك الأدمن عربيات ستظهر هنا"
           />
         )}
 
         {/* عرض العربيات بنفس الـ grouping بالـ priority */}
-        {!loading && cars.length > 0 && (
+        {!loading && !error && cars.length > 0 && (
           <div className="space-y-6">
             {(['top', 'high', 'medium', 'low'] as Priority[]).map((p) => {
               const list = groupedByPriority[p];

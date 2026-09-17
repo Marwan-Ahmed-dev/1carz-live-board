@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { fetchCar } from '@/lib/cars';
-import { uploadCarImage, deleteCarImage, extractStoragePath } from '@/lib/storage';
+import { resolveCarImages, deleteCarImage, extractStoragePath, CarImageSlot } from '@/lib/storage';
 import { CarForm } from '@/components/admin/CarForm';
 import { NewCarInput, Car } from '@/lib/types';
 import { useToast } from '@/hooks/useToast';
@@ -47,32 +47,22 @@ export default function EditCarPage({ params }: { params: { id: string } }) {
 
   const handleSave = async (
     data: NewCarInput,
-    keptExistingImages: string[],
-    newFiles: File[],
+    imageSlots: CarImageSlot[],
     removedExistingImages: string[]
   ) => {
     if (!car) return;
 
-    // 1. رفع الملفات الجديدة (إن وُجدت)
-    const newUploadedUrls: string[] = [];
-    if (newFiles.length > 0) {
-      try {
-        const urls = await Promise.all(newFiles.map((f) => uploadCarImage(f, car.id!)));
-        newUploadedUrls.push(...urls);
-      } catch (imgErr: any) {
-        showToast('فشل رفع بعض الصور: ' + (imgErr.message || ''), 'error');
-        throw imgErr;
-      }
+    let main = '';
+    let additional: string[] = [];
+    try {
+      const resolved = await resolveCarImages(car.id!, imageSlots);
+      main = resolved.main;
+      additional = resolved.additional;
+    } catch (imgErr: any) {
+      showToast('فشل رفع بعض الصور: ' + (imgErr.message || ''), 'error');
+      throw imgErr;
     }
 
-    // 2. دمج الصور النهائية: existing المُحتفظ بها + الجديدة (بالترتيب)
-    // الأولى = الرئيسية، الباقي = إضافية
-    const finalImages = [...keptExistingImages, ...newUploadedUrls];
-    const finalMain = finalImages[0] || '';
-    const finalAdditional = finalImages.slice(1);
-
-    // 3. حذف الصور القديمة اللي المستخدم شالها من Storage
-    // (نعملها في الخلفية بدون ما نمنع الحفظ لو فشلت)
     if (removedExistingImages.length > 0) {
       Promise.all(
         removedExistingImages.map(async (url) => {
@@ -88,11 +78,10 @@ export default function EditCarPage({ params }: { params: { id: string } }) {
       ).catch((e) => console.error('Error deleting removed images:', e));
     }
 
-    // 4. تحديث العربية في Firestore
     await updateDoc(doc(db, 'cars', car.id!), {
       ...data,
-      image_url: finalMain,
-      additional_images: finalAdditional,
+      image_url: main,
+      additional_images: additional,
       updated_at: serverTimestamp(),
     });
 

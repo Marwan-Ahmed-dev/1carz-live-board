@@ -22,7 +22,7 @@ export function InstallPrompt({ show, isIOS, onInstall, onDismiss }: InstallProm
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-bg-card w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl p-6 shadow-medium modal-in">
+      <div className="bg-bg-card w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl p-6 shadow-medium modal-in relative">
         {/* زر الإغلاق */}
         <button
           onClick={onDismiss}

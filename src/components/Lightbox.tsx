@@ -24,6 +24,10 @@ interface LightboxProps {
 export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: LightboxProps) {
   const [idx, setIdx] = useState(startIndex);
 
+  useEffect(() => {
+    setIdx(startIndex);
+  }, [startIndex]);
+
   // منع الـ body scroll
   useEffect(() => {
     const original = document.body.style.overflow;

@@ -80,7 +80,10 @@ export function AdminHeader() {
         <nav className="hidden sm:flex items-center gap-1 overflow-x-auto no-scrollbar">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active =
+              item.href === '/admin/cars'
+                ? pathname === '/admin/cars' || /^\/admin\/cars\/[^/]+$/.test(pathname)
+                : pathname === item.href;
             return (
               <button
                 key={item.href}
@@ -102,7 +105,10 @@ export function AdminHeader() {
         <nav className="sm:hidden flex items-center gap-1 overflow-x-auto no-scrollbar -mx-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active =
+              item.href === '/admin/cars'
+                ? pathname === '/admin/cars' || /^\/admin\/cars\/[^/]+$/.test(pathname)
+                : pathname === item.href;
             return (
               <button
                 key={item.href}

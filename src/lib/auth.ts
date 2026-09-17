@@ -1,21 +1,35 @@
 // دوال مساعدة للمصادقة (Auth)
-// نُبسّط واجهة Firebase Auth ونضيف دوال مخصصة لمتطلبات المشروع
 
 import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   User,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+  updateDoc,
+  runTransaction,
+} from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { AppUser } from './types';
+import { normalizeUsernameKey } from './users';
 
 /**
  * تسجيل الدخول بـ email/password
- * يرج الـ User object في حالة النجاح، أو يرمي Error في حالة الفشل
+ * rememberMe=true → يبقى مسجّل بعد إغلاق المتصفح
  */
-export async function signIn(email: string, password: string): Promise<User> {
+export async function signIn(
+  email: string,
+  password: string,
+  rememberMe: boolean = true
+): Promise<User> {
   if (!email || !password) {
     throw new Error('البريد الإلكتروني وكلمة المرور مطلوبان');
   }
@@ -23,12 +37,19 @@ export async function signIn(email: string, password: string): Promise<User> {
     throw new Error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
   }
   try {
+    await setPersistence(
+      auth,
+      rememberMe ? browserLocalPersistence : browserSessionPersistence
+    );
     const cred = await signInWithEmailAndPassword(auth, email, password);
     return cred.user;
   } catch (err: any) {
-    // ترجمة رسائل الخطأ الشائعة للعربية
     const code = err?.code || '';
-    if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+    if (
+      code === 'auth/user-not-found' ||
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential'
+    ) {
       throw new Error('بيانات الدخول غير صحيحة');
     }
     if (code === 'auth/too-many-requests') {
@@ -41,17 +62,10 @@ export async function signIn(email: string, password: string): Promise<User> {
   }
 }
 
-/**
- * تسجيل الخروج
- */
 export async function signOut(): Promise<void> {
   await fbSignOut(auth);
 }
 
-/**
- * الحصول على بيانات المستخدم من Firestore
- * يُرجع null إذا لم يكن هناك وثيقة (سيتم إنشاؤها تلقائياً عند الدخول)
- */
 export async function getUserData(uid: string): Promise<AppUser | null> {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
@@ -60,8 +74,7 @@ export async function getUserData(uid: string): Promise<AppUser | null> {
 }
 
 /**
- * إنشاء وثيقة المستخدم في Firestore بعد أول دخول
- * (لا نُنشئ username هنا، فقط البيانات الأساسية)
+ * إنشاء وثيقة المستخدم بعد أول دخول، وحجز اسم المستخدم القديم إن وُجد.
  */
 export async function ensureUserDoc(user: User): Promise<AppUser> {
   const ref = doc(db, 'users', user.uid);
@@ -78,50 +91,83 @@ export async function ensureUserDoc(user: User): Promise<AppUser> {
     await setDoc(ref, newUser);
     return newUser;
   }
-  // تحديث last_seen
   await updateDoc(ref, { last_seen: serverTimestamp() });
-  return snap.data() as AppUser;
+  const data = snap.data() as AppUser;
+  if (data.username) {
+    await claimExistingUsername(user.uid, data.username);
+  }
+  return data;
+}
+
+async function claimExistingUsername(uid: string, username: string): Promise<void> {
+  const key = normalizeUsernameKey(username);
+  if (!key) return;
+  const unameRef = doc(db, 'usernames', key);
+  try {
+    const existing = await getDoc(unameRef);
+    if (!existing.exists()) {
+      await setDoc(unameRef, {
+        uid,
+        username,
+        created_at: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.error('Failed to claim existing username', err);
+  }
 }
 
 /**
- * حفظ اسم المستخدم (يُستدعى في onboarding)
- * يتحقق من uniqueness ويُحدّث الوثيقة
+ * حفظ اسم المستخدم داخل transaction عشان الاسم ما يتكررش.
  */
 export async function saveUsername(uid: string, username: string): Promise<void> {
-  const ref = doc(db, 'users', uid);
-  await updateDoc(ref, {
-    username,
-    onboarded_at: serverTimestamp(),
-    last_seen: serverTimestamp(),
+  const trimmed = username.trim();
+  const key = normalizeUsernameKey(trimmed);
+  if (!key) {
+    throw new Error('اسم المستخدم غير صالح');
+  }
+  const userRef = doc(db, 'users', uid);
+  const unameRef = doc(db, 'usernames', key);
+
+  await runTransaction(db, async (tx) => {
+    const reserved = await tx.get(unameRef);
+    if (reserved.exists() && reserved.data()?.uid !== uid) {
+      throw new Error('اسم المستخدم مستخدم بالفعل، جرب اسماً آخر');
+    }
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists()) {
+      throw new Error('حساب المستخدم غير موجود');
+    }
+    const currentName = userSnap.data()?.username;
+    if (currentName && normalizeUsernameKey(currentName) !== key) {
+      throw new Error('لا يمكن تغيير اسم المستخدم بعد اختياره');
+    }
+    tx.set(unameRef, {
+      uid,
+      username: trimmed,
+      created_at: serverTimestamp(),
+    });
+    tx.update(userRef, {
+      username: trimmed,
+      onboarded_at: serverTimestamp(),
+      last_seen: serverTimestamp(),
+    });
   });
 }
 
-/**
- * الاشتراك في تغييرات الـ Auth state
- * يستدعي callback في كل تغيير (login / logout / token refresh)
- */
 export function watchAuth(callback: (user: unknown) => void): () => void {
   return onAuthStateChanged(auth, callback);
 }
 
-/**
- * التحقق من أن المستخدم admin
- * (عن طريق custom claim)
- */
-export function checkIsAdmin(user: User | null): boolean {
+export async function checkIsAdmin(user: User | null): Promise<boolean> {
   if (!user) return false;
-  const tokenResult = user as unknown as { customClaims?: { role?: string } };
-  // customClaims قد تكون undefined عند أول تحميل
-  const claims = (user as any).customClaims;
-  return claims?.role === 'admin';
+  const tokenResult = await user.getIdTokenResult();
+  return tokenResult.claims?.role === 'admin';
 }
 
-/**
- * إعادة تحميل الـ custom claims (مفيد بعد ترقية مستخدم إلى admin)
- */
 export async function refreshClaims(): Promise<{ isAdmin: boolean }> {
   const user = auth.currentUser;
   if (!user) return { isAdmin: false };
-  const tokenResult = await user.getIdTokenResult(true); // force refresh
+  const tokenResult = await user.getIdTokenResult(true);
   return { isAdmin: tokenResult.claims?.role === 'admin' };
 }

@@ -12,7 +12,7 @@ import { LoadingState } from '@/components/LoadingState';
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, userData, isAdmin, loading, needsOnboarding } = useAuth();
+  const { user, userData, isAdmin, loading, needsOnboarding, error } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -30,7 +30,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [user, loading, needsOnboarding, isAdmin, router]);
 
-  if (loading || !user || !userData || needsOnboarding || !isAdmin) {
+  if (loading || !user || needsOnboarding || !isAdmin) {
+    if (!loading && error && user && !userData) {
+      return (
+        <div className="min-h-screen bg-admin-bg flex items-center justify-center text-admin-text px-4 text-center">
+          {error}
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-admin-bg flex items-center justify-center">
+        <LoadingState count={3} variant="card" />
+      </div>
+    );
+  }
+
+  if (!userData) {
     return (
       <div className="min-h-screen bg-admin-bg flex items-center justify-center">
         <LoadingState count={3} variant="card" />

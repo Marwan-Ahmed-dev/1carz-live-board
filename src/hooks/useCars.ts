@@ -3,14 +3,16 @@
 // hook لإدارة قائمة العربيات مع real-time sync + فلترة client-side
 
 import { useEffect, useMemo, useState } from 'react';
-import { subscribeToCars } from '@/lib/cars';
+import { isCarVisibleToUser, subscribeToCars } from '@/lib/cars';
 import { Car, Priority, PriorityFilter } from '@/lib/types';
 
 export interface UseCarsOptions {
-  priority?: PriorityFilter; // فلتر الأولوية (all, mine, top, high, medium, low)
-  uid?: string | null; // الـ UID للمستخدم الحالي (للـ 'mine' filter)
+  priority?: PriorityFilter;
+  uid?: string | null;
   minPrice?: number;
   maxPrice?: number;
+  /** فقط العربيات المعيّنة لـ UID (من غير 'all') */
+  assignedOnly?: boolean;
 }
 
 /**
@@ -26,51 +28,57 @@ export function useCars(opts: UseCarsOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // ما نعملش query من غير uid — الـ collection-wide query بيت거ّض من قواعد المستخدم.
+    if (!opts.uid) {
+      setAllCars([]);
+      setLoading(true);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    console.log('[useCars] (re)subscribing with uid:', opts.uid);
-    // ✅ FIX: بنبعت الـ uid للسيرفر كـ array-contains-any عشان Firestore
-    // يفلتر على مستوى الـ query نفسه (defense-in-depth + بيرحم الـ rules).
-    // الـ rules برضو هتتحقق، فلو حد غيّر الـ uid في الكلاينت مش هيخترق.
     const unsub = subscribeToCars(
       (cars) => {
-        console.log('[useCars] received', cars.length, 'cars');
         setAllCars(cars);
         setLoading(false);
+        setError(null);
       },
       {
         uid: opts.uid,
+        onError: (err) => {
+          setError(err.message || 'فشل تحميل العربيات');
+          setLoading(false);
+        },
       }
     );
     return () => {
-      console.log('[useCars] unsubscribing');
       unsub();
     };
-  }, [opts.uid]); // re-subscribe when uid changes (auth state)
+  }, [opts.uid]);
 
-  // فلترة client-side (security)
   const cars = useMemo(() => {
     let filtered = allCars;
-    // فلتر الأولوية
+    if (opts.uid) {
+      filtered = filtered.filter((c) => isCarVisibleToUser(c, opts.uid!));
+    }
     if (opts.priority && opts.priority !== 'all' && opts.priority !== 'mine') {
       filtered = filtered.filter((c) => c.priority === opts.priority);
     }
-    // ✅ FIX: فلتر 'mine' يستخدم الـ UID (مش الـ username) عشان
-    // الـ assigned_to مخزّن بـ UIDs
-    if (opts.priority === 'mine' && opts.uid) {
-      filtered = filtered.filter(
-        (c) => c.assigned_to.includes(opts.uid!) || c.assigned_to.includes('all')
-      );
+    if (opts.assignedOnly && opts.uid) {
+      filtered = filtered.filter((c) => c.assigned_to.includes(opts.uid!));
     }
-    // فلتر السعر (fallback لو ما استخدمتش query في subscribe)
-    if (opts.minPrice != null) {
+    if (opts.priority === 'mine' && opts.uid) {
+      filtered = filtered.filter((c) => c.assigned_to.includes(opts.uid!));
+    }
+    if (opts.minPrice != null && Number.isFinite(opts.minPrice)) {
       filtered = filtered.filter((c) => c.price >= opts.minPrice!);
     }
-    if (opts.maxPrice != null) {
+    if (opts.maxPrice != null && Number.isFinite(opts.maxPrice)) {
       filtered = filtered.filter((c) => c.price <= opts.maxPrice!);
     }
     return filtered;
-  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice]);
+  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice, opts.assignedOnly]);
 
   return { cars, allCars, loading, error };
 }

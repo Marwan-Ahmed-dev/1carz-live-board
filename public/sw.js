@@ -9,12 +9,11 @@
  * Caching version: v1 — bump to invalidate cache on changes.
  */
 
-const CACHE_NAME = '1carz-v1';
-const STATIC_CACHE = '1carz-static-v1';
-const RUNTIME_CACHE = '1carz-runtime-v1';
+const CACHE_NAME = '1carz-v2';
+const STATIC_CACHE = '1carz-static-v2';
+const RUNTIME_CACHE = '1carz-runtime-v2';
 
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -60,19 +59,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // navigation: network-first, fallback to cache
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(() =>
-          caches.match(request).then((r) => r || caches.match('/'))
-        )
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

@@ -95,15 +95,17 @@ export default function AdminUsersPage() {
     const [cars, setCars] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-      const unsub = subscribeToCars((c) => {
-        // ✅ FIX: بنفلتر بالـ UID (مش الـ username) عشان assigned_to مخزّن بـ UIDs
-        setCars(
-          c.filter(
-            (car) => car.assigned_to.includes(uid) || car.assigned_to.includes('all')
-          )
-        );
-        setLoading(false);
-      });
+      const unsub = subscribeToCars(
+        (c) => {
+          setCars(
+            c.filter(
+              (car) => car.assigned_to.includes(uid) || car.assigned_to.includes('all')
+            )
+          );
+          setLoading(false);
+        },
+        { onError: () => setLoading(false) }
+      );
       return () => unsub();
     }, [uid]);
     return (

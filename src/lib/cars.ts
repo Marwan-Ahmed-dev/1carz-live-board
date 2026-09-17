@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
+import { deleteCarImages } from './storage';
 
 const CARS_COLLECTION = 'cars';
 
@@ -131,6 +132,7 @@ export async function updateCar(id: string, updates: CarUpdateInput): Promise<vo
  * حذف عربية
  */
 export async function deleteCar(id: string): Promise<void> {
+  await deleteCarImages(id);
   const ref = doc(db, CARS_COLLECTION, id);
   await deleteDoc(ref);
 }
@@ -165,8 +167,8 @@ export interface CarFixReport {
 /**
  * فحص وإصلاح العربيات الموجودة مرة واحدة:
  * - assigned_to فاضي أو مش array → يتحوّل لـ ['all']
- * - status ناقص أو 'inactive' → يتحوّل لـ 'active' (عشان المستخدمين يشوفوها)
- *   ⚠️ 'sold' و 'reserved' ما بنلمسهمش (متعمد من الأدمن)
+ * - status ناقص → يتحوّل لـ 'active'
+ *   ⚠️ 'sold' و 'reserved' و 'inactive' ما بنلمسهمش (متعمد من الأدمن)
  * - الـ specific UIDs لو مش موجودين في users collection (orphan)
  *   → بنضيف تحذير بس ما بنغيرش (ممكن يكون متعمد من الأدمن)
  *
@@ -182,6 +184,13 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
   const usersSnap = await getDocs(usersRef);
   const knownUids = new Set(usersSnap.docs.map((d) => d.id));
   knownUids.add('all'); // 'all' مش UID بس بنعتبره صالح
+  const usernameToUid = new Map<string, string>();
+  usersSnap.docs.forEach((d) => {
+    const username = d.data().username;
+    if (typeof username === 'string' && username) {
+      usernameToUid.set(username, d.id);
+    }
+  });
 
   const report: CarFixReport = {
     cars: [],
@@ -207,18 +216,35 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     const reasons: string[] = [];
     let needsFix = false;
 
-    // 1. إصلاح assigned_to
+    // 1. إصلاح assigned_to + تحويل usernames القديمة لـ UIDs
     let orphanUids: string[] = [];
+
     if (!Array.isArray(assignedToBefore) || assignedToBefore.length === 0) {
       assignedToAfter = ['all'];
       reasons.push("assigned_to كان فاضي أو ناقص — اتحوّل لـ ['all']");
       needsFix = true;
     } else {
-      assignedToAfter = assignedToBefore as string[];
-      // check for orphan UIDs
-      orphanUids = (assignedToBefore as string[]).filter(
-        (u) => !knownUids.has(u)
-      );
+      const mapped: string[] = [];
+      const seen = new Set<string>();
+      for (const raw of assignedToBefore as string[]) {
+        if (typeof raw !== 'string' || !raw) continue;
+        const uidFromUsername = usernameToUid.get(raw);
+        const value = knownUids.has(raw) || raw === 'all' ? raw : uidFromUsername || raw;
+        if (uidFromUsername && raw !== value) {
+          reasons.push(`username '${raw}' اتحوّل لـ UID ${value}`);
+          needsFix = true;
+        }
+        if (!seen.has(value)) {
+          seen.add(value);
+          mapped.push(value);
+        }
+      }
+      assignedToAfter = mapped.length > 0 ? mapped : ['all'];
+      if (mapped.length === 0) {
+        reasons.push("assigned_to ما فيهوش قيم صالحة — اتحوّل لـ ['all']");
+        needsFix = true;
+      }
+      orphanUids = assignedToAfter.filter((u) => !knownUids.has(u));
       if (orphanUids.length > 0) {
         reasons.push(
           `⚠️ orphan UIDs: ${orphanUids.join(', ')} (مش في users collection — يحتاج إعادة تعيين)`
@@ -226,16 +252,12 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
       }
     }
 
-    // 2. إصلاح status — إلا لو 'sold' أو 'reserved' (متعمد)
-    if (statusBefore === '(missing)' || statusBefore === 'inactive') {
+    // 2. إصلاح status الناقص فقط — ما بنحوّلش inactive متعمد
+    if (statusBefore === '(missing)') {
       statusAfter = 'active';
-      reasons.push(
-        statusBefore === '(missing)'
-          ? "status ناقص — اتحوّل لـ 'active'"
-          : "status كان 'inactive' — اتحوّل لـ 'active' عشان المستخدمين يشوفوها"
-      );
+      reasons.push("status ناقص — اتحوّل لـ 'active'");
       needsFix = true;
-    } else if (statusBefore === 'sold' || statusBefore === 'reserved') {
+    } else if (statusBefore === 'sold' || statusBefore === 'reserved' || statusBefore === 'inactive') {
       reasons.push(`status = '${statusBefore}' (متعمد — ما اتغيرش)`);
     }
 
@@ -270,30 +292,33 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
   return report;
 }
 
+export interface SubscribeToCarsFilters {
+  priority?: Priority;
+  minPrice?: number;
+  maxPrice?: number;
+  /** User UID — adds assignment query required by Firestore list rules */
+  uid?: string | null;
+  onError?: (err: Error) => void;
+}
+
 /**
- * Real-time listener على كل العربيات
- * يُستدعى callback في كل تغيير
+ * Real-time listener على مجموعة العربيات.
  *
- * ✅ FIX: لما uid متاح، بنضيف server-side filter
- *   `where('assigned_to', 'array-contains-any', [uid, 'all'])` —
- *   ده بيرحم الـ Firestore rules وكمان defense-in-depth:
- *   حتى لو الـ rules مش متطبقة، الكلاينت مش هيشوف أكتر من اللي المفروض.
+ * لما uid موجود (مستخدم عادي):
+ *   query = assigned_to array-contains-any [uid, 'all']
+ *   ده لازم يطابق قواعد الـ list. الحالة (status) بتتتفلتر client-side
+ *   عشان ما نحتاجش composite index، والـ get rule بيمنع فتح غير النشطة.
  *
- * ✅ FIX: client-side safety net — لو السيرفر رجّع doc مالوش حق فيه
- *   (مثلاً mismatch بين الـ auth UID و الـ assigned_to بسبب stale data)
- *   بنفلتره في الـ callback قبل ما يوصل للمستهلك.
+ * لما uid مش موجود (أدمن):
+ *   query = orderBy created_at — الـ admin claim بيسمح بالـ list الكامل.
  */
 export function subscribeToCars(
   callback: (cars: Car[]) => void,
-  filters: { priority?: Priority; minPrice?: number; maxPrice?: number; uid?: string | null } = {}
+  filters: SubscribeToCarsFilters = {}
 ): () => void {
   const ref = collection(db, CARS_COLLECTION);
   const constraints: QueryConstraint[] = [];
 
-  // ✅ Defense in depth: لو عندنا uid، فلتر server-side بالـ array-contains-any
-  // (بيرجع docs اللي assigned_to فيها الـ uid أو 'all' على الأقل).
-  // ده كمان بيرحم الـ rules — بدل ما نعتمد على كل doc إنه يتعمله
-  // rules evaluation، الـ query نفسه بيجيب المتوافق بس.
   if (filters.uid) {
     constraints.push(where('assigned_to', 'array-contains-any', [filters.uid, 'all']));
   }
@@ -308,8 +333,8 @@ export function subscribeToCars(
     constraints.push(where('price', '<=', filters.maxPrice));
   }
 
-  // ✅ OrderBy بيتجنب لو فيه array-contains-any لتفادي مشاكل composite index.
-  // السورت بيتم client-side في useCars.sortByCreatedAtDesc (مفيش فرق ملحوظ).
+  // OrderBy يتعارض مع array-contains-any من غير composite index.
+  // الترتيب بيتم client-side في useCars.sortByCreatedAtDesc.
   if (!filters.uid) {
     constraints.push(orderBy('created_at', 'desc'));
   }
@@ -319,52 +344,36 @@ export function subscribeToCars(
   return onSnapshot(
     q,
     (snap) => {
-      // ✅ DEBUG: سجّل الـ snapshot عشان نشوف لو الـ Firestore rules بترجّع docs أو لأ
-      console.log(
-        '[subscribeToCars] snapshot:',
-        snap.docs.length,
-        'docs (uid filter:',
-        uid || 'none',
-        ')',
-        snap.docs.map((d) => ({
-          id: d.id,
-          status: d.data().status,
-          assigned_to: d.data().assigned_to,
-          title: d.data().title,
-        }))
-      );
       const rawCars = snap.docs.map(normalizeCar);
-      // ✅ Defense in depth: client-side filter إضافي
-      // (لو السيرفر رجّع doc مخالف — مثلاً assigned_to فيه UID غريب —
-      //  نشيله قبل ما يوصل للمستهلك).
       const cars = uid
-        ? rawCars.filter(
-            (c) =>
-              Array.isArray(c.assigned_to) &&
-              (c.assigned_to.includes(uid) || c.assigned_to.includes('all'))
-          )
+        ? rawCars.filter((c) => isCarVisibleToUser(c, uid))
         : rawCars;
-      if (cars.length !== rawCars.length) {
-        console.warn(
-          '[subscribeToCars] client-side filter dropped',
-          rawCars.length - cars.length,
-          'docs that did not match uid',
-          uid
-        );
-      }
       callback(cars);
     },
     (err) => {
       console.error('[subscribeToCars] error:', err);
-      callback([]);
+      filters.onError?.(err);
     }
   );
 }
 
 /**
+ * عربية ظاهرة للمستخدم العادي: متاحة + معيّنة له أو للكل.
+ */
+export function isCarVisibleToUser(car: Car, uid: string): boolean {
+  if (car.status !== 'active') return false;
+  if (!Array.isArray(car.assigned_to)) return false;
+  return car.assigned_to.includes(uid) || car.assigned_to.includes('all');
+}
+
+/**
  * Real-time listener على عربية واحدة
  */
-export function subscribeToCar(id: string, callback: (car: Car | null) => void): () => void {
+export function subscribeToCar(
+  id: string,
+  callback: (car: Car | null) => void,
+  onError?: (err: Error) => void
+): () => void {
   const ref = doc(db, CARS_COLLECTION, id);
   return onSnapshot(
     ref,
@@ -373,7 +382,7 @@ export function subscribeToCar(id: string, callback: (car: Car | null) => void):
     },
     (err) => {
       console.error('Car subscription error:', err);
-      callback(null);
+      onError?.(err);
     }
   );
 }

@@ -18,10 +18,13 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubCars = subscribeToCars((c) => {
-      setCars(c);
-      setLoading(false);
-    });
+    const unsubCars = subscribeToCars(
+      (c) => {
+        setCars(c);
+        setLoading(false);
+      },
+      { onError: () => setLoading(false) }
+    );
     const unsubCounts = subscribeToPriorityCounts(setCounts);
     return () => {
       unsubCars();
