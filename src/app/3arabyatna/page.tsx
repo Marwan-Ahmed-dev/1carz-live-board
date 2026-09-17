@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -45,6 +45,10 @@ export default function MyCarsPage() {
     minPrice,
     maxPrice,
   });
+
+  const grouped = useMemo(() => groupCars(cars), [cars]);
+  const normalCars = grouped.normal;
+  const groupedByPriority = useMemo(() => groupByPriority(cars), [cars]);
 
   // Auth not ready
   if (authLoading || !user || !userData || needsOnboarding) {
@@ -100,7 +104,7 @@ export default function MyCarsPage() {
         {!loading && cars.length > 0 && (
           <div className="space-y-6">
             {(['top', 'high', 'medium', 'low'] as Priority[]).map((p) => {
-              const list = groupByPriority(cars)[p];
+              const list = groupedByPriority[p];
               if (!list || list.length === 0) return null;
               const meta = PRIORITY_META[p];
               return (
@@ -124,17 +128,17 @@ export default function MyCarsPage() {
             })}
 
             {/* قسم "عادي" — العربيات اللي sort_mode = 'normal' */}
-            {groupCars(cars).normal.length > 0 && (
+            {normalCars.length > 0 && (
               <section className="space-y-3">
                 <div className="h-1 rounded-full bg-bg-card-hover" />
                 <div className="flex items-center justify-between gap-2 px-1">
                   <h2 className="text-lg sm:text-xl font-bold text-text-primary">عادي</h2>
                   <span className="badge-number text-xs px-2.5 py-1 rounded-full bg-bg-card text-text-secondary font-bold">
-                    {groupCars(cars).normal.length}
+                    {normalCars.length}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                  {groupCars(cars).normal.map((car) => (
+                  {normalCars.map((car) => (
                     <CarCard key={car.id} car={car} />
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Car, CarCondition, CarStatus, Priority, SortMode, NewCarInput } from '@/lib/types';
@@ -100,19 +100,22 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   })();
   const [existingImages, setExistingImages] = useState<string[]>(initialExisting);
   const [newFiles, setNewFiles] = useState<File[]>([]);
-  const [newFilePreviews, setNewFilePreviews] = useState<string[]>(
-    initialExisting.map((url) => url)
-  );
+  const [newFileUrls, setNewFileUrls] = useState<string[]>([]);
 
-  // مزامنة الـ previews مع existingImages + newFiles
+  // إنشاء/تنظيف blob URLs للملفات الجديدة
   useEffect(() => {
-    const newPreviews = newFiles.map((f) => URL.createObjectURL(f));
-    setNewFilePreviews([...existingImages, ...newPreviews]);
+    const urls = newFiles.map((f) => URL.createObjectURL(f));
+    setNewFileUrls(urls);
     return () => {
-      newPreviews.forEach((p) => URL.revokeObjectURL(p));
+      urls.forEach((u) => URL.revokeObjectURL(u));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingImages, newFiles]);
+  }, [newFiles]);
+
+  // previews = existing + new blob URLs
+  const newFilePreviews = useMemo(
+    () => [...existingImages, ...newFileUrls],
+    [existingImages, newFileUrls]
+  );
 
   const totalImageCount = existingImages.length + newFiles.length;
 
@@ -409,14 +412,24 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
             inputMode="numeric"
             value={price}
             onChange={(e) => {
-              // خزّن القيمة الخام (بدون فواصل) في state لكن اعرضها بالفواصل
+              // اسمح فقط بالأرقام — اعرضها بدون فواصل أثناء الكتابة (أسرع)
+              // الفواصل تتضاف عند الـ blur
+              const raw = e.target.value.replace(/[^0-9]/g, '');
+              setPrice(raw);
+            }}
+            onBlur={(e) => {
+              // أضف الفواصل لما المستخدم يخلّص الكتابة
               const raw = e.target.value.replace(/[^0-9]/g, '');
               setPrice(raw ? formatPriceInput(raw) : '');
             }}
-            onBlur={(e) => {
-              // تأكد من التنسيق عند الـ blur
+            onFocus={(e) => {
+              // لو فيه فواصل، شيلها عشان المستخدم يقدر يعدّل الرقم
               const raw = e.target.value.replace(/[^0-9]/g, '');
-              setPrice(raw ? formatPriceInput(raw) : '');
+              setPrice(raw);
+              // حط الـ cursor في الآخر
+              requestAnimationFrame(() => {
+                e.target.setSelectionRange(raw.length, raw.length);
+              });
             }}
             placeholder="1,980,000"
             className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
