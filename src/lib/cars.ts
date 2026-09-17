@@ -140,6 +140,8 @@ export async function deleteCar(id: string): Promise<void> {
  * بيرجع:
  * - cars: قائمة بكل عربية وفحصها
  * - fixedCount: عدد العربيات اللي اتعدلت
+ * - knownUids: قائمة الـ UIDs الموجودة فعلاً في users collection
+ *   (عشان الأدمن يقدر يطابق الـ assigned_to بالـ UIDs الحقيقية)
  */
 export interface CarFixReport {
   cars: Array<{
@@ -151,9 +153,13 @@ export interface CarFixReport {
     statusAfter: string;
     changed: boolean;
     reason: string;
+    /** UIDs من الـ assigned_to اللي مش معروفة في users collection (orphans) */
+    orphanUids: string[];
   }>;
   fixedCount: number;
   totalCars: number;
+  knownUids: string[];
+  knownUsers: Array<{ uid: string; email: string; username: string | null }>;
 }
 
 /**
@@ -181,6 +187,12 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     cars: [],
     fixedCount: 0,
     totalCars: snap.size,
+    knownUids: Array.from(knownUids),
+    knownUsers: usersSnap.docs.map((d) => ({
+      uid: d.id,
+      email: d.data().email || '',
+      username: d.data().username || null,
+    })),
   };
 
   for (const carDoc of snap.docs) {
@@ -196,6 +208,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     let needsFix = false;
 
     // 1. إصلاح assigned_to
+    let orphanUids: string[] = [];
     if (!Array.isArray(assignedToBefore) || assignedToBefore.length === 0) {
       assignedToAfter = ['all'];
       reasons.push("assigned_to كان فاضي أو ناقص — اتحوّل لـ ['all']");
@@ -203,9 +216,13 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     } else {
       assignedToAfter = assignedToBefore as string[];
       // check for orphan UIDs
-      const orphans = (assignedToBefore as string[]).filter((u) => !knownUids.has(u));
-      if (orphans.length > 0) {
-        reasons.push(`تحذير: assigned_to فيه UIDs مش معروفة في users: ${orphans.join(', ')}`);
+      orphanUids = (assignedToBefore as string[]).filter(
+        (u) => !knownUids.has(u)
+      );
+      if (orphanUids.length > 0) {
+        reasons.push(
+          `⚠️ orphan UIDs: ${orphanUids.join(', ')} (مش في users collection — يحتاج إعادة تعيين)`
+        );
       }
     }
 
@@ -219,7 +236,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
       );
       needsFix = true;
     } else if (statusBefore === 'sold' || statusBefore === 'reserved') {
-      reasons.push(`status = '${statusBefore}' (متعمد من الأدمن — ما اتغيرش)`);
+      reasons.push(`status = '${statusBefore}' (متعمد — ما اتغيرش)`);
     }
 
     if (needsFix) {
@@ -245,6 +262,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
       statusAfter: needsFix ? statusAfter : statusBefore,
       changed: needsFix,
       reason: reasons.join(' · '),
+      orphanUids,
     });
   }
 
@@ -255,6 +273,15 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
 /**
  * Real-time listener على كل العربيات
  * يُستدعى callback في كل تغيير
+ *
+ * ✅ FIX: لما uid متاح، بنضيف server-side filter
+ *   `where('assigned_to', 'array-contains-any', [uid, 'all'])` —
+ *   ده بيرحم الـ Firestore rules وكمان defense-in-depth:
+ *   حتى لو الـ rules مش متطبقة، الكلاينت مش هيشوف أكتر من اللي المفروض.
+ *
+ * ✅ FIX: client-side safety net — لو السيرفر رجّع doc مالوش حق فيه
+ *   (مثلاً mismatch بين الـ auth UID و الـ assigned_to بسبب stale data)
+ *   بنفلتره في الـ callback قبل ما يوصل للمستهلك.
  */
 export function subscribeToCars(
   callback: (cars: Car[]) => void,
@@ -262,6 +289,15 @@ export function subscribeToCars(
 ): () => void {
   const ref = collection(db, CARS_COLLECTION);
   const constraints: QueryConstraint[] = [];
+
+  // ✅ Defense in depth: لو عندنا uid، فلتر server-side بالـ array-contains-any
+  // (بيرجع docs اللي assigned_to فيها الـ uid أو 'all' على الأقل).
+  // ده كمان بيرحم الـ rules — بدل ما نعتمد على كل doc إنه يتعمله
+  // rules evaluation، الـ query نفسه بيجيب المتوافق بس.
+  if (filters.uid) {
+    constraints.push(where('assigned_to', 'array-contains-any', [filters.uid, 'all']));
+  }
+
   if (filters.priority) {
     constraints.push(where('priority', '==', filters.priority));
   }
@@ -271,9 +307,15 @@ export function subscribeToCars(
   if (filters.maxPrice != null) {
     constraints.push(where('price', '<=', filters.maxPrice));
   }
-  constraints.push(orderBy('created_at', 'desc'));
+
+  // ✅ OrderBy بيتجنب لو فيه array-contains-any لتفادي مشاكل composite index.
+  // السورت بيتم client-side في useCars.sortByCreatedAtDesc (مفيش فرق ملحوظ).
+  if (!filters.uid) {
+    constraints.push(orderBy('created_at', 'desc'));
+  }
 
   const q = query(ref, ...constraints);
+  const uid = filters.uid;
   return onSnapshot(
     q,
     (snap) => {
@@ -281,7 +323,9 @@ export function subscribeToCars(
       console.log(
         '[subscribeToCars] snapshot:',
         snap.docs.length,
-        'docs',
+        'docs (uid filter:',
+        uid || 'none',
+        ')',
         snap.docs.map((d) => ({
           id: d.id,
           status: d.data().status,
@@ -289,7 +333,25 @@ export function subscribeToCars(
           title: d.data().title,
         }))
       );
-      const cars = snap.docs.map(normalizeCar);
+      const rawCars = snap.docs.map(normalizeCar);
+      // ✅ Defense in depth: client-side filter إضافي
+      // (لو السيرفر رجّع doc مخالف — مثلاً assigned_to فيه UID غريب —
+      //  نشيله قبل ما يوصل للمستهلك).
+      const cars = uid
+        ? rawCars.filter(
+            (c) =>
+              Array.isArray(c.assigned_to) &&
+              (c.assigned_to.includes(uid) || c.assigned_to.includes('all'))
+          )
+        : rawCars;
+      if (cars.length !== rawCars.length) {
+        console.warn(
+          '[subscribeToCars] client-side filter dropped',
+          rawCars.length - cars.length,
+          'docs that did not match uid',
+          uid
+        );
+      }
       callback(cars);
     },
     (err) => {
@@ -329,15 +391,23 @@ export interface PriorityCounts {
 
 export function subscribeToPriorityCounts(callback: (counts: PriorityCounts) => void): () => void {
   const ref = collection(db, CARS_COLLECTION);
-  return onSnapshot(ref, (snap) => {
-    const counts: PriorityCounts = { top: 0, high: 0, medium: 0, low: 0, total: 0 };
-    snap.docs.forEach((d) => {
-      const data = d.data();
-      counts.total++;
-      if (data.priority in counts) {
-        counts[data.priority as Priority]++;
-      }
-    });
-    callback(counts);
-  });
+  return onSnapshot(
+    ref,
+    (snap) => {
+      const counts: PriorityCounts = { top: 0, high: 0, medium: 0, low: 0, total: 0 };
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        counts.total++;
+        const p: string = data.priority;
+        if (p === 'top' || p === 'high' || p === 'medium' || p === 'low') {
+          counts[p as Priority]++;
+        }
+      });
+      callback(counts);
+    },
+    (err) => {
+      console.error('[subscribeToPriorityCounts] error:', err);
+      callback({ top: 0, high: 0, medium: 0, low: 0, total: 0 });
+    }
+  );
 }

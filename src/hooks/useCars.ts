@@ -15,6 +15,10 @@ export interface UseCarsOptions {
 
 /**
  * Returns قائمة العربيات المُفلترة + realtime updates
+ *
+ * ✅ FIX: الـ subscription بيعيد نفسه لما الـ uid يتغير (كان بيستخدم [] فارغ
+ * ومرتبط بـ mount بس — ده كان بيسبب إن لو الـ auth اتأخر، الـ snapshot
+ * بيتم بـ auth=null وما بيتجددش لما اليوزر يدخل).
  */
 export function useCars(opts: UseCarsOptions = {}) {
   const [allCars, setAllCars] = useState<Car[]>([]);
@@ -23,19 +27,26 @@ export function useCars(opts: UseCarsOptions = {}) {
 
   useEffect(() => {
     setLoading(true);
-    // ✅ FIX: مش بنبعت الـ price filter للسيرفر عشان Firestore بيحتاج
-    // composite index للـ where + orderBy. الفلتر بيتعمل client-side في useMemo تحت.
+    setError(null);
+    console.log('[useCars] (re)subscribing with uid:', opts.uid);
+    // ✅ FIX: بنبعت الـ uid للسيرفر كـ array-contains-any عشان Firestore
+    // يفلتر على مستوى الـ query نفسه (defense-in-depth + بيرحم الـ rules).
+    // الـ rules برضو هتتحقق، فلو حد غيّر الـ uid في الكلاينت مش هيخترق.
     const unsub = subscribeToCars(
       (cars) => {
+        console.log('[useCars] received', cars.length, 'cars');
         setAllCars(cars);
         setLoading(false);
       },
       {
-        // priority filter نتعامل معاه client-side بعدين
+        uid: opts.uid,
       }
     );
-    return () => unsub();
-  }, []);
+    return () => {
+      console.log('[useCars] unsubscribing');
+      unsub();
+    };
+  }, [opts.uid]); // re-subscribe when uid changes (auth state)
 
   // فلترة client-side (security)
   const cars = useMemo(() => {

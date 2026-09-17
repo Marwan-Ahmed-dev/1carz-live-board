@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -48,7 +48,10 @@ const PRIORITY_META: Record<string, string> = {
   low: 'منخفضة',
 };
 
-export default function CarDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function CarDetailPage({ params }: { params: { id: string } }) {
+  // ✅ FIX: Next.js 14 (App Router) بيبعت params كـ plain object — مش Promise.
+  // استخدام use() مع object عادي بيكسر React لأن use() hook بيتطلب تكون
+  // بنداؤه consistent في كل الـ renders. الحل: destructure مباشرة.
   const router = useRouter();
   const { user, loading: authLoading, needsOnboarding } = useAuth();
   const [car, setCar] = useState<CarType | null>(null);
@@ -57,8 +60,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // unwrap params (Next.js 14+ dynamic API)
-  const { id } = use(params);
+  const id = params?.id;
 
   // Auth guard
   useEffect(() => {
