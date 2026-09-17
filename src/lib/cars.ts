@@ -19,7 +19,7 @@ import {
   DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
+import { Car, NewCarInput, CarUpdateInput, Priority, SortMode } from './types';
 
 const CARS_COLLECTION = 'cars';
 
@@ -37,8 +37,10 @@ function normalizeCar(snap: DocumentData): Car {
     description: data.description || '',
     priority: (data.priority || 'medium') as Priority,
     display_order: data.display_order || 0,
+    sort_mode: (data.sort_mode || 'priority') as SortMode,
     status: data.status || 'active',
     image_url: data.image_url || '',
+    additional_images: data.additional_images || [],
     condition: data.condition || 'used',
     is_featured: data.is_featured || false,
     assigned_to: data.assigned_to || ['all'],

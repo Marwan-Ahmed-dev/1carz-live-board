@@ -12,12 +12,15 @@ import {
   Shield,
   Car as CarIcon,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
 import { Car as CarType, CarStatus, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
+import { formatPrice } from '@/lib/format';
 
 const STATUS_META: Record<CarStatus, { label: string; color: string }> = {
   active: { label: 'متاحة', color: 'bg-green-100 text-green-700' },
@@ -31,11 +34,8 @@ const CONDITION_META: Record<CarCondition, string> = {
   used: 'مستعملة',
   excellent: 'ممتازة',
   good: 'جيدة',
+  zero_km: 'كسر زيرو',
 };
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(price);
-}
 
 function formatDate(timestamp: any): string {
   if (!timestamp) return '-';
@@ -57,6 +57,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
   const [car, setCar] = useState<CarType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
 
   // unwrap params (Next.js 14+ dynamic API)
   const { id } = use(params);
@@ -85,6 +86,11 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     return () => unsub();
   }, [id]);
 
+  // Reset active image when car changes
+  useEffect(() => {
+    setActiveImageIdx(0);
+  }, [car?.id]);
+
   const whatsappNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '';
   const whatsappMessage = car
     ? `استفسار عن العربية: ${car.title} (${car.code}) - السعر: ${formatPrice(car.price)} ج.م`
@@ -92,6 +98,12 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
   const whatsappUrl = whatsappNumber
     ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`
     : '#';
+
+  // قائمة كل الصور (الرئيسية + الإضافية)
+  const allImages: string[] = car
+    ? [car.image_url, ...(car.additional_images || [])].filter(Boolean)
+    : [];
+  const activeImage = allImages[activeImageIdx] || car?.image_url || '';
 
   if (authLoading) {
     return (
@@ -127,28 +139,84 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
         {car && (
           <>
-            {/* Image */}
-            <div className="relative w-full aspect-[16/10] bg-bg-card rounded-2xl overflow-hidden striped-bg">
-              {car.image_url ? (
-                <Image
-                  src={car.image_url}
-                  alt={car.title}
-                  fill
-                  priority
-                  sizes="(max-width: 768px) 100vw, 768px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex items-center justify-center w-full h-full">
-                  <CarIcon size={80} className="text-text-muted opacity-30" strokeWidth={1.5} />
-                </div>
-              )}
-              {car.is_featured && (
-                <div className="absolute top-3 right-3">
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
-                    <Star size={14} fill="currentColor" />
-                    قيدوي
-                  </span>
+            {/* Image Gallery */}
+            <div className="space-y-2">
+              {/* الصورة الرئيسية */}
+              <div className="relative w-full aspect-[16/10] bg-bg-card rounded-2xl overflow-hidden striped-bg">
+                {activeImage ? (
+                  <Image
+                    src={activeImage}
+                    alt={car.title}
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 768px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <CarIcon size={80} className="text-text-muted opacity-30" strokeWidth={1.5} />
+                  </div>
+                )}
+                {/* Badge "قيدوي" */}
+                {car.is_featured && (
+                  <div className="absolute top-3 right-3">
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
+                      <Star size={14} fill="currentColor" />
+                      قيدوي
+                    </span>
+                  </div>
+                )}
+                {/* عداد الصور */}
+                {allImages.length > 1 && (
+                  <div className="absolute top-3 left-3">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-black/70 text-white text-xs font-bold backdrop-blur-sm">
+                      {activeImageIdx + 1} / {allImages.length}
+                    </span>
+                  </div>
+                )}
+                {/* أزرار prev/next */}
+                {allImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setActiveImageIdx((idx) => (idx - 1 + allImages.length) % allImages.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                      aria-label="السابق"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                    <button
+                      onClick={() => setActiveImageIdx((idx) => (idx + 1) % allImages.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                      aria-label="التالي"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* thumbnails */}
+              {allImages.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                  {allImages.map((url, idx) => (
+                    <button
+                      key={url}
+                      onClick={() => setActiveImageIdx(idx)}
+                      className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors striped-bg ${
+                        activeImageIdx === idx
+                          ? 'border-accent-yellow'
+                          : 'border-border-soft hover:border-accent-yellow/50'
+                      }`}
+                      aria-label={`صورة ${idx + 1}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`${car.title} - صورة ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

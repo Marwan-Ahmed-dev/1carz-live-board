@@ -18,6 +18,7 @@ import { Car, Priority } from '@/lib/types';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { useToast } from '@/hooks/useToast';
+import { formatPrice } from '@/lib/format';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string }> = {
   top: { label: 'قصوى', icon: Flame, color: 'text-orange-400 bg-orange-500/15' },
@@ -25,10 +26,6 @@ const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string 
   medium: { label: 'متوسطة', icon: ChevronUp, color: 'text-slate-300 bg-slate-500/15' },
   low: { label: 'منخفضة', icon: ChevronDown, color: 'text-slate-500 bg-slate-700/30' },
 };
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(price);
-}
 
 export default function AdminCarsPage() {
   const router = useRouter();

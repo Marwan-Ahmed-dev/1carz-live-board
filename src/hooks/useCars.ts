@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { subscribeToCars } from '@/lib/cars';
-import { Car, PriorityFilter } from '@/lib/types';
+import { Car, Priority, PriorityFilter, SortMode } from '@/lib/types';
 
 export interface UseCarsOptions {
   priority?: PriorityFilter; // فلتر الأولوية (all, mine, top, high, medium, low)
@@ -65,7 +65,59 @@ export function useCars(opts: UseCarsOptions = {}) {
 }
 
 /**
- * تجميع العربيات حسب الأولوية
+ * ترتيب العربيات داخل قائمة حسب display_order ثم created_at desc
+ */
+function sortByDisplayOrder(cars: Car[]): Car[] {
+  return [...cars].sort((a, b) => {
+    if (a.display_order !== b.display_order) return a.display_order - b.display_order;
+    const aTime = a.created_at?.seconds || 0;
+    const bTime = b.created_at?.seconds || 0;
+    return bTime - aTime;
+  });
+}
+
+/**
+ * تجميع العربيات حسب نمط الترتيب:
+ * - 'priority' (افتراضي): مجمّعة حسب الأولوية مع sort داخل كل مجموعة
+ * - 'normal':   مسطّحة في قائمة واحدة مرتبة حسب display_order
+ *
+ * العربية الواحدة بـ sort_mode = 'normal' تظهر في قسماها فقط (حسب الـ priority)
+ * لكن الـ 'normal' aggregate بترجعها في قسم flat
+ */
+export function groupCars(cars: Car[]) {
+  const priorityGroups: Record<Priority, Car[]> = {
+    top: [],
+    high: [],
+    medium: [],
+    low: [],
+  };
+  const normal: Car[] = [];
+
+  cars.forEach((c) => {
+    if (c.sort_mode === 'normal') {
+      normal.push(c);
+    } else if (priorityGroups[c.priority]) {
+      priorityGroups[c.priority].push(c);
+    }
+  });
+
+  // sort داخل كل مجموعة priority
+  (Object.keys(priorityGroups) as Priority[]).forEach((k) => {
+    priorityGroups[k] = sortByDisplayOrder(priorityGroups[k]);
+  });
+
+  const normalSorted = sortByDisplayOrder(normal);
+
+  return {
+    priority: priorityGroups,
+    normal: normalSorted,
+  };
+}
+
+/**
+ * تجميع العربيات حسب الأولوية فقط (للتوافق الخلفي)
+ * دلوقت كل عربية بـ sort_mode = 'normal' بتندرج في priority array الخاص بيها
+ * لكن في الـ UI الافتراضي للصفحة الرئيسية بنعرض أقسام الأولوية + قسم الـ normal منفصل
  */
 export function groupByPriority(cars: Car[]) {
   const groups: Record<string, Car[]> = {
@@ -79,14 +131,8 @@ export function groupByPriority(cars: Car[]) {
       groups[c.priority].push(c);
     }
   });
-  // sort داخل كل مجموعة حسب display_order ثم created_at
-  for (const k of Object.keys(groups)) {
-    groups[k].sort((a, b) => {
-      if (a.display_order !== b.display_order) return a.display_order - b.display_order;
-      const aTime = a.created_at?.seconds || 0;
-      const bTime = b.created_at?.seconds || 0;
-      return bTime - aTime;
-    });
-  }
+  (Object.keys(groups) as Priority[]).forEach((k) => {
+    groups[k] = sortByDisplayOrder(groups[k]);
+  });
   return groups;
 }

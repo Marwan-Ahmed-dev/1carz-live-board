@@ -1,8 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { addCar } from '@/lib/cars';
 import { uploadCarImage } from '@/lib/storage';
 import { CarForm } from '@/components/admin/CarForm';
@@ -13,21 +11,37 @@ export default function NewCarPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const handleSave = async (data: NewCarInput, imageFile: File | null) => {
-    // 1. إنشاء العربية أولاً للحصول على ID (بدون image_url)
-    const carId = await addCar({ ...data, image_url: '' });
+  const handleSave = async (
+    data: NewCarInput,
+    _keptExistingImages: string[],
+    newFiles: File[],
+    _removedExistingImages: string[]
+  ) => {
+    // 1. إنشاء العربية أولاً للحصول على ID (بدون صور)
+    const carId = await addCar({
+      ...data,
+      image_url: '',
+      additional_images: [],
+    });
 
-    // 2. رفع الصورة (إذا وُجدت) وتحديث image_url
-    if (imageFile) {
+    // 2. رفع كل الملفات الجديدة (إن وُجدت)
+    if (newFiles.length > 0) {
       try {
-        const imageUrl = await uploadCarImage(imageFile, carId);
-        await updateDoc(doc(db, 'cars', carId), {
-          image_url: imageUrl,
-          updated_at: serverTimestamp(),
+        const uploadedUrls = await Promise.all(
+          newFiles.map((f) => uploadCarImage(f, carId))
+        );
+        // الأولى = الرئيسية، الباقي = إضافية
+        await import('firebase/firestore').then(async ({ doc, serverTimestamp, updateDoc }) => {
+          const { db } = await import('@/lib/firebase');
+          await updateDoc(doc(db, 'cars', carId), {
+            image_url: uploadedUrls[0] || '',
+            additional_images: uploadedUrls.slice(1),
+            updated_at: serverTimestamp(),
+          });
         });
       } catch (imgErr: any) {
-        // لو الـ upload فشل، نُبقي العربية بدون صورة ونُظهر تحذير
-        showToast('تم الحفظ لكن فشل رفع الصورة: ' + (imgErr.message || ''), 'error');
+        // لو الـ upload فشل، نُبقي العربية بدون صور ونُظهر تحذير
+        showToast('تم الحفظ لكن فشل رفع بعض الصور: ' + (imgErr.message || ''), 'error');
       }
     }
 

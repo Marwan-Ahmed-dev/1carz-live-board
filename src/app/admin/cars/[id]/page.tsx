@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { fetchCar, updateCar } from '@/lib/cars';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { fetchCar } from '@/lib/cars';
 import { uploadCarImage, deleteCarImage, extractStoragePath } from '@/lib/storage';
 import { CarForm } from '@/components/admin/CarForm';
 import { NewCarInput, Car } from '@/lib/types';
@@ -36,29 +38,57 @@ export default function EditCarPage({ params }: { params: Promise<{ id: string }
     })();
   }, [id]);
 
-  const handleSave = async (data: NewCarInput, imageFile: File | null) => {
+  const handleSave = async (
+    data: NewCarInput,
+    keptExistingImages: string[],
+    newFiles: File[],
+    removedExistingImages: string[]
+  ) => {
     if (!car) return;
 
-    let imageUrl = data.image_url;
-
-    // إذا تم اختيار صورة جديدة، ارفعها واحذف القديمة
-    if (imageFile) {
+    // 1. رفع الملفات الجديدة (إن وُجدت)
+    const newUploadedUrls: string[] = [];
+    if (newFiles.length > 0) {
       try {
-        if (car.image_url) {
-          // حذف الصورة القديمة
-          const oldPath = extractStoragePath(car.image_url);
-          if (oldPath) {
-            await deleteCarImage(oldPath);
-          }
-        }
-        imageUrl = await uploadCarImage(imageFile, car.id!);
+        const urls = await Promise.all(newFiles.map((f) => uploadCarImage(f, car.id!)));
+        newUploadedUrls.push(...urls);
       } catch (imgErr: any) {
-        showToast('فشل رفع الصورة: ' + (imgErr.message || ''), 'error');
+        showToast('فشل رفع بعض الصور: ' + (imgErr.message || ''), 'error');
         throw imgErr;
       }
     }
 
-    await updateCar(car.id!, { ...data, image_url: imageUrl });
+    // 2. دمج الصور النهائية: existing المُحتفظ بها + الجديدة (بالترتيب)
+    // الأولى = الرئيسية، الباقي = إضافية
+    const finalImages = [...keptExistingImages, ...newUploadedUrls];
+    const finalMain = finalImages[0] || '';
+    const finalAdditional = finalImages.slice(1);
+
+    // 3. حذف الصور القديمة اللي المستخدم شالها من Storage
+    // (نعملها في الخلفية بدون ما نمنع الحفظ لو فشلت)
+    if (removedExistingImages.length > 0) {
+      Promise.all(
+        removedExistingImages.map(async (url) => {
+          const path = extractStoragePath(url);
+          if (path) {
+            try {
+              await deleteCarImage(path);
+            } catch (e) {
+              console.error('Failed to delete removed image:', e);
+            }
+          }
+        })
+      ).catch((e) => console.error('Error deleting removed images:', e));
+    }
+
+    // 4. تحديث العربية في Firestore
+    await updateDoc(doc(db, 'cars', car.id!), {
+      ...data,
+      image_url: finalMain,
+      additional_images: finalAdditional,
+      updated_at: serverTimestamp(),
+    });
+
     showToast('تم تحديث العربية بنجاح', 'success');
     router.push('/admin/cars');
   };

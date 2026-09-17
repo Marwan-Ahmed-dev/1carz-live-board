@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useCars, groupByPriority } from '@/hooks/useCars';
+import { useCars, groupByPriority, groupCars } from '@/hooks/useCars';
 import { Header } from '@/components/Header';
 import { PriorityButtons } from '@/components/PriorityButtons';
 import { CarCard } from '@/components/CarCard';
@@ -66,8 +66,8 @@ export default function MyCarsPage() {
             <Heart size={20} className="text-accent-yellow-hover" fill="currentColor" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-text-primary">عربياتي</h1>
-            <p className="text-xs text-text-muted">العربيات المخصصة لك</p>
+            <h1 className="text-xl font-bold text-text-primary">عربياتنا</h1>
+            <p className="text-xs text-text-muted">كل العربيات المعروضة</p>
           </div>
         </div>
 
@@ -91,8 +91,8 @@ export default function MyCarsPage() {
         {!loading && cars.length === 0 && (
           <EmptyState
             icon={<Heart size={40} className="text-text-muted" strokeWidth={1.5} />}
-            title="لا توجد عربيات مخصصة لك"
-            description="ستظهر هنا العربيات المخصصة لك من قِبل الإدارة"
+            title="لا توجد عربيات"
+            description="ستظهر هنا كل العربيات المتاحة في التطبيق"
           />
         )}
 
@@ -122,6 +122,24 @@ export default function MyCarsPage() {
                 </section>
               );
             })}
+
+            {/* قسم "عادي" — العربيات اللي sort_mode = 'normal' */}
+            {groupCars(cars).normal.length > 0 && (
+              <section className="space-y-3">
+                <div className="h-1 rounded-full bg-bg-card-hover" />
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <h2 className="text-lg sm:text-xl font-bold text-text-primary">عادي</h2>
+                  <span className="badge-number text-xs px-2.5 py-1 rounded-full bg-bg-card text-text-secondary font-bold">
+                    {groupCars(cars).normal.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                  {groupCars(cars).normal.map((car) => (
+                    <CarCard key={car.id} car={car} />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>

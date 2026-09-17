@@ -13,6 +13,13 @@ import { Timestamp } from 'firebase/firestore';
 export type Priority = 'top' | 'high' | 'medium' | 'low';
 
 /**
+ * نمط ترتيب العرض
+ * - priority: مجمّعة حسب الأولوية (الأقسام في الصفحة الرئيسية)
+ * - normal:   مسطّحة، مرتبة حسب display_order (ترتيب يدوي)
+ */
+export type SortMode = 'priority' | 'normal';
+
+/**
  * حالات العربية
  * - active: متاحة للعرض
  * - inactive: غير معروضة
@@ -27,8 +34,9 @@ export type CarStatus = 'active' | 'inactive' | 'reserved' | 'sold';
  * - used: مستعملة
  * - excellent: ممتازة
  * - good: جيدة
+ * - zero_km: كسر زيرو
  */
-export type CarCondition = 'new' | 'used' | 'excellent' | 'good';
+export type CarCondition = 'new' | 'used' | 'excellent' | 'good' | 'zero_km';
 
 /**
  * الـ Car document كما هو مخزّن في Firestore
@@ -41,8 +49,10 @@ export interface Car {
   description: string; // وصف قصير بالعربي
   priority: Priority; // أولوية العرض
   display_order: number; // ترتيب العرض داخل نفس الأولوية
+  sort_mode: SortMode; // نمط الترتيب: 'priority' = مجمّع حسب الأولوية، 'normal' = مسطّح يدوي
   status: CarStatus; // حالة التوفر
   image_url: string; // رابط الصورة الرئيسية
+  additional_images: string[]; // صور إضافية (بحد أقصى 29 صورة إضافية، الإجمالي 30)
   condition: CarCondition; // جودة العربية
   is_featured: boolean; // مميزة (تعرض badge "قيدوي")
   // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل

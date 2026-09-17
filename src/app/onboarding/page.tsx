@@ -32,15 +32,15 @@ export default function OnboardingPage() {
     }
   }, [user, userData, loading, needsOnboarding, router]);
 
-  // التحقق من صحة الـ username — حروف فقط (عربي/إنجليزي) + مسافات
-  // ❌ بدون أرقام، بدون underscores، بدون رموز خاصة
+  // التحقق من صحة الـ username — حروف (عربي/إنجليزي) + أرقام + مسافات
+  // ❌ بدون underscores، بدون رموز خاصة
   const validate = (val: string): string | null => {
     const trimmed = val.trim();
     if (trimmed.length < 3) return 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل';
     if (trimmed.length > 20) return 'اسم المستخدم يجب ألا يزيد عن 20 حرف';
-    // حروف عربية (0600-06FF) + حروف إنجليزية + مسافات فقط
-    if (!/^[\u0600-\u06FFa-zA-Z\s]+$/.test(trimmed)) {
-      return 'اسم المستخدم يجب أن يحتوي على حروف فقط (عربي أو إنجليزي) ومسافات — بدون أرقام أو رموز';
+    // حروف عربية (0600-06FF) + حروف إنجليزية + أرقام + مسافات
+    if (!/^[\u0600-\u06FFa-zA-Z0-9\s]+$/.test(trimmed)) {
+      return 'اسم المستخدم يجب أن يحتوي على حروف عربية أو إنجليزية وأرقام ومسافات فقط';
     }
     return null;
   };
@@ -115,7 +115,7 @@ export default function OnboardingPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="مثال: أحمد محمود أو Ahmed Mostafa"
+                  placeholder="مثال: أحمد محمود 12345 أو Ahmed Mostafa 12345"
                   maxLength={20}
                   className="w-full pr-10 pl-3 py-3 rounded-xl bg-white border border-border-medium text-text-primary placeholder:text-text-muted focus:border-accent-yellow focus:ring-2 focus:ring-accent-yellow/20 transition"
                   disabled={submitting || success}
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
                 />
               </div>
               <p className="text-xs text-text-muted mt-1.5">
-                3-20 حرف، حروف عربية أو إنجليزية ومسافات فقط — بدون أرقام أو رموز
+                3-20 حرف، حروف عربية أو إنجليزية وأرقام ومسافات
               </p>
             </div>
 

@@ -8,10 +8,7 @@ import { Car } from '@/lib/types';
 import { StatCard } from '@/components/admin/StatCard';
 import { LoadingState } from '@/components/LoadingState';
 import { useToast } from '@/hooks/useToast';
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(price);
-}
+import { formatPrice } from '@/lib/format';
 
 export default function AdminDashboardPage() {
   const router = useRouter();

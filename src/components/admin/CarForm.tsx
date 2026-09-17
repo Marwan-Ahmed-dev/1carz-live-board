@@ -2,17 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, X, Upload, Loader2, Star, Image as ImageIcon } from 'lucide-react';
-import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
-import { uploadCarImage } from '@/lib/storage';
+import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Car, CarCondition, CarStatus, Priority, SortMode, NewCarInput } from '@/lib/types';
+import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE } from '@/lib/storage';
 import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
+import { formatPriceInput, parsePriceInput } from '@/lib/format';
 
 interface CarFormProps {
   /** عربية موجودة (للـ edit) */
   initial?: Car;
-  /** دالة الحفظ */
-  onSave: (data: NewCarInput, imageFile: File | null) => Promise<void>;
+  /**
+   * دالة الحفظ
+   * - data: بيانات العربية (image_url = الرئيسية، additional_images = الإضافية من الـ existing فقط)
+   * - keptExistingImages: URLs الصور القديمة اللي المستخدم قرر يحتفظ بيها (مرتبة)
+   * - newFiles: ملفات جديدة يحتاج الـ parent يرفعها لـ Storage
+   * - removedExistingImages: URLs الصور القديمة اللي المستخدم شالها (الـ parent يحذفها)
+   */
+  onSave: (
+    data: NewCarInput,
+    keptExistingImages: string[],
+    newFiles: File[],
+    removedExistingImages: string[]
+  ) => Promise<void>;
   /** عنوان الـ form */
   title: string;
   /** نص زر الحفظ */
@@ -31,6 +43,7 @@ const CONDITION_OPTIONS: Array<{ value: CarCondition; label: string }> = [
   { value: 'used', label: 'مستعملة' },
   { value: 'excellent', label: 'ممتازة' },
   { value: 'good', label: 'جيدة' },
+  { value: 'zero_km', label: 'كسر زيرو' },
 ];
 
 const STATUS_OPTIONS: Array<{ value: CarStatus; label: string }> = [
@@ -40,11 +53,25 @@ const STATUS_OPTIONS: Array<{ value: CarStatus; label: string }> = [
   { value: 'sold', label: 'مباعة' },
 ];
 
+const SORT_MODE_OPTIONS: Array<{ value: SortMode; label: string; hint: string }> = [
+  { value: 'priority', label: 'أولي (حسب الأولوية)', hint: 'تظهر في قسم الأولوية الخاص بيها' },
+  { value: 'normal', label: 'عادي (حسب الترتيب اليدوي)', hint: 'تظهر في قسم "عادي" مرتبة حسب ترتيب العرض' },
+];
+
 /**
  * نموذج إضافة / تعديل عربية
- * - يدعم رفع صورة جديدة (أو الإبقاء على القديمة في وضع الـ edit)
+ * - يدعم رفع حتى 30 صورة (رئيسية + إضافية)
  * - validation: client-side لكل الحقول
  * - يستخدم UserAssignmentSelector للـ assigned_to
+ *
+ * الصور:
+ * - existingImages: URLs الصور القديمة من initial (مرتبة: الرئيسية ثم الإضافية)
+ * - newFiles: ملفات جديدة من الـ user (تُرفع عند الحفظ)
+ * - removedExisting: URLs الصور القديمة اللي المستخدم شالها (تُحذف من Storage عند الحفظ)
+ *
+ * عند الحفظ:
+ * - الـ parent يحصل على مصفوفة images النهائية (existingImages المُحتفظ بها + uploaded URLs الجديدة)
+ * - الصور القديمة المحذوفة تُنظف من Storage
  */
 export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarFormProps) {
   const router = useRouter();
@@ -52,57 +79,111 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
 
   const [code, setCode] = useState(initial?.code || '');
   const [carTitle, setCarTitle] = useState(initial?.title || '');
-  const [price, setPrice] = useState<string>(initial?.price?.toString() || '');
+  const [price, setPrice] = useState<string>(
+    initial?.price ? formatPriceInput(initial.price.toString()) : ''
+  );
   const [description, setDescription] = useState(initial?.description || '');
   const [priority, setPriority] = useState<Priority>(initial?.priority || 'medium');
+  const [sortMode, setSortMode] = useState<SortMode>(initial?.sort_mode || 'priority');
   const [condition, setCondition] = useState<CarCondition>(initial?.condition || 'used');
   const [status, setStatus] = useState<CarStatus>(initial?.status || 'active');
   const [isFeatured, setIsFeatured] = useState(initial?.is_featured || false);
   const [assignedTo, setAssignedTo] = useState<string[]>(initial?.assigned_to || ['all']);
   const [displayOrder, setDisplayOrder] = useState<string>(initial?.display_order?.toString() || '0');
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(initial?.image_url || null);
+  // ----- إدارة الصور -----
+  // existingImages بالترتيب: الرئيسية أولاً ثم الإضافية
+  const initialExisting: string[] = (() => {
+    if (!initial) return [];
+    const main = initial.image_url ? [initial.image_url] : [];
+    return [...main, ...(initial.additional_images || [])];
+  })();
+  const [existingImages, setExistingImages] = useState<string[]>(initialExisting);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newFilePreviews, setNewFilePreviews] = useState<string[]>(
+    initialExisting.map((url) => url)
+  );
+
+  // مزامنة الـ previews مع existingImages + newFiles
+  useEffect(() => {
+    const newPreviews = newFiles.map((f) => URL.createObjectURL(f));
+    setNewFilePreviews([...existingImages, ...newPreviews]);
+    return () => {
+      newPreviews.forEach((p) => URL.revokeObjectURL(p));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingImages, newFiles]);
+
+  const totalImageCount = existingImages.length + newFiles.length;
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // تنظيف الـ preview URL لما يتغير
-  useEffect(() => {
-    return () => {
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
-      }
-    };
-  }, [imagePreview]);
+  const handleNewFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError('حجم الصورة يجب أن يكون أقل من 5 ميجابايت');
+    // validation لكل ملف
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (f.size > MAX_IMAGE_SIZE) {
+        setError(`الصورة ${i + 1} أكبر من 5 ميجابايت`);
+        return;
+      }
+      if (!f.type.startsWith('image/')) {
+        setError(`الملف ${i + 1} ليس صورة`);
+        return;
+      }
+    }
+
+    // validation للعدد الإجمالي
+    const newTotal = existingImages.length + newFiles.length + files.length;
+    if (newTotal > MAX_CAR_IMAGES) {
+      setError(
+        `الحد الأقصى ${MAX_CAR_IMAGES} صورة. ممكن تضيف ${MAX_CAR_IMAGES - existingImages.length - newFiles.length} فقط.`
+      );
       return;
     }
-    if (!file.type.startsWith('image/')) {
-      setError('يجب اختيار ملف صورة');
-      return;
-    }
+
     setError(null);
-    setImageFile(file);
-    // preview
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
-    }
-    setImagePreview(URL.createObjectURL(file));
+    setNewFiles([...newFiles, ...files]);
+    // reset الـ input عشان يقدر يختار نفس الملف تاني
+    e.target.value = '';
+  };
+
+  const removeExistingImage = (idx: number) => {
+    setExistingImages(existingImages.filter((_, i) => i !== idx));
+  };
+
+  const removeNewFile = (idx: number) => {
+    setNewFiles(newFiles.filter((_, i) => i !== idx));
+  };
+
+  const moveExistingImage = (idx: number, direction: 'up' | 'down') => {
+    const next = [...existingImages];
+    const target = direction === 'up' ? idx - 1 : idx + 1;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setExistingImages(next);
+  };
+
+  const moveNewFile = (idx: number, direction: 'up' | 'down') => {
+    const next = [...newFiles];
+    const target = direction === 'up' ? idx - 1 : idx + 1;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setNewFiles(next);
   };
 
   const validate = (): string | null => {
     if (!code.trim()) return 'كود العربية مطلوب';
     if (!carTitle.trim()) return 'عنوان العربية مطلوب';
     if (carTitle.length > 100) return 'العنوان يجب ألا يزيد عن 100 حرف';
-    if (!price || isNaN(Number(price)) || Number(price) < 0) return 'السعر يجب أن يكون رقم صحيح';
+    if (!price || parsePriceInput(price) < 0) return 'السعر يجب أن يكون رقم صحيح';
     if (description.length > 500) return 'الوصف يجب ألا يزيد عن 500 حرف';
     if (assignedTo.length === 0) return 'يجب تحديد مستخدمين أو اختيار "الكل"';
+    if (totalImageCount === 0) return 'يجب إضافة صورة واحدة على الأقل';
+    if (totalImageCount > MAX_CAR_IMAGES) return `الحد الأقصى ${MAX_CAR_IMAGES} صورة`;
     return null;
   };
 
@@ -116,20 +197,30 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
     }
     setSubmitting(true);
     try {
+      // حساب الصور اللي اتشالت من الـ existing
+      const removedExistingImages = initialExisting.filter((url) => !existingImages.includes(url));
+
       const data: NewCarInput = {
         code: code.trim(),
         title: carTitle.trim(),
-        price: Number(price),
+        price: parsePriceInput(price),
         description: description.trim(),
         priority,
         display_order: Number(displayOrder) || 0,
+        sort_mode: sortMode,
         status,
-        image_url: initial?.image_url || '', // نتعامل مع الـ upload في الـ onSave
+        image_url: existingImages[0] || '', // الرئيسية
+        additional_images: existingImages.slice(1), // الإضافية من الـ existing
         condition,
         is_featured: isFeatured,
         assigned_to: assignedTo,
       };
-      await onSave(data, imageFile);
+      // الـ parent مسؤول عن:
+      // 1. رفع newFiles للـ Storage
+      // 2. حذف removedExistingImages من الـ Storage
+      // 3. بناء القائمة النهائية (keptExistingImages + uploaded URLs)
+      // 4. تحديث الـ Firestore document
+      await onSave(data, existingImages, newFiles, removedExistingImages);
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء الحفظ');
       showToast(err.message || 'فشل الحفظ', 'error');
@@ -138,10 +229,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
     }
   };
 
-  // Hint للتعامل مع upload في الـ parent:
-  // - إذا في imageFile، يُرفع للـ storage ويحدّث image_url
-  // - إذا في initial و image_url موجودة، نُبقيها كما هي إلا لو في imageFile جديدة
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Title */}
@@ -149,44 +236,132 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         <h1 className="text-2xl font-bold text-admin-text">{title}</h1>
       </div>
 
-      {/* Image Upload */}
+      {/* Image Upload — متعدد */}
       <div className="bg-admin-card border border-admin-border rounded-2xl p-4">
-        <label className="block text-sm font-bold text-admin-text-muted mb-2">
-          صورة العربية
-        </label>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="w-full sm:w-48 aspect-[16/10] bg-admin-bg rounded-xl overflow-hidden striped-bg flex items-center justify-center">
-            {imagePreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imagePreview}
-                alt="معاينة"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <ImageIcon size={40} className="text-admin-text-muted opacity-50" />
-            )}
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-bold text-admin-text-muted">
+            صور العربية ({totalImageCount}/{MAX_CAR_IMAGES})
+          </label>
+          {totalImageCount > 0 && (
+            <span className="text-xs text-admin-text-muted">
+              الصورة الأولى = الرئيسية
+            </span>
+          )}
+        </div>
+
+        {/* شبكة الصور */}
+        {newFilePreviews.length > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-3">
+            {newFilePreviews.map((url, idx) => {
+              const isMain = idx === 0;
+              const isNewFile = idx >= existingImages.length;
+              const newFileIdx = isNewFile ? idx - existingImages.length : -1;
+              const existingIdx = isNewFile ? -1 : idx;
+              return (
+                <div
+                  key={`${idx}-${url.slice(-20)}`}
+                  className={`relative aspect-square bg-admin-bg rounded-xl overflow-hidden striped-bg group border-2 ${
+                    isMain ? 'border-admin-accent' : 'border-admin-border'
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`صورة ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* شارة "رئيسية" */}
+                  {isMain && (
+                    <div className="absolute top-1 right-1">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-admin-accent text-admin-bg text-[10px] font-bold">
+                        رئيسية
+                      </span>
+                    </div>
+                  )}
+                  {/* شارة "جديدة" */}
+                  {isNewFile && !isMain && (
+                    <div className="absolute top-1 right-1">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+                        جديدة
+                      </span>
+                    </div>
+                  )}
+                  {/* أزرار التحكم */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                    {/* تحريك لأعلى */}
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => isNewFile ? moveNewFile(newFileIdx, 'up') : moveExistingImage(existingIdx, 'up')}
+                        className="w-7 h-7 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-admin-bg"
+                        aria-label="رفع"
+                      >
+                        <ArrowUp size={12} />
+                      </button>
+                    )}
+                    {/* تحريك لأسفل */}
+                    {idx < newFilePreviews.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={() => isNewFile ? moveNewFile(newFileIdx, 'down') : moveExistingImage(existingIdx, 'down')}
+                        className="w-7 h-7 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-admin-bg"
+                        aria-label="إنزال"
+                      >
+                        <ArrowDown size={12} />
+                      </button>
+                    )}
+                    {/* حذف */}
+                    <button
+                      type="button"
+                      onClick={() => isNewFile ? removeNewFile(newFileIdx) : removeExistingImage(existingIdx)}
+                      className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white"
+                      aria-label="حذف"
+                    >
+                      <XCircle size={14} />
+                    </button>
+                  </div>
+                  {/* زر الحذف في الموبايل (دائماً ظاهر) */}
+                  <button
+                    type="button"
+                    onClick={() => isNewFile ? removeNewFile(newFileIdx) : removeExistingImage(existingIdx)}
+                    className="sm:hidden absolute top-1 left-1 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white"
+                    aria-label="حذف"
+                  >
+                    <XCircle size={12} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
-          <div className="flex-1 flex flex-col justify-center">
+        )}
+
+        {/* زر رفع المزيد */}
+        {totalImageCount < MAX_CAR_IMAGES && (
+          <div className="flex flex-col gap-2">
             <input
               type="file"
               accept="image/*"
-              onChange={handleImageChange}
+              multiple
+              onChange={handleNewFilesChange}
               className="hidden"
-              id="car-image-input"
+              id="car-images-input"
             />
             <label
-              htmlFor="car-image-input"
+              htmlFor="car-images-input"
               className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text hover:border-admin-accent/50 cursor-pointer text-sm font-medium transition-colors w-full sm:w-auto"
             >
               <Upload size={16} />
-              {imageFile ? 'تغيير الصورة' : initial?.image_url ? 'استبدال الصورة' : 'اختر صورة'}
+              {totalImageCount === 0 ? 'اختر صور' : `إضافة صور (${MAX_CAR_IMAGES - totalImageCount} متبقي)`}
             </label>
-            <p className="text-xs text-admin-text-muted mt-2">
-              JPG / PNG · حد أقصى 5 ميجابايت
+            <p className="text-xs text-admin-text-muted">
+              JPG / PNG · حد أقصى 5 ميجابايت لكل صورة · حد أقصى {MAX_CAR_IMAGES} صورة إجمالاً
             </p>
           </div>
-        </div>
+        )}
+
+        {totalImageCount === MAX_CAR_IMAGES && (
+          <p className="text-xs text-amber-400 mt-2">وصلت للحد الأقصى ({MAX_CAR_IMAGES} صورة)</p>
+        )}
       </div>
 
       {/* Code + Title */}
@@ -230,12 +405,20 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
           </label>
           <input
             id="price"
-            type="number"
-            min={0}
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="1980000"
+            type="text"
             inputMode="numeric"
+            value={price}
+            onChange={(e) => {
+              // خزّن القيمة الخام (بدون فواصل) في state لكن اعرضها بالفواصل
+              const raw = e.target.value.replace(/[^0-9]/g, '');
+              setPrice(raw ? formatPriceInput(raw) : '');
+            }}
+            onBlur={(e) => {
+              // تأكد من التنسيق عند الـ blur
+              const raw = e.target.value.replace(/[^0-9]/g, '');
+              setPrice(raw ? formatPriceInput(raw) : '');
+            }}
+            placeholder="1,980,000"
             className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
             required
           />
@@ -319,6 +502,38 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* Sort Mode */}
+      <div className="bg-admin-card border border-admin-border rounded-2xl p-4">
+        <label className="block text-sm font-bold text-admin-text-muted mb-2">
+          ترتيب العرض
+        </label>
+        <div className="space-y-2">
+          {SORT_MODE_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                sortMode === o.value
+                  ? 'border-admin-accent bg-admin-accent/10'
+                  : 'border-admin-border bg-admin-bg hover:border-admin-accent/30'
+              }`}
+            >
+              <input
+                type="radio"
+                name="sort_mode"
+                value={o.value}
+                checked={sortMode === o.value}
+                onChange={() => setSortMode(o.value)}
+                className="mt-1 w-4 h-4 text-admin-accent border-admin-border focus:ring-admin-accent cursor-pointer"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-bold text-admin-text">{o.label}</div>
+                <div className="text-xs text-admin-text-muted mt-0.5">{o.hint}</div>
+              </div>
+            </label>
+          ))}
         </div>
       </div>
 

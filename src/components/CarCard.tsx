@@ -3,19 +3,10 @@
 import Image from 'next/image';
 import { Star, Car as CarIcon } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
+import { formatPrice } from '@/lib/format';
 
 interface CarCardProps {
   car: CarType;
-}
-
-/**
- * تنسيق السعر بالعربية (مصر)
- * مثال: 1980000 -> "1,980,000 ج.م"
- */
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('ar-EG', {
-    maximumFractionDigits: 0,
-  }).format(price);
 }
 
 /**
@@ -27,6 +18,7 @@ function translateCondition(c: string): string {
     used: 'مستعملة',
     excellent: 'ممتازة',
     good: 'جيدة',
+    zero_km: 'كسر زيرو',
   };
   return map[c] || c;
 }
@@ -46,6 +38,8 @@ function translatePriority(p: string): string {
 
 export function CarCard({ car }: CarCardProps) {
   const isFeatured = car.is_featured;
+  const additionalCount = car.additional_images?.length || 0;
+  const totalImages = (car.image_url ? 1 : 0) + additionalCount;
   // ✅ FIX: الكارت مش pressable — لا hover scale، لا pointer، لا navigation
   return (
     <div className="bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
@@ -72,6 +66,22 @@ export function CarCard({ car }: CarCardProps) {
         ) : (
           <div className="flex items-center justify-center w-full h-full">
             <CarIcon size={56} className="text-text-muted opacity-40" strokeWidth={1.5} />
+          </div>
+        )}
+        {/* Badge "+N" لإجمالي الصور */}
+        {additionalCount > 0 && (
+          <div className="absolute bottom-2 left-2 z-10">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/70 text-white text-xs font-bold backdrop-blur-sm">
+              +{additionalCount}
+            </span>
+          </div>
+        )}
+        {/* عداد إجمالي الصور في الزاوية المقابلة (debug) */}
+        {totalImages > 1 && (
+          <div className="absolute top-2 left-2 z-10">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px] font-medium">
+              {totalImages} 📷
+            </span>
           </div>
         )}
       </div>
