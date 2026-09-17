@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { useCars, groupByPriority, groupCars } from '@/hooks/useCars';
+import { useCars, groupByPriority } from '@/hooks/useCars';
 import { Header } from '@/components/Header';
 import { PriorityButtons } from '@/components/PriorityButtons';
 import { CarCard } from '@/components/CarCard';
@@ -46,8 +46,6 @@ export default function HomePage() {
   });
 
   const groups = useMemo(() => groupByPriority(cars), [cars]);
-  const grouped = useMemo(() => groupCars(cars), [cars]);
-  const normalCars = grouped.normal;
   const totalCount = cars.length;
 
   // حماية من عرض الصفحة قبل استقرار الـ auth
@@ -117,24 +115,6 @@ export default function HomePage() {
                 </section>
               );
             })}
-
-            {/* قسم "عادي" — العربيات اللي sort_mode = 'normal' */}
-            {normalCars.length > 0 && (
-              <section className="space-y-3">
-                <div className="h-1 rounded-full bg-bg-card-hover" />
-                <div className="flex items-center justify-between gap-2 px-1">
-                  <h2 className="text-lg sm:text-xl font-bold text-text-primary">عادي</h2>
-                  <span className="badge-number text-xs px-2.5 py-1 rounded-full bg-bg-card text-text-secondary font-bold">
-                    {normalCars.length}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
-                  {normalCars.map((car) => (
-                    <CarCard key={car.id} car={car} />
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
         )}
       </main>

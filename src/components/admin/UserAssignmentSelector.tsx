@@ -52,21 +52,25 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
   }, [users, search]);
 
   // ✅ نـtoggle بالـ UID (مش الـ username)
+  // FIX: لو الـ user أفرغ كل التحديدات، نفضل في وضع "مستخدمين محددين"
+  // (مش بنرجع تلقائياً لـ ['all']) عشان الـ UX ما يتلخبطش.
   const toggleUser = (uid: string) => {
     if (isAll) return; // معطّل في وضع "الكل"
     const newVal = selected.includes(uid)
       ? selected.filter((u) => u !== uid)
       : [...selected, uid];
-    onChange(newVal.length === 0 ? ['all'] : newVal);
+    onChange(newVal);
   };
 
   const setAllMode = () => {
     onChange(['all']);
   };
 
+  // ✅ FIX: لو كنا في "الكل" وفارغين، حوّل لـ [] (مش ['all']) عشان فعلاً
+  // ندخل في وضع "مستخدمين محددين". قبل كده كان بيرجع ['all'] فيبقى ثابت في "الكل".
+  // الـ validation في CarForm بيتعامل مع [] برسالة واضحة عند الحفظ.
   const setSpecificMode = () => {
-    // إذا كنا في "الكل" وفارغين، حافظ على 'all' حتى يختار المستخدم
-    onChange(selected.length > 0 ? selected : ['all']);
+    onChange([]);
   };
 
   // helper لعرض اسم المستخدم — username لو موجود، غير كده email

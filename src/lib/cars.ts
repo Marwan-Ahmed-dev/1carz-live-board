@@ -19,7 +19,7 @@ import {
   DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Car, NewCarInput, CarUpdateInput, Priority, SortMode } from './types';
+import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
 
 const CARS_COLLECTION = 'cars';
 
@@ -47,7 +47,6 @@ function normalizeCar(snap: DocumentData): Car {
     description: data.description || '',
     priority: (data.priority || 'medium') as Priority,
     display_order: data.display_order || 0,
-    sort_mode: (data.sort_mode || 'priority') as SortMode,
     status: data.status || 'active',
     image_url: data.image_url || '',
     additional_images: data.additional_images || [],
@@ -94,8 +93,23 @@ export async function fetchCar(id: string): Promise<Car | null> {
  */
 export async function addCar(input: NewCarInput): Promise<string> {
   const ref = collection(db, CARS_COLLECTION);
+  // ✅ FIX: defensive — نتأكد أن assigned_to دايماً array صالح قبل الكتابة
+  // (لو ضاع من مكان تاني أو اتبعت بشكل غلط، نمنع العربية من تتكتب بـ assigned_to = [])
+  let assignedTo: string[];
+  if (Array.isArray(input.assigned_to) && input.assigned_to.length > 0) {
+    assignedTo = input.assigned_to;
+  } else if (Array.isArray(input.assigned_to) && input.assigned_to.length === 0) {
+    console.warn('[addCar] assigned_to is empty, defaulting to [\'all\']');
+    assignedTo = ['all'];
+  } else if (typeof input.assigned_to === 'string') {
+    assignedTo = [input.assigned_to];
+  } else {
+    console.warn('[addCar] assigned_to missing/invalid, defaulting to [\'all\']');
+    assignedTo = ['all'];
+  }
   const data = {
     ...input,
+    assigned_to: assignedTo,
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
   };
@@ -147,11 +161,23 @@ export function subscribeToCars(
   return onSnapshot(
     q,
     (snap) => {
+      // ✅ DEBUG: سجّل الـ snapshot عشان نشوف لو الـ Firestore rules بترجّع docs أو لأ
+      console.log(
+        '[subscribeToCars] snapshot:',
+        snap.docs.length,
+        'docs',
+        snap.docs.map((d) => ({
+          id: d.id,
+          status: d.data().status,
+          assigned_to: d.data().assigned_to,
+          title: d.data().title,
+        }))
+      );
       const cars = snap.docs.map(normalizeCar);
       callback(cars);
     },
     (err) => {
-      console.error('Cars subscription error:', err);
+      console.error('[subscribeToCars] error:', err);
       callback([]);
     }
   );

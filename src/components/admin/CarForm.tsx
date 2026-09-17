@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
-import { Car, CarCondition, CarStatus, Priority, SortMode, NewCarInput } from '@/lib/types';
+import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
 import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE } from '@/lib/storage';
 import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
@@ -52,11 +52,6 @@ const STATUS_OPTIONS: Array<{ value: CarStatus; label: string }> = [
   { value: 'sold', label: 'مباعة' },
 ];
 
-const SORT_MODE_OPTIONS: Array<{ value: SortMode; label: string; hint: string }> = [
-  { value: 'priority', label: 'أولي (حسب الأولوية)', hint: 'تظهر في قسم الأولوية الخاص بيها' },
-  { value: 'normal', label: 'عادي (حسب الترتيب اليدوي)', hint: 'تظهر في قسم "عادي" مرتبة حسب ترتيب العرض' },
-];
-
 /**
  * نموذج إضافة / تعديل عربية
  * - يدعم رفع حتى 30 صورة (رئيسية + إضافية)
@@ -83,7 +78,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   );
   const [description, setDescription] = useState(initial?.description || '');
   const [priority, setPriority] = useState<Priority>(initial?.priority || 'medium');
-  const [sortMode, setSortMode] = useState<SortMode>(initial?.sort_mode || 'priority');
   const [condition, setCondition] = useState<CarCondition>(initial?.condition || 'used');
   const [status, setStatus] = useState<CarStatus>(initial?.status || 'active');
   const [isFeatured, setIsFeatured] = useState(initial?.is_featured || false);
@@ -206,7 +200,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
     if (carTitle.length > 100) return 'العنوان يجب ألا يزيد عن 100 حرف';
     if (!price || parsePriceInput(price) < 0) return 'السعر يجب أن يكون رقم صحيح';
     if (description.length > 500) return 'الوصف يجب ألا يزيد عن 500 حرف';
-    if (assignedTo.length === 0) return 'يجب تحديد مستخدمين أو اختيار "الكل"';
+    if (assignedTo.length === 0) return 'اختر "الكل" أو مستخدماً واحداً على الأقل';
     if (totalImageCount === 0) return 'يجب إضافة صورة واحدة على الأقل';
     if (totalImageCount > MAX_CAR_IMAGES) return `الحد الأقصى ${MAX_CAR_IMAGES} صورة`;
     return null;
@@ -232,7 +226,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         description: description.trim(),
         priority,
         display_order: Number(displayOrder) || 0,
-        sort_mode: sortMode,
         status,
         image_url: existingImages[0] || '', // الرئيسية
         additional_images: existingImages.slice(1), // الإضافية من الـ existing
@@ -544,38 +537,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-        </div>
-      </div>
-
-      {/* Sort Mode */}
-      <div className="bg-admin-card border border-admin-border rounded-2xl p-4">
-        <label className="block text-sm font-bold text-admin-text-muted mb-2">
-          ترتيب العرض
-        </label>
-        <div className="space-y-2">
-          {SORT_MODE_OPTIONS.map((o) => (
-            <label
-              key={o.value}
-              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                sortMode === o.value
-                  ? 'border-admin-accent bg-admin-accent/10'
-                  : 'border-admin-border bg-admin-bg hover:border-admin-accent/30'
-              }`}
-            >
-              <input
-                type="radio"
-                name="sort_mode"
-                value={o.value}
-                checked={sortMode === o.value}
-                onChange={() => setSortMode(o.value)}
-                className="mt-1 w-4 h-4 text-admin-accent border-admin-border focus:ring-admin-accent cursor-pointer"
-              />
-              <div className="flex-1">
-                <div className="text-sm font-bold text-admin-text">{o.label}</div>
-                <div className="text-xs text-admin-text-muted mt-0.5">{o.hint}</div>
-              </div>
-            </label>
-          ))}
         </div>
       </div>
 

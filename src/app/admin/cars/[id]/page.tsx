@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -11,13 +11,13 @@ import { CarForm } from '@/components/admin/CarForm';
 import { NewCarInput, Car } from '@/lib/types';
 import { useToast } from '@/hooks/useToast';
 
-export default function EditCarPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+export default function EditCarPage({ params }: { params: { id: string } }) {
+  // ✅ FIX: Next.js 14 (App Router) بيبعت params كـ plain object — مش Promise.
+  // استخدام use() مع object عادي بيكسر React لأن use() hook بيتطلب تكون
+  // بنداؤه consistent في كل الـ renders. الحل: destructure مباشرة.
   const router = useRouter();
   const { showToast } = useToast();
-  // ✅ FIX: بنتعامل مع params سواء كان Promise (Next.js 15) أو object مباشر (Next.js 14)
-  // الـ use() بيقبل both — لو object عادي بيرجعه زي ما هو
-  const resolvedParams = use(params as any) as { id: string };
-  const id = resolvedParams?.id;
+  const id = params?.id;
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

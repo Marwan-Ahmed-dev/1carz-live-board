@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { subscribeToCars } from '@/lib/cars';
-import { Car, Priority, PriorityFilter, SortMode } from '@/lib/types';
+import { Car, Priority, PriorityFilter } from '@/lib/types';
 
 export interface UseCarsOptions {
   priority?: PriorityFilter; // فلتر الأولوية (all, mine, top, high, medium, low)
@@ -77,12 +77,9 @@ function sortByDisplayOrder(cars: Car[]): Car[] {
 }
 
 /**
- * تجميع العربيات حسب نمط الترتيب:
- * - 'priority' (افتراضي): مجمّعة حسب الأولوية مع sort داخل كل مجموعة
- * - 'normal':   مسطّحة في قائمة واحدة مرتبة حسب display_order
+ * تجميع العربيات حسب الأولوية مع sort داخل كل مجموعة حسب display_order
  *
- * العربية الواحدة بـ sort_mode = 'normal' تظهر في قسماها فقط (حسب الـ priority)
- * لكن الـ 'normal' aggregate بترجعها في قسم flat
+ * ✅ تم إزالة قسم 'عادي' — كل العربيات دلوقت بتتجميع تحت قسم priority بتاعها.
  */
 export function groupCars(cars: Car[]) {
   const priorityGroups: Record<Priority, Car[]> = {
@@ -91,12 +88,9 @@ export function groupCars(cars: Car[]) {
     medium: [],
     low: [],
   };
-  const normal: Car[] = [];
 
   cars.forEach((c) => {
-    if (c.sort_mode === 'normal') {
-      normal.push(c);
-    } else if (priorityGroups[c.priority]) {
+    if (priorityGroups[c.priority]) {
       priorityGroups[c.priority].push(c);
     }
   });
@@ -106,18 +100,14 @@ export function groupCars(cars: Car[]) {
     priorityGroups[k] = sortByDisplayOrder(priorityGroups[k]);
   });
 
-  const normalSorted = sortByDisplayOrder(normal);
-
   return {
     priority: priorityGroups,
-    normal: normalSorted,
   };
 }
 
 /**
  * تجميع العربيات حسب الأولوية فقط (للتوافق الخلفي)
- * دلوقت كل عربية بـ sort_mode = 'normal' بتندرج في priority array الخاص بيها
- * لكن في الـ UI الافتراضي للصفحة الرئيسية بنعرض أقسام الأولوية + قسم الـ normal منفصل
+ * كل عربية بتندرج في priority array الخاص بيها — مرتبة حسب display_order
  */
 export function groupByPriority(cars: Car[]) {
   const groups: Record<string, Car[]> = {
