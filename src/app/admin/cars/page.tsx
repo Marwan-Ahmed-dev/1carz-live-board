@@ -50,7 +50,13 @@ export default function AdminCarsPage() {
   }, []);
 
   const handleFixCars = async () => {
-    if (!confirm('سيتم فحص كل العربيات وإصلاح أي عربية بـ assigned_to فاضي أو status ناقص بتحويلها لـ [\'all\'] و \'active\'.\n\nمتأكد؟')) return;
+    if (!confirm(
+      'سيتم فحص كل العربيات وإصلاح:\n' +
+        '• assigned_to فاضي/ناقص → يتحوّل لـ [\'all\']\n' +
+        '• status ناقص أو \'inactive\' → يتحوّل لـ \'active\' (عشان المستخدمين يشوفوها)\n' +
+        "• 'sold' و 'reserved' ما هيتغيروش (متعمد من الأدمن)\n\n" +
+        'متأكد؟'
+    )) return;
     setFixing(true);
     try {
       const report = await fixAllCarsAssignment();

@@ -159,12 +159,13 @@ export interface CarFixReport {
 /**
  * فحص وإصلاح العربيات الموجودة مرة واحدة:
  * - assigned_to فاضي أو مش array → يتحوّل لـ ['all']
- * - status ناقص → يتحوّل لـ 'active'
+ * - status ناقص أو 'inactive' → يتحوّل لـ 'active' (عشان المستخدمين يشوفوها)
+ *   ⚠️ 'sold' و 'reserved' ما بنلمسهمش (متعمد من الأدمن)
  * - الـ specific UIDs لو مش موجودين في users collection (orphan)
  *   → بنضيف تحذير بس ما بنغيرش (ممكن يكون متعمد من الأدمن)
  *
- * Use case: لو العربيات القديمة اتكتبت بـ `assigned_to = []` أو ناقص،
- * المستخدمين مش هيشوفوها. ده one-time fix.
+ * Use case: لو العربيات القديمة اتكتبت بـ `assigned_to = []` أو `status='inactive'`،
+ * المستخدمين مش هيشوفوها حتى لو assigned_to صحيح. ده one-time fix.
  */
 export async function fixAllCarsAssignment(): Promise<CarFixReport> {
   const ref = collection(db, CARS_COLLECTION);
@@ -187,31 +188,38 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     const id = carDoc.id;
     const title = data.title || '(no title)';
     const assignedToBefore = data.assigned_to;
-    const statusBefore = data.status || '(missing)';
+    const statusBefore: string = data.status || '(missing)';
 
     let assignedToAfter: string[] = [];
-    let reason = '';
+    let statusAfter = statusBefore;
+    const reasons: string[] = [];
     let needsFix = false;
 
+    // 1. إصلاح assigned_to
     if (!Array.isArray(assignedToBefore) || assignedToBefore.length === 0) {
-      // missing or empty → fix
       assignedToAfter = ['all'];
-      reason = 'assigned_to كان فاضي أو ناقص — اتحوّل لـ [\'all\']';
+      reasons.push("assigned_to كان فاضي أو ناقص — اتحوّل لـ ['all']");
       needsFix = true;
     } else {
-      assignedToAfter = assignedToBefore;
+      assignedToAfter = assignedToBefore as string[];
       // check for orphan UIDs
-      const orphans = assignedToBefore.filter((u) => !knownUids.has(u));
+      const orphans = (assignedToBefore as string[]).filter((u) => !knownUids.has(u));
       if (orphans.length > 0) {
-        reason = `تحذير: assigned_to فيه UIDs مش معروفة في users: ${orphans.join(', ')}`;
+        reasons.push(`تحذير: assigned_to فيه UIDs مش معروفة في users: ${orphans.join(', ')}`);
       }
     }
 
-    let statusAfter = statusBefore;
-    if (statusBefore === '(missing)') {
+    // 2. إصلاح status — إلا لو 'sold' أو 'reserved' (متعمد)
+    if (statusBefore === '(missing)' || statusBefore === 'inactive') {
       statusAfter = 'active';
-      reason = reason ? `${reason} + status ناقص — اتحوّل لـ 'active'` : 'status ناقص — اتحوّل لـ \'active\'';
+      reasons.push(
+        statusBefore === '(missing)'
+          ? "status ناقص — اتحوّل لـ 'active'"
+          : "status كان 'inactive' — اتحوّل لـ 'active' عشان المستخدمين يشوفوها"
+      );
       needsFix = true;
+    } else if (statusBefore === 'sold' || statusBefore === 'reserved') {
+      reasons.push(`status = '${statusBefore}' (متعمد من الأدمن — ما اتغيرش)`);
     }
 
     if (needsFix) {
@@ -223,7 +231,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
         report.fixedCount++;
       } catch (err) {
         console.error(`[fixAllCarsAssignment] failed to fix ${id}:`, err);
-        reason = `${reason} — فشل التحديث: ${(err as Error).message}`;
+        reasons.push(`فشل التحديث: ${(err as Error).message}`);
         needsFix = false;
       }
     }
@@ -236,7 +244,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
       statusBefore,
       statusAfter: needsFix ? statusAfter : statusBefore,
       changed: needsFix,
-      reason,
+      reason: reasons.join(' · '),
     });
   }
 
