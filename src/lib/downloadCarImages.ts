@@ -1,6 +1,4 @@
-import { getBlob, ref } from 'firebase/storage';
-import { extractStoragePath } from './storage';
-import { storage } from './firebase';
+const FETCH_TIMEOUT_MS = 25000;
 
 function crc32(bytes: Uint8Array): number {
   let crc = ~0;
@@ -104,7 +102,7 @@ function createZip(files: Array<{ name: string; data: Uint8Array }>): Blob {
 
 function guessExt(blob: Blob, url: string): string {
   const fromType = blob.type.split('/')[1];
-  if (fromType && /^[a-z0-9]+$/i.test(fromType)) {
+  if (fromType && /^[a-z0-9]+$/i.test(fromType) && !fromType.includes('octet')) {
     return fromType === 'jpeg' ? 'jpg' : fromType;
   }
   const fromUrl = url.match(/\.(jpe?g|png|webp|gif|bmp)(?:$|\?)/i);
@@ -121,29 +119,54 @@ function triggerDownload(blob: Blob, filename: string) {
   const a = document.createElement('a');
   a.href = href;
   a.download = filename;
+  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 1000);
+  setTimeout(() => URL.revokeObjectURL(href), 2000);
 }
 
-async function fetchImageBlob(url: string): Promise<Blob> {
-  const path = extractStoragePath(url);
-  if (path) {
-    try {
-      return await getBlob(ref(storage, path));
-    } catch {
-      // لو SDK فشل (CORS/قواعد) نجرب التحميل المباشر من الرابط
-    }
+function nextImageProxyUrl(imageUrl: string): string {
+  const params = new URLSearchParams({ url: imageUrl, w: '2048', q: '90' });
+  return `/_next/image?${params.toString()}`;
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timer);
   }
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('فشل تحميل إحدى الصور');
-  return res.blob();
+}
+
+async function blobFromResponse(res: Response): Promise<Blob> {
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  if (!blob || blob.size === 0) throw new Error('empty image');
+  return blob;
 }
 
 /**
- * يحمّل كل صور العربية. صورة واحدة تتنزل مباشرة، أكتر من صورة تتنزل في ملف ZIP.
+ * Firebase getBlob hangs when Storage CORS is missing.
+ * Try the public download URL, then the same-origin Next image proxy.
  */
+async function fetchImageBlob(url: string): Promise<Blob> {
+  // Same-origin first: Firebase Storage CORS blocks getBlob/fetch from the PWA origin.
+  try {
+    return await blobFromResponse(await fetchWithTimeout(nextImageProxyUrl(url), FETCH_TIMEOUT_MS));
+  } catch {
+    /* try original URL if CORS is allowed */
+  }
+  return await blobFromResponse(await fetchWithTimeout(url, 8000));
+}
+
 export async function downloadAllCarImages(urls: string[], baseName: string): Promise<void> {
   const unique = [...new Set(urls.filter(Boolean))];
   if (unique.length === 0) {
@@ -151,20 +174,19 @@ export async function downloadAllCarImages(urls: string[], baseName: string): Pr
   }
 
   const base = safeBaseName(baseName);
+  const files: Array<{ name: string; data: Uint8Array }> = [];
 
-  if (unique.length === 1) {
-    const blob = await fetchImageBlob(unique[0]);
-    triggerDownload(blob, `${base}-1.${guessExt(blob, unique[0])}`);
-    return;
+  for (let i = 0; i < unique.length; i++) {
+    const url = unique[i];
+    const blob = await fetchImageBlob(url);
+    const data = new Uint8Array(await blob.arrayBuffer());
+    files.push({ name: `${base}-${i + 1}.${guessExt(blob, url)}`, data });
   }
 
-  const files = await Promise.all(
-    unique.map(async (url, i) => {
-      const blob = await fetchImageBlob(url);
-      const data = new Uint8Array(await blob.arrayBuffer());
-      return { name: `${base}-${i + 1}.${guessExt(blob, url)}`, data };
-    })
-  );
+  if (files.length === 1) {
+    triggerDownload(new Blob([files[0].data.buffer.slice(files[0].data.byteOffset, files[0].data.byteOffset + files[0].data.byteLength) as ArrayBuffer]), files[0].name);
+    return;
+  }
 
   triggerDownload(createZip(files), `${base}-images.zip`);
 }

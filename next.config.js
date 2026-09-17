@@ -10,6 +10,14 @@ const nextConfig = {
       },
       {
         protocol: 'https',
+        hostname: '*.firebasestorage.app',
+      },
+      {
+        protocol: 'https',
+        hostname: 'carz-live-board.firebasestorage.app',
+      },
+      {
+        protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
       {

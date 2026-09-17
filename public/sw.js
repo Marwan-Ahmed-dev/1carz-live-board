@@ -9,9 +9,9 @@
  * Caching version: v1 — bump to invalidate cache on changes.
  */
 
-const CACHE_NAME = '1carz-v2';
-const STATIC_CACHE = '1carz-static-v2';
-const RUNTIME_CACHE = '1carz-runtime-v2';
+const CACHE_NAME = '1carz-v3';
+const STATIC_CACHE = '1carz-static-v3';
+const RUNTIME_CACHE = '1carz-runtime-v3';
 
 const STATIC_ASSETS = [
   '/manifest.json',
@@ -56,6 +56,11 @@ self.addEventListener('fetch', (event) => {
 
   // skip cross-origin (Firebase APIs etc.)
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // don't intercept the image optimizer — downloads and gallery need a live response
+  if (url.pathname === '/_next/image') {
     return;
   }
 
