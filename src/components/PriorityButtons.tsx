@@ -1,8 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { Heart } from 'lucide-react';
 import { PriorityFilter } from '@/lib/types';
+import { PRIORITY_LABELS, PRIORITY_ORDER } from '@/lib/priority';
 
 interface PriorityButtonsProps {
   current: PriorityFilter;
@@ -10,20 +9,13 @@ interface PriorityButtonsProps {
 }
 
 /**
- * شريط الأزرار الستة لتصفية الأولوية
+ * شريط أزرار تصفية الأولوية على نفس الصفحة
  * [الكل]  [عربياتنا]  [قصوى]  [عالية]  [متوسطة]  [منخفضة]
- *
- * "عربياتنا" هو اختصار لـ "عربياتي" (my cars) — بيعرض العربيات المخصصة لي.
  */
 export function PriorityButtons({ current, onChange }: PriorityButtonsProps) {
-  const router = useRouter();
-  const buttons: Array<{ key: PriorityFilter; label: string; show?: boolean }> = [
+  const buttons: Array<{ key: PriorityFilter; label: string }> = [
     { key: 'all', label: 'الكل' },
-    { key: 'mine', label: 'عربياتي' },
-    { key: 'top', label: 'قصوى' },
-    { key: 'high', label: 'عالية' },
-    { key: 'medium', label: 'متوسطة' },
-    { key: 'low', label: 'منخفضة' },
+    ...PRIORITY_ORDER.map((key) => ({ key, label: PRIORITY_LABELS[key] })),
   ];
 
   return (
@@ -34,13 +26,8 @@ export function PriorityButtons({ current, onChange }: PriorityButtonsProps) {
           return (
             <button
               key={b.key}
-              onClick={() => {
-                if (b.key === 'mine') {
-                  router.push('/3arabyatna');
-                  return;
-                }
-                onChange(b.key);
-              }}
+              type="button"
+              onClick={() => onChange(b.key)}
               className={`px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                 active
                   ? 'bg-accent-yellow text-text-primary shadow-soft'

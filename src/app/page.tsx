@@ -10,14 +10,8 @@ import { CarCard } from '@/components/CarCard';
 import { PriceFilter } from '@/components/PriceFilter';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
-import { PriorityFilter, Priority } from '@/lib/types';
-
-const PRIORITY_META: Record<Priority, { label: string; accent: string }> = {
-  top: { label: 'أولوية قصوى', accent: 'bg-accent-yellow' },
-  high: { label: 'أولوية عالية', accent: 'bg-accent-soft' },
-  medium: { label: 'أولوية متوسطة', accent: 'bg-bg-card' },
-  low: { label: 'أولوية منخفضة', accent: 'bg-bg-card-hover' },
-};
+import { PriorityFilter } from '@/lib/types';
+import { PRIORITY_ACCENTS, PRIORITY_LABELS, PRIORITY_ORDER, PRIORITY_SECTION_LABELS } from '@/lib/priority';
 
 export default function HomePage() {
   const router = useRouter();
@@ -107,24 +101,27 @@ export default function HomePage() {
         {!loading && !error && totalCount === 0 && (
           <EmptyState
             title="لا توجد عربيات حالياً"
-            description="سيتم إضافة عربيات جديدة قريباً. تابعنا!"
+            description={
+              priorityFilter === 'all'
+                ? 'سيتم إضافة عربيات جديدة قريباً. تابعنا!'
+                : `لا توجد عربيات بمستوى ${PRIORITY_LABELS[priorityFilter]} حالياً`
+            }
           />
         )}
 
         {/* الأقسام حسب الأولوية */}
         {!loading && !error && totalCount > 0 && (
           <div className="space-y-6">
-            {(['top', 'high', 'medium', 'low'] as Priority[]).map((p) => {
+            {PRIORITY_ORDER.map((p) => {
               const list = groups[p];
               if (!list || list.length === 0) return null;
-              const meta = PRIORITY_META[p];
               return (
                 <section key={p} className="space-y-3">
                   {/* الشريط العلوي بألوان الأولوية */}
-                  <div className={`h-1 rounded-full ${meta.accent}`} />
+                  <div className={`h-1 rounded-full ${PRIORITY_ACCENTS[p]}`} />
                   <div className="flex items-center justify-between gap-2 px-1">
                     <h2 className="text-lg sm:text-xl font-bold text-text-primary">
-                      {meta.label}
+                      {PRIORITY_SECTION_LABELS[p]}
                     </h2>
                     <span className="badge-number text-xs px-2.5 py-1 rounded-full bg-bg-card text-text-secondary font-bold">
                       {list.length}

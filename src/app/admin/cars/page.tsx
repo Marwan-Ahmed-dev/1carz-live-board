@@ -14,20 +14,23 @@ import {
   AlertCircle,
   Wrench,
   CheckCircle2,
+  Heart,
   X,
 } from 'lucide-react';
 import { subscribeToCars, deleteCar, fixAllCarsAssignment, CarFixReport } from '@/lib/cars';
 import { Car, Priority } from '@/lib/types';
+import { PRIORITY_LABELS, PRIORITY_ORDER } from '@/lib/priority';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string }> = {
-  top: { label: 'قصوى', icon: Flame, color: 'text-orange-400 bg-orange-500/15' },
-  high: { label: 'عالية', icon: Star, color: 'text-amber-400 bg-amber-500/15' },
-  medium: { label: 'متوسطة', icon: ChevronUp, color: 'text-slate-300 bg-slate-500/15' },
-  low: { label: 'منخفضة', icon: ChevronDown, color: 'text-slate-500 bg-slate-700/30' },
+  arabyatna: { label: PRIORITY_LABELS.arabyatna, icon: Heart, color: 'text-rose-400 bg-rose-500/15' },
+  top: { label: PRIORITY_LABELS.top, icon: Flame, color: 'text-orange-400 bg-orange-500/15' },
+  high: { label: PRIORITY_LABELS.high, icon: Star, color: 'text-amber-400 bg-amber-500/15' },
+  medium: { label: PRIORITY_LABELS.medium, icon: ChevronUp, color: 'text-slate-300 bg-slate-500/15' },
+  low: { label: PRIORITY_LABELS.low, icon: ChevronDown, color: 'text-slate-500 bg-slate-700/30' },
 };
 
 export default function AdminCarsPage() {
@@ -156,7 +159,7 @@ export default function AdminCarsPage() {
 
         {/* Priority pills */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {(['all', 'top', 'high', 'medium', 'low'] as const).map((p) => {
+          {(['all', ...PRIORITY_ORDER] as const).map((p) => {
             const active = priorityFilter === p;
             return (
               <button
@@ -195,7 +198,7 @@ export default function AdminCarsPage() {
         <div className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden">
           <ul className="divide-y divide-admin-border">
             {filtered.map((c) => {
-              const meta = PRIORITY_META[c.priority];
+              const meta = PRIORITY_META[c.priority] || PRIORITY_META.medium;
               const Icon = meta.icon;
               return (
                 <li key={c.id} className="p-3 hover:bg-admin-bg transition-colors">

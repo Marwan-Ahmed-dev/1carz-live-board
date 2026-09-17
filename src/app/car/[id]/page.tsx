@@ -16,15 +16,19 @@ import {
   ChevronRight,
   Share2,
   Maximize2,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
+import { downloadAllCarImages } from '@/lib/downloadCarImages';
+import { PRIORITY_LABELS } from '@/lib/priority';
 import { Car as CarType, CarStatus, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
 import { CopyButton } from '@/components/CopyButton';
 import { Lightbox } from '@/components/Lightbox';
 import { formatPrice, formatRelativeDate, formatFullDate } from '@/lib/format';
+import { useToast } from '@/hooks/useToast';
 
 const STATUS_META: Record<CarStatus, { label: string; color: string }> = {
   active: { label: 'متاحة', color: 'bg-green-100 text-green-700' },
@@ -41,12 +45,7 @@ const CONDITION_META: Record<CarCondition, string> = {
   zero_km: 'كسر زيرو',
 };
 
-const PRIORITY_META: Record<string, string> = {
-  top: 'قصوى',
-  high: 'عالية',
-  medium: 'متوسطة',
-  low: 'منخفضة',
-};
+const PRIORITY_META = PRIORITY_LABELS;
 
 export default function CarDetailPage({ params }: { params: { id: string } }) {
   // ✅ FIX: Next.js 14 (App Router) بيبعت params كـ plain object — مش Promise.
@@ -54,11 +53,13 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   // بنداؤه consistent في كل الـ renders. الحل: destructure مباشرة.
   const router = useRouter();
   const { user, loading: authLoading, needsOnboarding } = useAuth();
+  const { showToast } = useToast();
   const [car, setCar] = useState<CarType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const id = params?.id;
 
@@ -125,6 +126,23 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     setShareUrl(window.location.href);
   }, [id]);
   const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`;
+
+  const handleDownloadImages = async () => {
+    if (!car || allImages.length === 0 || downloading) return;
+    setDownloading(true);
+    try {
+      await downloadAllCarImages(allImages, car.code || car.title);
+      showToast(
+        allImages.length === 1 ? 'تم تحميل الصورة' : `تم تحميل ${allImages.length} صور`,
+        'success'
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'فشل تحميل الصور';
+      showToast(message, 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (authLoading || !user) {
     return (
@@ -267,7 +285,21 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               )}
             </div>
 
-            {/* Title + Price */}
+            {allImages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDownloadImages}
+                disabled={downloading}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm bg-white border border-border-medium text-text-primary hover:bg-bg-card-hover transition-colors disabled:opacity-60"
+              >
+                {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                {downloading
+                  ? 'جاري تحميل الصور...'
+                  : allImages.length === 1
+                    ? 'تحميل الصورة'
+                    : `تحميل كل الصور (${allImages.length})`}
+              </button>
+            )}
             <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <h1 className="text-2xl sm:text-3xl font-bold text-text-primary flex-1">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Star, Flame, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react';
+import { Plus, Star, Flame, ChevronUp, ChevronDown, Heart, RefreshCw } from 'lucide-react';
 import { subscribeToCars, subscribeToPriorityCounts } from '@/lib/cars';
 import { Car } from '@/lib/types';
 import { StatCard } from '@/components/admin/StatCard';
@@ -14,7 +14,7 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const [cars, setCars] = useState<Car[]>([]);
-  const [counts, setCounts] = useState({ top: 0, high: 0, medium: 0, low: 0, total: 0 });
+  const [counts, setCounts] = useState({ arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,7 +56,13 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <StatCard
+          label="عربياتنا"
+          value={counts.arabyatna}
+          accent="yellow"
+          icon={<Heart size={20} />}
+        />
         <StatCard
           label="أولوية قصوى"
           value={counts.top}
@@ -132,7 +138,8 @@ export default function AdminDashboardPage() {
                     <div className="flex items-center gap-2 text-xs text-admin-text-muted mt-0.5">
                       <span className="badge-number">{c.code}</span>
                       <span>·</span>
-                      <span className="capitalize">
+                      <span>
+                        {c.priority === 'arabyatna' && 'عربياتنا'}
                         {c.priority === 'top' && 'قصوى'}
                         {c.priority === 'high' && 'عالية'}
                         {c.priority === 'medium' && 'متوسطة'}

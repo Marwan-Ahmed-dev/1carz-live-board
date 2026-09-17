@@ -5,12 +5,13 @@ import { Timestamp } from 'firebase/firestore';
 
 /**
  * أولويات عرض العربيات
+ * - arabyatna: عربياتنا
  * - top: قصوى (أعلى مستوى)
  * - high: عالية
  * - medium: متوسطة
  * - low: منخفضة
  */
-export type Priority = 'top' | 'high' | 'medium' | 'low';
+export type Priority = 'arabyatna' | 'top' | 'high' | 'medium' | 'low';
 
 /**
  * حالات العربية
@@ -57,7 +58,7 @@ export interface Car {
 /**
  * خيارات فلتر الأولوية في الواجهة
  */
-export type PriorityFilter = Priority | 'all' | 'mine';
+export type PriorityFilter = Priority | 'all';
 
 /**
  * الـ User document في Firestore

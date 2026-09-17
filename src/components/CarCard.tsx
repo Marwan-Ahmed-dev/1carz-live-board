@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Star, Car as CarIcon, Eye } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
+import { PRIORITY_LABELS } from '@/lib/priority';
 import { formatPrice, formatRelativeDate } from '@/lib/format';
 import { CopyButton } from '@/components/CopyButton';
 
@@ -29,13 +30,7 @@ function translateCondition(c: string): string {
  * ترجمة الأولوية للعربية (للـ accessibility label فقط)
  */
 function translatePriority(p: string): string {
-  const map: Record<string, string> = {
-    top: 'قصوى',
-    high: 'عالية',
-    medium: 'متوسطة',
-    low: 'منخفضة',
-  };
-  return map[p] || p;
+  return PRIORITY_LABELS[p as keyof typeof PRIORITY_LABELS] || p;
 }
 
 export function CarCard({ car }: CarCardProps) {

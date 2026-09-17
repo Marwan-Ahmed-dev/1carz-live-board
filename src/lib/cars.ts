@@ -21,6 +21,7 @@ import {
 import { db } from './firebase';
 import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
 import { deleteCarImages } from './storage';
+import { PRIORITY_ORDER } from './priority';
 
 const CARS_COLLECTION = 'cars';
 
@@ -391,6 +392,7 @@ export function subscribeToCar(
  * عداد العربيات حسب الأولوية (للإحصائيات في admin dashboard)
  */
 export interface PriorityCounts {
+  arabyatna: number;
   top: number;
   high: number;
   medium: number;
@@ -403,12 +405,12 @@ export function subscribeToPriorityCounts(callback: (counts: PriorityCounts) => 
   return onSnapshot(
     ref,
     (snap) => {
-      const counts: PriorityCounts = { top: 0, high: 0, medium: 0, low: 0, total: 0 };
+      const counts: PriorityCounts = { arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 };
       snap.docs.forEach((d) => {
         const data = d.data();
         counts.total++;
         const p: string = data.priority;
-        if (p === 'top' || p === 'high' || p === 'medium' || p === 'low') {
+        if ((PRIORITY_ORDER as string[]).includes(p)) {
           counts[p as Priority]++;
         }
       });
@@ -416,7 +418,7 @@ export function subscribeToPriorityCounts(callback: (counts: PriorityCounts) => 
     },
     (err) => {
       console.error('[subscribeToPriorityCounts] error:', err);
-      callback({ top: 0, high: 0, medium: 0, low: 0, total: 0 });
+      callback({ arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 });
     }
   );
 }

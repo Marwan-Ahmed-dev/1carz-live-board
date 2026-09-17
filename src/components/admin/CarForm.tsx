@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
 import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE, CarImageSlot } from '@/lib/storage';
+import { MAX_DESCRIPTION_WORDS, PRIORITY_LABELS, PRIORITY_ORDER, countWords } from '@/lib/priority';
 import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
 import { formatPriceInput, parsePriceInput } from '@/lib/format';
@@ -30,12 +31,10 @@ interface CarFormProps {
   submitLabel?: string;
 }
 
-const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = [
-  { value: 'top', label: 'قصوى' },
-  { value: 'high', label: 'عالية' },
-  { value: 'medium', label: 'متوسطة' },
-  { value: 'low', label: 'منخفضة' },
-];
+const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = PRIORITY_ORDER.map((value) => ({
+  value,
+  label: PRIORITY_LABELS[value],
+}));
 
 // ✅ FIX: خيارات الحالة مقتصرة على خيارين فقط (مستعملة / كسر زيرو)
 // الأنواع الأخرى باقية في الـ CarCondition type في types.ts للتوافق مع البيانات القديمة
@@ -188,7 +187,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
     if (!carTitle.trim()) return 'عنوان العربية مطلوب';
     if (carTitle.length > 100) return 'العنوان يجب ألا يزيد عن 100 حرف';
     if (!price || parsePriceInput(price) < 0) return 'السعر يجب أن يكون رقم صحيح';
-    if (description.length > 500) return 'الوصف يجب ألا يزيد عن 500 حرف';
+    if (countWords(description) > MAX_DESCRIPTION_WORDS) return `الوصف يجب ألا يزيد عن ${MAX_DESCRIPTION_WORDS} كلمة`;
     if (assignedTo.length === 0) return 'اختر "الكل" أو مستخدماً واحداً على الأقل';
     if (totalImageCount === 0) return 'يجب إضافة صورة واحدة على الأقل';
     if (totalImageCount > MAX_CAR_IMAGES) return `الحد الأقصى ${MAX_CAR_IMAGES} صورة`;
@@ -447,12 +446,13 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
           id="description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="وصف قصير عن العربية..."
-          maxLength={500}
-          rows={3}
-          className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 resize-none"
+          placeholder="وصف العربية..."
+          rows={8}
+          className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 resize-y min-h-[120px]"
         />
-        <div className="text-xs text-admin-text-muted mt-1 text-left">{description.length} / 500</div>
+        <div className={`text-xs mt-1 text-left ${countWords(description) > MAX_DESCRIPTION_WORDS ? 'text-red-400' : 'text-admin-text-muted'}`}>
+          {countWords(description)} / {MAX_DESCRIPTION_WORDS} كلمة
+        </div>
       </div>
 
       {/* Priority + Condition + Status */}

@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isCarVisibleToUser, subscribeToCars } from '@/lib/cars';
 import { Car, Priority, PriorityFilter } from '@/lib/types';
+import { PRIORITY_ORDER } from '@/lib/priority';
 
 export interface UseCarsOptions {
   priority?: PriorityFilter;
@@ -62,13 +63,10 @@ export function useCars(opts: UseCarsOptions = {}) {
     if (opts.uid) {
       filtered = filtered.filter((c) => isCarVisibleToUser(c, opts.uid!));
     }
-    if (opts.priority && opts.priority !== 'all' && opts.priority !== 'mine') {
+    if (opts.priority && opts.priority !== 'all') {
       filtered = filtered.filter((c) => c.priority === opts.priority);
     }
     if (opts.assignedOnly && opts.uid) {
-      filtered = filtered.filter((c) => c.assigned_to.includes(opts.uid!));
-    }
-    if (opts.priority === 'mine' && opts.uid) {
       filtered = filtered.filter((c) => c.assigned_to.includes(opts.uid!));
     }
     if (opts.minPrice != null && Number.isFinite(opts.minPrice)) {
@@ -101,12 +99,10 @@ function sortByCreatedAtDesc(cars: Car[]): Car[] {
  * ✅ تم إزالة قسم 'عادي' — كل العربيات دلوقت بتتجميع تحت قسم priority بتاعها.
  */
 export function groupCars(cars: Car[]) {
-  const priorityGroups: Record<Priority, Car[]> = {
-    top: [],
-    high: [],
-    medium: [],
-    low: [],
-  };
+  const priorityGroups = Object.fromEntries(PRIORITY_ORDER.map((p) => [p, [] as Car[]])) as Record<
+    Priority,
+    Car[]
+  >;
 
   cars.forEach((c) => {
     if (priorityGroups[c.priority]) {
@@ -129,12 +125,10 @@ export function groupCars(cars: Car[]) {
  * كل عربية بتندرج في priority array الخاص بيها — مرتبة حسب created_at desc
  */
 export function groupByPriority(cars: Car[]) {
-  const groups: Record<string, Car[]> = {
-    top: [],
-    high: [],
-    medium: [],
-    low: [],
-  };
+  const groups = Object.fromEntries(PRIORITY_ORDER.map((p) => [p, [] as Car[]])) as Record<
+    string,
+    Car[]
+  >;
   cars.forEach((c) => {
     if (groups[c.priority]) {
       groups[c.priority].push(c);

@@ -34,10 +34,10 @@
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "عربياتي",
-      "short_name": "عربياتي",
-      "description": "العربيات المخصصة لك",
-      "url": "/3arabyatna",
+      "name": "عربياتنا",
+      "short_name": "عربياتنا",
+      "description": "العربيات ذات أولوية عربياتنا",
+      "url": "/",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
