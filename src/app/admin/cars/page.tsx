@@ -12,8 +12,11 @@ import {
   ChevronUp,
   ChevronDown,
   AlertCircle,
+  Wrench,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
-import { subscribeToCars, deleteCar } from '@/lib/cars';
+import { subscribeToCars, deleteCar, fixAllCarsAssignment, CarFixReport } from '@/lib/cars';
 import { Car, Priority } from '@/lib/types';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -35,6 +38,8 @@ export default function AdminCarsPage() {
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [fixing, setFixing] = useState(false);
+  const [fixReport, setFixReport] = useState<CarFixReport | null>(null);
 
   useEffect(() => {
     const unsub = subscribeToCars((c) => {
@@ -43,6 +48,24 @@ export default function AdminCarsPage() {
     });
     return () => unsub();
   }, []);
+
+  const handleFixCars = async () => {
+    if (!confirm('سيتم فحص كل العربيات وإصلاح أي عربية بـ assigned_to فاضي أو status ناقص بتحويلها لـ [\'all\'] و \'active\'.\n\nمتأكد؟')) return;
+    setFixing(true);
+    try {
+      const report = await fixAllCarsAssignment();
+      setFixReport(report);
+      if (report.fixedCount > 0) {
+        showToast(`تم إصلاح ${report.fixedCount} عربية`, 'success');
+      } else {
+        showToast('كل العربيات سليمة بالفعل', 'success');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'فشل الفحص', 'error');
+    } finally {
+      setFixing(false);
+    }
+  };
 
   // فلترة + بحث
   const filtered = useMemo(() => {
@@ -85,14 +108,26 @@ export default function AdminCarsPage() {
             {filtered.length} من {cars.length} عربية
           </p>
         </div>
-        <button
-          onClick={() => router.push('/admin/cars/new')}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm transition-colors"
-        >
-          <Plus size={18} />
-          <span className="hidden sm:inline">عربية جديدة</span>
-          <span className="sm:hidden">إضافة</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* زر إصلاح العربيات — one-time fix للعربيات اللي assigned_to فاضي أو ناقص */}
+          <button
+            onClick={handleFixCars}
+            disabled={fixing}
+            className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text hover:bg-admin-card font-medium text-sm transition-colors disabled:opacity-50"
+            title="فحص وإصلاح العربيات القديمة اللي assigned_to فاضي أو ناقص"
+          >
+            <Wrench size={16} />
+            <span className="hidden md:inline">{fixing ? 'جاري الفحص...' : 'إصلاح'}</span>
+          </button>
+          <button
+            onClick={() => router.push('/admin/cars/new')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm transition-colors"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">عربية جديدة</span>
+            <span className="sm:hidden">إضافة</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -219,6 +254,86 @@ export default function AdminCarsPage() {
               );
             })}
           </ul>
+        </div>
+      )}
+
+      {/* Modal: نتيجة فحص وإصلاح العربيات */}
+      {fixReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={() => setFixReport(null)}
+        >
+          <div
+            className="bg-admin-card border border-admin-border rounded-2xl w-full max-w-2xl p-5 modal-in max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-admin-text">نتيجة فحص العربيات</h3>
+                <p className="text-xs text-admin-text-muted mt-1">
+                  {fixReport.fixedCount > 0
+                    ? `تم إصلاح ${fixReport.fixedCount} من ${fixReport.totalCars} عربية`
+                    : `كل العربيات سليمة (${fixReport.totalCars})`}
+                </p>
+              </div>
+              <button
+                onClick={() => setFixReport(null)}
+                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center text-admin-text-muted"
+                aria-label="إغلاق"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-2 overflow-y-auto flex-1">
+              {fixReport.cars.map((c) => (
+                <div
+                  key={c.id}
+                  className={`p-3 rounded-xl border ${
+                    c.changed
+                      ? 'bg-amber-500/10 border-amber-500/30'
+                      : 'bg-admin-bg border-admin-border'
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {c.changed ? (
+                      <CheckCircle2 size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <CheckCircle2 size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-admin-text truncate">{c.title}</div>
+                      <div className="text-xs text-admin-text-muted mt-1 space-y-0.5">
+                        <div>
+                          <span className="font-bold">assigned_to:</span>{' '}
+                          <span className="font-mono">{JSON.stringify(c.assignedToBefore)}</span>
+                          {c.changed && (
+                            <>
+                              {' → '}
+                              <span className="font-mono text-amber-400">
+                                {JSON.stringify(c.assignedToAfter)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div>
+                          <span className="font-bold">status:</span> {c.statusBefore}
+                          {c.changed && c.statusBefore !== c.statusAfter && (
+                            <>
+                              {' → '}
+                              <span className="text-amber-400">{c.statusAfter}</span>
+                            </>
+                          )}
+                        </div>
+                        {c.reason && (
+                          <div className="text-amber-400 mt-1">{c.reason}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -29,8 +29,11 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [carsCount, setCarsCount] = useState(0);
-  // لكل username عدد العربيات
-  const [perUserCount, setPerUserCount] = useState<Record<string, number>>({});
+  // لكل uid عدد العربيات المخصصة ليه (مباشرة)
+  const [perUidCount, setPerUidCount] = useState<Record<string, number>>({});
+  // للمستخدمين اللي عندهم ['all'] عربية — كلهم يستحقوا +1 لكل عربة
+  // (نحسبها بشكل منفصل عشان نعرف نضيفها لكل مستخدم)
+  const [allCount, setAllCount] = useState(0);
   // modal
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
 
@@ -41,20 +44,31 @@ export default function AdminUsersPage() {
     });
     const unsubCars = subscribeToCars((cars) => {
       setCarsCount(cars.length);
-      // حساب عدد العربيات لكل username
+      // ✅ FIX: assigned_to مخزّن بـ UIDs (مش usernames).
+      // حساب العدد لكل UID + عد العربيات اللي assigned_to فيها 'all'.
       const counts: Record<string, number> = {};
+      let allCount = 0;
       cars.forEach((c) => {
+        const hasAll = c.assigned_to.includes('all');
+        if (hasAll) allCount++;
         c.assigned_to.forEach((u) => {
+          if (u === 'all') return; // بنعدها منفصلة
           counts[u] = (counts[u] || 0) + 1;
         });
       });
-      setPerUserCount(counts);
+      setPerUidCount(counts);
+      setAllCount(allCount);
     });
     return () => {
       unsubUsers();
       unsubCars();
     };
   }, []);
+
+  // helper: عدد العربيات الفعلي للمستخدم = UID-specific + 'all' shared
+  const countForUser = (uid: string): number => {
+    return (perUidCount[uid] || 0) + allCount;
+  };
 
   const onboarded = useMemo(() => {
     let list = users.filter((u) => u.username !== null);
@@ -71,22 +85,27 @@ export default function AdminUsersPage() {
 
   // سيارات المستخدم المختار
   const userCars = useMemo(() => {
-    if (!selectedUser || !selectedUser.username) return [];
-    // نُجلب من perUserCount
-    return []; // نستخدم modal منفصل
+    if (!selectedUser || !selectedUser.uid) return [];
+    // الـ modal بيستخدم SelectedUserCars component منفصل، فنرجع []
+    return [];
   }, [selectedUser]);
 
   // استخدام modal بسيط لعرض العربيات
-  const SelectedUserCars = ({ username }: { username: string }) => {
+  const SelectedUserCars = ({ uid }: { uid: string }) => {
     const [cars, setCars] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
       const unsub = subscribeToCars((c) => {
-        setCars(c.filter((car) => car.assigned_to.includes(username) || car.assigned_to.includes('all')));
+        // ✅ FIX: بنفلتر بالـ UID (مش الـ username) عشان assigned_to مخزّن بـ UIDs
+        setCars(
+          c.filter(
+            (car) => car.assigned_to.includes(uid) || car.assigned_to.includes('all')
+          )
+        );
         setLoading(false);
       });
       return () => unsub();
-    }, [username]);
+    }, [uid]);
     return (
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {loading ? (
@@ -202,7 +221,7 @@ export default function AdminUsersPage() {
                 >
                   <CarIcon size={16} className="text-admin-accent" />
                   <span className="badge-number text-base font-bold text-admin-accent">
-                    {perUserCount[u.username!] || 0}
+                    {countForUser(u.uid)}
                   </span>
                   <span className="text-[10px] text-admin-text-muted">عربية</span>
                 </button>
@@ -235,7 +254,7 @@ export default function AdminUsersPage() {
                 <X size={16} className="text-admin-text-muted" />
               </button>
             </div>
-            <SelectedUserCars username={selectedUser.username!} />
+            <SelectedUserCars uid={selectedUser.uid} />
           </div>
         </div>
       )}

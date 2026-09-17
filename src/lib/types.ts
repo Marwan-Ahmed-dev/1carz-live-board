@@ -41,7 +41,6 @@ export interface Car {
   price: number; // السعر بالجنيه المصري
   description: string; // وصف قصير بالعربي
   priority: Priority; // أولوية العرض
-  display_order: number; // ترتيب العرض داخل نفس الأولوية
   status: CarStatus; // حالة التوفر
   image_url: string; // رابط الصورة الرئيسية
   additional_images: string[]; // صور إضافية (بحد أقصى 29 صورة إضافية، الإجمالي 30)

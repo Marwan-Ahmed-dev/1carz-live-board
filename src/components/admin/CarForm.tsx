@@ -89,7 +89,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
       ? [initial.assigned_to]
       : ['all']
   );
-  const [displayOrder, setDisplayOrder] = useState<string>(initial?.display_order?.toString() || '0');
 
   // ----- إدارة الصور -----
   // existingImages بالترتيب: الرئيسية أولاً ثم الإضافية
@@ -225,7 +224,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         price: parsePriceInput(price),
         description: description.trim(),
         priority,
-        display_order: Number(displayOrder) || 0,
         status,
         image_url: existingImages[0] || '', // الرئيسية
         additional_images: existingImages.slice(1), // الإضافية من الـ existing
@@ -415,8 +413,8 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         </div>
       </div>
 
-      {/* Price + Display Order */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Price */}
+      <div className="grid grid-cols-1 gap-3">
         <div>
           <label htmlFor="price" className="block text-sm font-bold text-admin-text-muted mb-1">
             السعر (ج.م) <span className="text-red-400">*</span>
@@ -456,20 +454,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
             placeholder="1,980,000"
             className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
             required
-          />
-        </div>
-        <div>
-          <label htmlFor="display_order" className="block text-sm font-bold text-admin-text-muted mb-1">
-            ترتيب العرض
-          </label>
-          <input
-            id="display_order"
-            type="number"
-            value={displayOrder}
-            onChange={(e) => setDisplayOrder(e.target.value)}
-            placeholder="0"
-            inputMode="numeric"
-            className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
           />
         </div>
       </div>

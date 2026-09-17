@@ -46,7 +46,6 @@ function normalizeCar(snap: DocumentData): Car {
     price: data.price || 0,
     description: data.description || '',
     priority: (data.priority || 'medium') as Priority,
-    display_order: data.display_order || 0,
     status: data.status || 'active',
     image_url: data.image_url || '',
     additional_images: data.additional_images || [],
@@ -134,6 +133,115 @@ export async function updateCar(id: string, updates: CarUpdateInput): Promise<vo
 export async function deleteCar(id: string): Promise<void> {
   const ref = doc(db, CARS_COLLECTION, id);
   await deleteDoc(ref);
+}
+
+/**
+ * نتيجة فحص وإصلاح العربيات الموجودة (one-time migration).
+ * بيرجع:
+ * - cars: قائمة بكل عربية وفحصها
+ * - fixedCount: عدد العربيات اللي اتعدلت
+ */
+export interface CarFixReport {
+  cars: Array<{
+    id: string;
+    title: string;
+    assignedToBefore: unknown;
+    assignedToAfter: string[];
+    statusBefore: string;
+    statusAfter: string;
+    changed: boolean;
+    reason: string;
+  }>;
+  fixedCount: number;
+  totalCars: number;
+}
+
+/**
+ * فحص وإصلاح العربيات الموجودة مرة واحدة:
+ * - assigned_to فاضي أو مش array → يتحوّل لـ ['all']
+ * - status ناقص → يتحوّل لـ 'active'
+ * - الـ specific UIDs لو مش موجودين في users collection (orphan)
+ *   → بنضيف تحذير بس ما بنغيرش (ممكن يكون متعمد من الأدمن)
+ *
+ * Use case: لو العربيات القديمة اتكتبت بـ `assigned_to = []` أو ناقص،
+ * المستخدمين مش هيشوفوها. ده one-time fix.
+ */
+export async function fixAllCarsAssignment(): Promise<CarFixReport> {
+  const ref = collection(db, CARS_COLLECTION);
+  const snap = await getDocs(ref);
+
+  // بنجيب الـ UIDs الموجودة فعلاً عشان نقدر نحدد orphans
+  const usersRef = collection(db, 'users');
+  const usersSnap = await getDocs(usersRef);
+  const knownUids = new Set(usersSnap.docs.map((d) => d.id));
+  knownUids.add('all'); // 'all' مش UID بس بنعتبره صالح
+
+  const report: CarFixReport = {
+    cars: [],
+    fixedCount: 0,
+    totalCars: snap.size,
+  };
+
+  for (const carDoc of snap.docs) {
+    const data = carDoc.data();
+    const id = carDoc.id;
+    const title = data.title || '(no title)';
+    const assignedToBefore = data.assigned_to;
+    const statusBefore = data.status || '(missing)';
+
+    let assignedToAfter: string[] = [];
+    let reason = '';
+    let needsFix = false;
+
+    if (!Array.isArray(assignedToBefore) || assignedToBefore.length === 0) {
+      // missing or empty → fix
+      assignedToAfter = ['all'];
+      reason = 'assigned_to كان فاضي أو ناقص — اتحوّل لـ [\'all\']';
+      needsFix = true;
+    } else {
+      assignedToAfter = assignedToBefore;
+      // check for orphan UIDs
+      const orphans = assignedToBefore.filter((u) => !knownUids.has(u));
+      if (orphans.length > 0) {
+        reason = `تحذير: assigned_to فيه UIDs مش معروفة في users: ${orphans.join(', ')}`;
+      }
+    }
+
+    let statusAfter = statusBefore;
+    if (statusBefore === '(missing)') {
+      statusAfter = 'active';
+      reason = reason ? `${reason} + status ناقص — اتحوّل لـ 'active'` : 'status ناقص — اتحوّل لـ \'active\'';
+      needsFix = true;
+    }
+
+    if (needsFix) {
+      try {
+        await updateDoc(doc(db, CARS_COLLECTION, id), {
+          assigned_to: assignedToAfter,
+          status: statusAfter,
+        });
+        report.fixedCount++;
+      } catch (err) {
+        console.error(`[fixAllCarsAssignment] failed to fix ${id}:`, err);
+        reason = `${reason} — فشل التحديث: ${(err as Error).message}`;
+        needsFix = false;
+      }
+    }
+
+    report.cars.push({
+      id,
+      title,
+      assignedToBefore,
+      assignedToAfter: needsFix ? assignedToAfter : (assignedToBefore as string[]),
+      statusBefore,
+      statusAfter: needsFix ? statusAfter : statusBefore,
+      changed: needsFix,
+      reason,
+    });
+  }
+
+  console.log('[fixAllCarsAssignment] report:', report);
+  return report;
 }
 
 /**

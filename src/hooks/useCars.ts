@@ -65,11 +65,11 @@ export function useCars(opts: UseCarsOptions = {}) {
 }
 
 /**
- * ترتيب العربيات داخل قائمة حسب display_order ثم created_at desc
+ * ترتيب العربيات داخل قائمة حسب created_at desc (الأحدث أولاً)
+ * تم إزالة display_order — العربيات دلوقت بترتب تلقائياً حسب تاريخ الإضافة.
  */
-function sortByDisplayOrder(cars: Car[]): Car[] {
+function sortByCreatedAtDesc(cars: Car[]): Car[] {
   return [...cars].sort((a, b) => {
-    if (a.display_order !== b.display_order) return a.display_order - b.display_order;
     const aTime = a.created_at?.seconds || 0;
     const bTime = b.created_at?.seconds || 0;
     return bTime - aTime;
@@ -77,7 +77,7 @@ function sortByDisplayOrder(cars: Car[]): Car[] {
 }
 
 /**
- * تجميع العربيات حسب الأولوية مع sort داخل كل مجموعة حسب display_order
+ * تجميع العربيات حسب الأولوية مع sort داخل كل مجموعة حسب created_at desc
  *
  * ✅ تم إزالة قسم 'عادي' — كل العربيات دلوقت بتتجميع تحت قسم priority بتاعها.
  */
@@ -97,7 +97,7 @@ export function groupCars(cars: Car[]) {
 
   // sort داخل كل مجموعة priority
   (Object.keys(priorityGroups) as Priority[]).forEach((k) => {
-    priorityGroups[k] = sortByDisplayOrder(priorityGroups[k]);
+    priorityGroups[k] = sortByCreatedAtDesc(priorityGroups[k]);
   });
 
   return {
@@ -107,7 +107,7 @@ export function groupCars(cars: Car[]) {
 
 /**
  * تجميع العربيات حسب الأولوية فقط (للتوافق الخلفي)
- * كل عربية بتندرج في priority array الخاص بيها — مرتبة حسب display_order
+ * كل عربية بتندرج في priority array الخاص بيها — مرتبة حسب created_at desc
  */
 export function groupByPriority(cars: Car[]) {
   const groups: Record<string, Car[]> = {
@@ -122,7 +122,7 @@ export function groupByPriority(cars: Car[]) {
     }
   });
   (Object.keys(groups) as Priority[]).forEach((k) => {
-    groups[k] = sortByDisplayOrder(groups[k]);
+    groups[k] = sortByCreatedAtDesc(groups[k]);
   });
   return groups;
 }
