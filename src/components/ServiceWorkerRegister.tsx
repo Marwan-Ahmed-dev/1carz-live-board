@@ -9,10 +9,35 @@ export function ServiceWorkerRegister() {
     };
     window.addEventListener('beforeinstallprompt', blockAppInstall);
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
-        console.error('Service worker registration failed:', err);
-      });
+    let cancelled = false;
+    let refreshing = false;
+
+    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+      const onControllerChange = () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+
+      navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .then((reg) => {
+          if (cancelled) return;
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          void reg.update();
+        })
+        .catch((err) => {
+          console.error('Service worker registration failed:', err);
+        });
+
+      return () => {
+        cancelled = true;
+        window.removeEventListener('beforeinstallprompt', blockAppInstall);
+        navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      };
     }
 
     return () => {

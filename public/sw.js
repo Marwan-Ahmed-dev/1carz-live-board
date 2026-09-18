@@ -4,17 +4,15 @@
  * Strategy:
  * - Network-first for navigation requests (HTML pages)
  * - Cache-first for static assets (JS, CSS, images)
- * - Stale-while-revalidate for icon/manifest
+ * - Network-only for manifest.json (avoid stale PWA install criteria)
  *
- * Caching version: v1 — bump to invalidate cache on changes.
+ * Caching version: v4 — bump to drop the old standalone/installable manifest.
  */
 
-const CACHE_NAME = '1carz-v3';
-const STATIC_CACHE = '1carz-static-v3';
-const RUNTIME_CACHE = '1carz-runtime-v3';
+const STATIC_CACHE = '1carz-static-v4';
+const RUNTIME_CACHE = '1carz-runtime-v4';
 
 const STATIC_ASSETS = [
-  '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/favicon.ico',
@@ -69,12 +67,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // never cache the manifest — an old standalone copy makes Chrome show "Install app"
+  if (url.pathname === '/manifest.json') {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
   // static assets: cache-first
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
-    url.pathname === '/favicon.ico' ||
-    url.pathname === '/manifest.json'
+    url.pathname === '/favicon.ico'
   ) {
     event.respondWith(
       caches.match(request).then(

@@ -7,9 +7,17 @@ import { ShortcutPrompt } from '@/components/ShortcutPrompt';
 export function ShortcutPromptHost() {
   const { user, userData, loading, needsOnboarding } = useAuth();
   const ready = !loading && !!user && !!userData && !needsOnboarding;
-  const { showPrompt, platform, dismissPrompt } = useShortcutPrompt(ready);
+  const { showPrompt, platform, adding, addResult, addShortcut, dismissPrompt } =
+    useShortcutPrompt(ready);
 
   return (
-    <ShortcutPrompt show={showPrompt} platform={platform} onDismiss={dismissPrompt} />
+    <ShortcutPrompt
+      show={showPrompt}
+      platform={platform}
+      adding={adding}
+      addResult={addResult}
+      onAdd={addShortcut}
+      onDismiss={dismissPrompt}
+    />
   );
 }

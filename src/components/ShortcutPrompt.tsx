@@ -1,33 +1,43 @@
 'use client';
 
 import { Home, Share, X } from 'lucide-react';
-import type { ShortcutPlatform } from '@/hooks/useShortcutPrompt';
+import type { ShortcutAddResult, ShortcutPlatform } from '@/hooks/useShortcutPrompt';
 
 interface ShortcutPromptProps {
   show: boolean;
   platform: ShortcutPlatform;
+  adding?: boolean;
+  addResult?: ShortcutAddResult | null;
+  onAdd: () => void;
   onDismiss: () => void;
 }
 
 const STEPS: Record<ShortcutPlatform, string[]> = {
   ios: [
-    'اضغط زر المشاركة في أسفل Safari',
-    'مرّر واختر «إضافة إلى الشاشة الرئيسية»',
+    'اضغط «إضافة الاختصار»',
+    'من القائمة اختار «إضافة إلى الشاشة الرئيسية»',
     'اضغط إضافة',
   ],
   android: [
-    'اضغط القائمة ⋮ في أعلى المتصفح',
-    'اختر «إضافة إلى الشاشة الرئيسية»',
-    'لا تختر «تثبيت التطبيق» — نريد اختصاراً فقط',
+    'اضغط «إضافة الاختصار»',
+    'من القائمة اختار «إضافة إلى الشاشة الرئيسية» لو ظهرت',
+    'أو من ⋮ في المتصفح اختار إضافة إلى الشاشة الرئيسية — مش «تثبيت التطبيق»',
   ],
   desktop: [
-    'من قائمة المتصفح ⋮ اختر إنشاء اختصار',
+    'اضغط «إضافة الاختصار» لمشاركة أو نسخ الرابط',
+    'أو من قائمة المتصفح أنشئ اختصاراً',
     'لا تفعّل «فتح في نافذة»',
-    'سيظهر الاختصار على سطح المكتب أو شريط المهام',
   ],
 };
 
-export function ShortcutPrompt({ show, platform, onDismiss }: ShortcutPromptProps) {
+export function ShortcutPrompt({
+  show,
+  platform,
+  adding = false,
+  addResult = null,
+  onAdd,
+  onDismiss,
+}: ShortcutPromptProps) {
   if (!show) return null;
 
   return (
@@ -58,10 +68,10 @@ export function ShortcutPrompt({ show, platform, onDismiss }: ShortcutPromptProp
           أضف اختصاراً على الشاشة الرئيسية
         </h2>
         <p className="text-sm text-text-secondary text-center mb-4">
-          عشان تفتح اللوحة بسرعة من غير ما تحمّلها كتطبيق
+          هيظهر كأيقونة على الشاشة، ويفتح في المتصفح — مش تطبيق
         </p>
 
-        <ol className="space-y-2 mb-6 text-sm text-text-primary">
+        <ol className="space-y-2 mb-4 text-sm text-text-primary">
           {STEPS[platform].map((step, i) => (
             <li key={step} className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent-yellow text-text-primary text-xs font-bold flex items-center justify-center">
@@ -72,12 +82,33 @@ export function ShortcutPrompt({ show, platform, onDismiss }: ShortcutPromptProp
           ))}
         </ol>
 
-        <button
-          onClick={onDismiss}
-          className="w-full py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base transition-colors"
-        >
-          حسناً
-        </button>
+        {addResult === 'copied' && (
+          <p className="mb-4 text-sm text-center text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+            تم نسخ الرابط. أضفه كاختصار من قائمة المتصفح ⋮
+          </p>
+        )}
+
+        {addResult === 'unsupported' && (
+          <p className="mb-4 text-sm text-center text-text-secondary">
+            استخدم الخطوات فوق لإضافة الاختصار من المتصفح
+          </p>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={onAdd}
+            disabled={adding}
+            className="w-full py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base transition-colors disabled:opacity-60"
+          >
+            {adding ? 'جاري الإضافة...' : 'إضافة الاختصار'}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="w-full py-3 rounded-xl bg-white hover:bg-bg-card-hover text-text-secondary font-semibold text-base transition-colors"
+          >
+            لاحقاً
+          </button>
+        </div>
       </div>
     </div>
   );
