@@ -33,6 +33,10 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true, // نتجاهل lint errors في الـ build (TypeScript هو المهم)
   },
+  // firebase-admin → jwks-rsa → jose must load from node_modules, not the Next bundle
+  experimental: {
+    serverComponentsExternalPackages: ['firebase-admin', 'jose', 'jwks-rsa'],
+  },
   // ✅ تحسين سرعة الـ build
   // تفعيل SWC minify (أسرع من Terser الافتراضي)
   swcMinify: true,
