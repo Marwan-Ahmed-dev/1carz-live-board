@@ -11,7 +11,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { AppUser } from './types';
 
 const USERS_COLLECTION = 'users';
@@ -94,6 +94,42 @@ export async function findUserByUsername(username: string): Promise<AppUser | nu
   const userSnap = await getDoc(doc(db, USERS_COLLECTION, uid));
   if (!userSnap.exists()) return null;
   return normalizeUser(userSnap);
+}
+
+/**
+ * حذف حساب مستخدم من لوحة الأدمن (Auth + بيانات Firestore).
+ * يحتاج مسار API على السيرفر لأن الـ client SDK لا يحذف حسابات الآخرين.
+ */
+export async function deleteUserByAdmin(target: AppUser): Promise<void> {
+  const current = auth.currentUser;
+  if (!current) throw new Error('يجب تسجيل الدخول');
+  if (current.uid === target.uid) {
+    throw new Error('لا يمكن حذف حسابك');
+  }
+
+  const token = await current.getIdToken();
+  let res: Response;
+  try {
+    res = await fetch(`/api/admin/users/${encodeURIComponent(target.uid)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new Error('تعذر الاتصال بالسيرفر لحذف الحساب');
+  }
+
+  if (res.ok) return;
+
+  let message = 'فشل حذف الحساب';
+  try {
+    const data = (await res.json()) as { error?: string };
+    if (typeof data?.error === 'string' && data.error) message = data.error;
+  } catch {
+    if (res.status === 404) {
+      message = 'حذف الحساب غير متاح على هذا الإصدار من التطبيق';
+    }
+  }
+  throw new Error(message);
 }
 
 export async function countAssignedCars(uid: string): Promise<number> {

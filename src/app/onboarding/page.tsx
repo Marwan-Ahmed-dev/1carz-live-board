@@ -4,21 +4,17 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { saveUsername } from '@/lib/auth';
 import { checkUsernameAvailable } from '@/lib/users';
-import { InstallPrompt } from '@/components/InstallPrompt';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, userData, loading, needsOnboarding } = useAuth();
-  const { showPrompt, triggerPrompt, dismissPrompt, isIOS, isStandalone, promptInstall } = useInstallPrompt();
 
   const [username, setUsername] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [showInstall, setShowInstall] = useState(false);
 
   // Redirect لو مش في onboarding state
   useEffect(() => {
@@ -68,12 +64,7 @@ export default function OnboardingPage() {
       // حفظ في Firestore
       await saveUsername(user!.uid, trimmed);
       setSuccess(true);
-      // عرض الـ install prompt بعد النجاح
-      if (!isStandalone) {
-        setShowInstall(true);
-        triggerPrompt();
-      }
-      // انتظار قصير ثم التوجيه
+      // انتظار قصير ثم التوجيه — اختصار الشاشة يظهر بعد الدخول على الجهاز
       setTimeout(() => {
         router.replace('/');
       }, 1500);
@@ -163,22 +154,6 @@ export default function OnboardingPage() {
           </form>
         </div>
       </div>
-
-      {/* PWA install prompt */}
-      {showInstall && (
-        <InstallPrompt
-          show={showPrompt || isIOS}
-          isIOS={isIOS}
-          onInstall={async () => {
-            await promptInstall();
-            setShowInstall(false);
-          }}
-          onDismiss={() => {
-            dismissPrompt();
-            setShowInstall(false);
-          }}
-        />
-      )}
     </main>
   );
 }

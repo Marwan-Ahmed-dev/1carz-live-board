@@ -6,11 +6,10 @@
   "dir": "rtl",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "browser",
   "orientation": "portrait",
   "background_color": "#FAF7F0",
   "theme_color": "#FCD34D",
-  "categories": ["business", "lifestyle", "shopping"],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -23,22 +22,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "كل العربيات",
-      "short_name": "الكل",
-      "description": "عرض كل العربيات المتاحة",
-      "url": "/",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "عربياتنا",
-      "short_name": "عربياتنا",
-      "description": "العربيات ذات أولوية عربياتنا",
-      "url": "/",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

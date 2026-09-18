@@ -12,8 +12,9 @@ import {
   Plus,
   Loader2,
   Users as UsersIcon,
+  Trash2,
 } from 'lucide-react';
-import { subscribeToUsers, validateUsername } from '@/lib/users';
+import { subscribeToUsers, validateUsername, deleteUserByAdmin } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { createUserByAdmin } from '@/lib/auth';
 import { AppUser, UserGroup } from '@/lib/types';
@@ -22,6 +23,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { GroupManager } from '@/components/admin/GroupManager';
 import { subscribeToCars } from '@/lib/cars';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 
 function formatDate(ts: unknown): string {
   if (!ts) return '-';
@@ -43,6 +45,8 @@ function formatDate(ts: unknown): string {
 export default function AdminUsersPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const currentUid = user?.uid;
   const [tab, setTab] = useState<'users' | 'groups'>('users');
   const [users, setUsers] = useState<AppUser[]>([]);
   const [groups, setGroups] = useState<UserGroup[]>([]);
@@ -58,6 +62,7 @@ export default function AdminUsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubUsers = subscribeToUsers((u) => {
@@ -182,6 +187,27 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleDeleteUser = async (target: AppUser) => {
+    const label = target.username || target.email;
+    if (
+      !confirm(
+        `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+      )
+    ) {
+      return;
+    }
+    setDeletingId(target.uid);
+    try {
+      await deleteUserByAdmin(target);
+      if (selectedUser?.uid === target.uid) setSelectedUser(null);
+      showToast('تم حذف الحساب', 'success');
+    } catch (err: unknown) {
+      showToast((err as Error)?.message || 'فشل حذف الحساب', 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -300,16 +326,32 @@ export default function AdminUsersPage() {
                           </span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setSelectedUser(u)}
-                        className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-admin-bg hover:bg-admin-border transition-colors"
-                      >
-                        <CarIcon size={16} className="text-admin-accent" />
-                        <span className="badge-number text-base font-bold text-admin-accent">
-                          {countForUser(u.uid)}
-                        </span>
-                        <span className="text-[10px] text-admin-text-muted">عربية</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => setSelectedUser(u)}
+                          className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-admin-bg hover:bg-admin-border transition-colors"
+                        >
+                          <CarIcon size={16} className="text-admin-accent" />
+                          <span className="badge-number text-base font-bold text-admin-accent">
+                            {countForUser(u.uid)}
+                          </span>
+                          <span className="text-[10px] text-admin-text-muted">عربية</span>
+                        </button>
+                        {u.uid !== currentUid && (
+                          <button
+                            onClick={() => handleDeleteUser(u)}
+                            disabled={deletingId === u.uid}
+                            className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
+                            aria-label="حذف الحساب"
+                          >
+                            {deletingId === u.uid ? (
+                              <Loader2 size={16} className="text-red-400 animate-spin" />
+                            ) : (
+                              <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </li>
                   );
                 })}

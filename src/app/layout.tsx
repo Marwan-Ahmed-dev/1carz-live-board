@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Cairo, Inter } from 'next/font/google';
 import { ToastProvider } from '@/hooks/useToast';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { ShortcutPromptHost } from '@/components/ShortcutPromptHost';
 import './globals.css';
 
 // خط عربي: Cairo
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   applicationName: '1CARZ LIVE BOARD',
   appleWebApp: {
-    capable: true,
+    capable: false,
     statusBarStyle: 'default',
     title: '1CARZ',
   },
@@ -57,13 +58,16 @@ export default function RootLayout({
         {/* PWA: theme color for Android */}
         <meta name="theme-color" content="#FCD34D" />
         {/* PWA: Apple specific */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="no" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="1CARZ" />
       </head>
       <body className="font-arabic">
         <ServiceWorkerRegister />
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          {children}
+          <ShortcutPromptHost />
+        </ToastProvider>
       </body>
     </html>
   );
