@@ -4,13 +4,13 @@
  * Strategy:
  * - Network-first for navigation requests (HTML pages)
  * - Cache-first for static assets (JS, CSS, images)
- * - Network-only for manifest.json (avoid stale PWA install criteria)
+ * - Network-only for manifest.json
  *
- * Caching version: v4 — bump to drop the old standalone/installable manifest.
+ * Caching version: v5 — native add-to-home prompt.
  */
 
-const STATIC_CACHE = '1carz-static-v4';
-const RUNTIME_CACHE = '1carz-runtime-v4';
+const STATIC_CACHE = '1carz-static-v5';
+const RUNTIME_CACHE = '1carz-runtime-v5';
 
 const STATIC_ASSETS = [
   '/icons/icon-192.png',

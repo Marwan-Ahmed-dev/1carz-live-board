@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { promptNativeHomeShortcut } from '@/lib/nativeHomeShortcut';
 
 export type ShortcutPlatform = 'ios' | 'android' | 'desktop';
-export type ShortcutAddResult = 'shared' | 'copied' | 'cancelled' | 'unsupported';
+export type ShortcutAddResult = 'accepted' | 'shared' | 'copied' | 'cancelled' | 'unsupported';
 
-const SEEN_KEY = '1carz_shortcut_prompt_seen_v2';
+const SEEN_KEY = '1carz_shortcut_prompt_seen_v3';
 
 function detectPlatform(): ShortcutPlatform {
   const ua = window.navigator.userAgent.toLowerCase();
@@ -18,11 +19,12 @@ function isStandaloneDisplay(): boolean {
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
     window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
 
-async function requestHomeShortcut(): Promise<ShortcutAddResult> {
+async function shareOnIos(): Promise<ShortcutAddResult> {
   const url = `${window.location.origin}/`;
   const data: ShareData = {
     title: '1CARZ LIVE BOARD',
@@ -30,21 +32,13 @@ async function requestHomeShortcut(): Promise<ShortcutAddResult> {
     url,
   };
 
-  if (typeof navigator.share === 'function') {
-    try {
-      await navigator.share(data);
-      return 'shared';
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return 'cancelled';
-      }
-    }
-  }
-
   try {
-    await navigator.clipboard.writeText(url);
-    return 'copied';
-  } catch {
+    await navigator.share(data);
+    return 'shared';
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return 'cancelled';
+    }
     return 'unsupported';
   }
 }
@@ -77,13 +71,31 @@ export function useShortcutPrompt(enabled: boolean) {
     setAdding(true);
     setAddResult(null);
     try {
-      const result = await requestHomeShortcut();
-      setAddResult(result);
-      if (result === 'shared') {
+      const native = await promptNativeHomeShortcut();
+      if (native === 'accepted') {
         localStorage.setItem(SEEN_KEY, '1');
         setShowPrompt(false);
+        setAddResult('accepted');
+        return 'accepted';
       }
-      return result;
+      if (native === 'dismissed') {
+        setAddResult('cancelled');
+        return 'cancelled';
+      }
+
+      const currentPlatform = detectPlatform();
+      if (currentPlatform === 'ios' && typeof navigator.share === 'function') {
+        const shared = await shareOnIos();
+        setAddResult(shared);
+        if (shared === 'shared') {
+          localStorage.setItem(SEEN_KEY, '1');
+          setShowPrompt(false);
+        }
+        return shared;
+      }
+
+      setAddResult('unsupported');
+      return 'unsupported';
     } finally {
       setAdding(false);
     }

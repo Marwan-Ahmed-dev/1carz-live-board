@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
+import { captureInstallPrompt } from '@/lib/nativeHomeShortcut';
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    const blockAppInstall = (e: Event) => {
-      e.preventDefault();
-    };
-    window.addEventListener('beforeinstallprompt', blockAppInstall);
+    captureInstallPrompt();
 
     let cancelled = false;
     let refreshing = false;
@@ -35,14 +33,11 @@ export function ServiceWorkerRegister() {
 
       return () => {
         cancelled = true;
-        window.removeEventListener('beforeinstallprompt', blockAppInstall);
         navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
       };
     }
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', blockAppInstall);
-    };
+    return undefined;
   }, []);
   return null;
 }
