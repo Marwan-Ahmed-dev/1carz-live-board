@@ -6,11 +6,11 @@
  * - Cache-first for static assets (JS, CSS, images)
  * - Network-only for manifest.json
  *
- * Caching version: v5 — native add-to-home prompt.
+ * Caching version: v6 — shortcut (not WebAPK/app install).
  */
 
-const STATIC_CACHE = '1carz-static-v5';
-const RUNTIME_CACHE = '1carz-runtime-v5';
+const STATIC_CACHE = '1carz-static-v6';
+const RUNTIME_CACHE = '1carz-runtime-v6';
 
 const STATIC_ASSETS = [
   '/icons/icon-192.png',

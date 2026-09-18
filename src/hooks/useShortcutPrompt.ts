@@ -1,16 +1,29 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { promptNativeHomeShortcut } from '@/lib/nativeHomeShortcut';
 
 export type ShortcutPlatform = 'ios' | 'android' | 'desktop';
-export type ShortcutAddResult = 'accepted' | 'shared' | 'copied' | 'cancelled' | 'unsupported';
+export type ShortcutAddResult = 'shared' | 'cancelled' | 'unsupported';
 
-const SEEN_KEY = '1carz_shortcut_prompt_seen_v3';
+const SEEN_KEY = '1carz_shortcut_prompt_seen_v4';
+
+function isPhone(): boolean {
+  const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
+  if (typeof uaData?.mobile === 'boolean') {
+    return uaData.mobile;
+  }
+
+  const ua = navigator.userAgent.toLowerCase();
+  if (/iphone|ipod/.test(ua)) return true;
+  // iPadOS 13+ reports as Macintosh with touch — not a phone
+  if (/ipad/.test(ua) || (/macintosh/.test(ua) && 'ontouchend' in document)) return false;
+  if (/android/.test(ua) && /mobile/.test(ua)) return true;
+  return false;
+}
 
 function detectPlatform(): ShortcutPlatform {
-  const ua = window.navigator.userAgent.toLowerCase();
-  if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+  const ua = navigator.userAgent.toLowerCase();
+  if (/iphone|ipod/.test(ua)) return 'ios';
   if (/android/.test(ua)) return 'android';
   return 'desktop';
 }
@@ -26,14 +39,12 @@ function isStandaloneDisplay(): boolean {
 
 async function shareOnIos(): Promise<ShortcutAddResult> {
   const url = `${window.location.origin}/`;
-  const data: ShareData = {
-    title: '1CARZ LIVE BOARD',
-    text: 'لوحة العربيات الحية',
-    url,
-  };
-
   try {
-    await navigator.share(data);
+    await navigator.share({
+      title: '1CARZ LIVE BOARD',
+      text: 'لوحة العربيات الحية',
+      url,
+    });
     return 'shared';
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
@@ -56,6 +67,10 @@ export function useShortcutPrompt(enabled: boolean) {
     }
     if (isStandaloneDisplay()) return;
     if (localStorage.getItem(SEEN_KEY) === '1') return;
+    if (!isPhone()) {
+      setShowPrompt(false);
+      return;
+    }
 
     setPlatform(detectPlatform());
     const t = window.setTimeout(() => setShowPrompt(true), 700);
@@ -71,18 +86,7 @@ export function useShortcutPrompt(enabled: boolean) {
     setAdding(true);
     setAddResult(null);
     try {
-      const native = await promptNativeHomeShortcut();
-      if (native === 'accepted') {
-        localStorage.setItem(SEEN_KEY, '1');
-        setShowPrompt(false);
-        setAddResult('accepted');
-        return 'accepted';
-      }
-      if (native === 'dismissed') {
-        setAddResult('cancelled');
-        return 'cancelled';
-      }
-
+      // Never call beforeinstallprompt.prompt() — Chrome then installs a WebAPK app.
       const currentPlatform = detectPlatform();
       if (currentPlatform === 'ios' && typeof navigator.share === 'function') {
         const shared = await shareOnIos();

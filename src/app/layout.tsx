@@ -24,7 +24,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: '1CARZ LIVE BOARD',
   description: 'لوحة العربيات الحية - 1CARZ',
-  manifest: '/manifest.json?v=5',
+  manifest: '/manifest.json?v=6',
   applicationName: '1CARZ LIVE BOARD',
   appleWebApp: {
     capable: false,
@@ -52,11 +52,11 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" className={`${cairo.variable} ${inter.variable}`}>
       <head>
         {/* PWA: ربط manifest */}
-        <link rel="manifest" href="/manifest.json?v=5" />
+        <link rel="manifest" href="/manifest.json?v=6" />
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__1carzShortcutPrompt=e;});",
+              "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();});",
           }}
         />
         <link rel="icon" href="/favicon.ico" />

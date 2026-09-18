@@ -19,14 +19,14 @@ const STEPS: Record<ShortcutPlatform, string[]> = {
     'اضغط إضافة',
   ],
   android: [
-    'اضغط «إضافة الاختصار»',
-    'هتظهر رسالة المتصفح الأصلية لإضافة الأيقونة',
-    'اضغط إضافة',
+    'اضغط القائمة ⋮ في أعلى المتصفح',
+    'اختار «إضافة إلى الشاشة الرئيسية»',
+    'لا تختر «تثبيت التطبيق» — نريد اختصاراً فقط',
   ],
   desktop: [
-    'اضغط «إضافة الاختصار»',
-    'هتظهر رسالة المتصفح الأصلية لإنشاء الاختصار',
-    'أكّد الإضافة',
+    'من قائمة المتصفح ⋮ أنشئ اختصاراً',
+    'لا تفعّل «فتح في نافذة»',
+    'سيظهر الاختصار على سطح المكتب',
   ],
 };
 
@@ -39,6 +39,8 @@ export function ShortcutPrompt({
   onDismiss,
 }: ShortcutPromptProps) {
   if (!show) return null;
+
+  const primaryIsIos = platform === 'ios';
 
   return (
     <div
@@ -84,24 +86,35 @@ export function ShortcutPrompt({
 
         {addResult === 'unsupported' && (
           <p className="mb-4 text-sm text-center text-text-secondary">
-            استخدم قائمة المتصفح ⋮ ثم «إضافة إلى الشاشة الرئيسية»
+            استخدم ⋮ ثم «إضافة إلى الشاشة الرئيسية» — مش «تثبيت التطبيق»
           </p>
         )}
 
         <div className="flex flex-col gap-2">
-          <button
-            onClick={onAdd}
-            disabled={adding}
-            className="w-full py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base transition-colors disabled:opacity-60"
-          >
-            {adding ? 'جاري الإضافة...' : 'إضافة الاختصار'}
-          </button>
-          <button
-            onClick={onDismiss}
-            className="w-full py-3 rounded-xl bg-white hover:bg-bg-card-hover text-text-secondary font-semibold text-base transition-colors"
-          >
-            لاحقاً
-          </button>
+          {primaryIsIos ? (
+            <button
+              onClick={onAdd}
+              disabled={adding}
+              className="w-full py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base transition-colors disabled:opacity-60"
+            >
+              {adding ? 'جاري الإضافة...' : 'إضافة الاختصار'}
+            </button>
+          ) : (
+            <button
+              onClick={onDismiss}
+              className="w-full py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base transition-colors"
+            >
+              حسناً
+            </button>
+          )}
+          {primaryIsIos && (
+            <button
+              onClick={onDismiss}
+              className="w-full py-3 rounded-xl bg-white hover:bg-bg-card-hover text-text-secondary font-semibold text-base transition-colors"
+            >
+              لاحقاً
+            </button>
+          )}
         </div>
       </div>
     </div>
