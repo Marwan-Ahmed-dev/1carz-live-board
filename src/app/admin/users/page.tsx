@@ -13,6 +13,7 @@ import {
   Loader2,
   Users as UsersIcon,
   Trash2,
+  Shield,
 } from 'lucide-react';
 import { subscribeToUsers, validateUsername, deleteUserByAdmin } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
@@ -60,9 +61,11 @@ export default function AdminUsersPage() {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newIsAdmin, setNewIsAdmin] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [adminUids, setAdminUids] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubUsers = subscribeToUsers((u) => {
@@ -91,6 +94,27 @@ export default function AdminUsersPage() {
       unsubCars();
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken(true);
+        const res = await fetch('/api/admin/users', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { admins?: string[] };
+        if (!cancelled) setAdminUids(new Set(data.admins || []));
+      } catch {
+        /* keep empty — badges optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const countForUser = (uid: string): number => (perUidCount[uid] || 0) + allCount;
 
@@ -170,16 +194,21 @@ export default function AdminUsersPage() {
     }
     setCreating(true);
     try {
-      await createUserByAdmin({
+      const created = await createUserByAdmin({
         name: newName,
         email: newEmail,
         password: newPassword,
+        isAdmin: newIsAdmin,
       });
-      showToast('تم إنشاء الحساب بنجاح', 'success');
+      if (created.role === 'admin' && created.uid) {
+        setAdminUids((prev) => new Set(prev).add(created.uid));
+      }
+      showToast(newIsAdmin ? 'تم إنشاء حساب أدمن' : 'تم إنشاء الحساب بنجاح', 'success');
       setCreateOpen(false);
       setNewName('');
       setNewEmail('');
       setNewPassword('');
+      setNewIsAdmin(false);
     } catch (err: unknown) {
       setCreateError((err as Error)?.message || 'فشل إنشاء الحساب');
     } finally {
@@ -189,9 +218,12 @@ export default function AdminUsersPage() {
 
   const handleDeleteUser = async (target: AppUser) => {
     const label = target.username || target.email;
+    const targetIsAdmin = adminUids.has(target.uid) || target.role === 'admin';
     if (
       !confirm(
-        `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+        targetIsAdmin
+          ? `هل تريد حذف حساب الأدمن "${label}"؟\nلن يتمكن من الدخول للوحة التحكم بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+          : `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
       )
     ) {
       return;
@@ -199,6 +231,11 @@ export default function AdminUsersPage() {
     setDeletingId(target.uid);
     try {
       await deleteUserByAdmin(target);
+      setAdminUids((prev) => {
+        const next = new Set(prev);
+        next.delete(target.uid);
+        return next;
+      });
       if (selectedUser?.uid === target.uid) setSelectedUser(null);
       showToast('تم حذف الحساب', 'success');
     } catch (err: unknown) {
@@ -221,6 +258,7 @@ export default function AdminUsersPage() {
           <button
             onClick={() => {
               setCreateError(null);
+              setNewIsAdmin(false);
               setCreateOpen(true);
             }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm"
@@ -293,8 +331,14 @@ export default function AdminUsersPage() {
                         <UserIcon size={22} className="text-admin-accent" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-admin-text truncate">
+                        <h3 className="text-sm font-bold text-admin-text truncate flex items-center gap-1.5">
                           {u.username || u.email.split('@')[0]}
+                          {(adminUids.has(u.uid) || u.role === 'admin') && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-admin-accent/15 text-admin-accent text-[10px] font-bold">
+                              <Shield size={10} />
+                              أدمن
+                            </span>
+                          )}
                         </h3>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-admin-text-muted mt-0.5">
                           <span className="flex items-center gap-1">
@@ -400,7 +444,7 @@ export default function AdminUsersPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-admin-text">إنشاء حساب مستخدم</h3>
+              <h3 className="text-lg font-bold text-admin-text">إنشاء حساب</h3>
               <button
                 onClick={() => !creating && setCreateOpen(false)}
                 className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
@@ -451,6 +495,16 @@ export default function AdminUsersPage() {
                   dir="ltr"
                 />
               </div>
+              <label className="flex items-center gap-2 px-1 py-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newIsAdmin}
+                  onChange={(e) => setNewIsAdmin(e.target.checked)}
+                  className="w-4 h-4 rounded border-admin-border text-admin-accent"
+                />
+                <span className="text-sm font-bold text-admin-text">حساب أدمن</span>
+                <span className="text-xs text-admin-text-muted">يقدر يدخل لوحة التحكم</span>
+              </label>
               {createError && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400">
                   {createError}

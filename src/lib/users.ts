@@ -23,6 +23,7 @@ function normalizeUser(snap: any): AppUser {
     uid: data.uid || snap.id,
     email: data.email || '',
     username: data.username || null,
+    role: data.role === 'admin' ? 'admin' : data.role === 'user' ? 'user' : undefined,
     onboarded_at: data.onboarded_at || null,
     created_at: data.created_at || null,
     last_seen: data.last_seen || null,
@@ -107,7 +108,7 @@ export async function deleteUserByAdmin(target: AppUser): Promise<void> {
     throw new Error('لا يمكن حذف حسابك');
   }
 
-  const token = await current.getIdToken();
+  const token = await current.getIdToken(true);
   let res: Response;
   try {
     res = await fetch(`/api/admin/users/${encodeURIComponent(target.uid)}`, {

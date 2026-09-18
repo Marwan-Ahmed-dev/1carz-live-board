@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, WriteBatch } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
+import { jsonError, requireAdmin } from '@/lib/adminAuthServer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function jsonError(status: number, error: string) {
-  return NextResponse.json({ error }, { status });
-}
-
-async function requireAdmin(req: NextRequest) {
-  const header = req.headers.get('authorization') || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (!token) {
-    throw Object.assign(new Error('يجب تسجيل الدخول'), { status: 401 });
+async function commitChunks(
+  db: ReturnType<typeof getAdminDb>,
+  apply: Array<(batch: WriteBatch) => void>
+) {
+  const CHUNK = 400;
+  for (let i = 0; i < apply.length; i += CHUNK) {
+    const batch = db.batch();
+    apply.slice(i, i + CHUNK).forEach((fn) => fn(batch));
+    await batch.commit();
   }
-  const decoded = await getAdminAuth().verifyIdToken(token);
-  if (decoded.role !== 'admin') {
-    throw Object.assign(new Error('غير مصرح'), { status: 403 });
-  }
-  return decoded;
 }
 
 async function cleanupFirestore(uid: string) {
@@ -37,39 +33,57 @@ async function cleanupFirestore(uid: string) {
     db.collection('cars').where('assigned_to', 'array-contains', uid).get(),
   ]);
 
-  const batch = db.batch();
-  batch.delete(userRef);
+  const ops: Array<(batch: WriteBatch) => void> = [];
+  ops.push((batch) => batch.delete(userRef));
 
   const deletedUnames = new Set<string>();
   unames.docs.forEach((d) => {
-    batch.delete(d.ref);
+    ops.push((batch) => batch.delete(d.ref));
     deletedUnames.add(d.id);
   });
   if (username) {
     const key = username.trim().replace(/\s+/g, '_').toLowerCase();
     if (key && !deletedUnames.has(key)) {
-      batch.delete(db.collection('usernames').doc(key));
+      ops.push((batch) => batch.delete(db.collection('usernames').doc(key)));
     }
   }
 
   groups.docs.forEach((d) => {
     const members = Array.isArray(d.data().memberUids) ? d.data().memberUids : [];
-    batch.update(d.ref, {
-      memberUids: members.filter((id: unknown) => id !== uid),
-      updated_at: FieldValue.serverTimestamp(),
-    });
+    ops.push((batch) =>
+      batch.update(d.ref, {
+        memberUids: members.filter((id: unknown) => id !== uid),
+        updated_at: FieldValue.serverTimestamp(),
+      })
+    );
   });
 
   cars.docs.forEach((d) => {
     const assigned = Array.isArray(d.data().assigned_to) ? d.data().assigned_to : [];
     const next = assigned.filter((id: unknown) => id !== uid);
-    batch.update(d.ref, {
-      assigned_to: next.length > 0 ? next : ['all'],
-      updated_at: FieldValue.serverTimestamp(),
-    });
+    ops.push((batch) =>
+      batch.update(d.ref, {
+        assigned_to: next.length > 0 ? next : ['all'],
+        updated_at: FieldValue.serverTimestamp(),
+      })
+    );
   });
 
-  await batch.commit();
+  await commitChunks(db, ops);
+}
+
+async function countAdmins(): Promise<number> {
+  const auth = getAdminAuth();
+  let count = 0;
+  let pageToken: string | undefined;
+  do {
+    const page = await auth.listUsers(1000, pageToken);
+    for (const u of page.users) {
+      if (u.customClaims?.role === 'admin') count += 1;
+    }
+    pageToken = page.pageToken;
+  } while (pageToken);
+  return count;
 }
 
 export async function DELETE(
@@ -89,7 +103,10 @@ export async function DELETE(
     try {
       const target = await auth.getUser(uid);
       if (target.customClaims?.role === 'admin') {
-        return jsonError(403, 'لا يمكن حذف حساب أدمن');
+        const adminCount = await countAdmins();
+        if (adminCount <= 1) {
+          return jsonError(400, 'لا يمكن حذف آخر حساب أدمن');
+        }
       }
       await auth.deleteUser(uid);
     } catch (err: unknown) {

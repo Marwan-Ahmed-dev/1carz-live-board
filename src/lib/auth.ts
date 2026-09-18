@@ -7,8 +7,6 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
-  createUserWithEmailAndPassword,
-  getAuth,
   User,
 } from 'firebase/auth';
 import {
@@ -19,10 +17,9 @@ import {
   updateDoc,
   runTransaction,
 } from 'firebase/firestore';
-import { initializeApp, getApps } from 'firebase/app';
-import { auth, db, firebaseConfig } from './firebase';
+import { auth, db } from './firebase';
 import { AppUser } from './types';
-import { checkUsernameAvailable, normalizeUsernameKey, validateUsername } from './users';
+import { normalizeUsernameKey, validateUsername } from './users';
 
 /**
  * تسجيل الدخول بـ email/password
@@ -175,22 +172,14 @@ export async function refreshClaims(): Promise<{ isAdmin: boolean }> {
   return { isAdmin: tokenResult.claims?.role === 'admin' };
 }
 
-const SECONDARY_APP_NAME = 'SecondaryAdminCreate';
-
-function getSecondaryAuth() {
-  const existing = getApps().find((a) => a.name === SECONDARY_APP_NAME);
-  const app = existing || initializeApp(firebaseConfig, SECONDARY_APP_NAME);
-  return getAuth(app);
-}
-
 /**
- * إنشاء حساب مستخدم جديد من لوحة الأدمن دون تسجيل خروج الأدمن.
- * يستخدم تطبيق Firebase ثانوي حتى لا تتأثر جلسة الأدمن.
+ * إنشاء حساب مستخدم أو أدمن من لوحة التحكم عبر Firebase Admin على السيرفر.
  */
 export async function createUserByAdmin(params: {
   name: string;
   email: string;
   password: string;
+  isAdmin?: boolean;
 }): Promise<AppUser> {
   const nameErr = validateUsername(params.name);
   if (nameErr) throw new Error(nameErr);
@@ -203,70 +192,45 @@ export async function createUserByAdmin(params: {
     throw new Error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
   }
 
-  const available = await checkUsernameAvailable(params.name);
-  if (!available) {
-    throw new Error('الاسم مستخدم بالفعل، جرب اسماً آخر');
-  }
+  const current = auth.currentUser;
+  if (!current) throw new Error('يجب تسجيل الدخول');
 
-  const secondaryAuth = getSecondaryAuth();
-  let createdUid: string | null = null;
-
+  const token = await current.getIdToken(true);
+  let res: Response;
   try {
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, params.password);
-    createdUid = cred.user.uid;
-  } catch (err: unknown) {
-    const code = (err as { code?: string })?.code || '';
-    if (code === 'auth/email-already-in-use') {
-      throw new Error('هذا البريد الإلكتروني مستخدم بالفعل');
-    }
-    if (code === 'auth/invalid-email') {
-      throw new Error('البريد الإلكتروني غير صالح');
-    }
-    if (code === 'auth/weak-password') {
-      throw new Error('كلمة المرور ضعيفة — استخدم 6 أحرف على الأقل');
-    }
-    throw new Error((err as Error)?.message || 'فشل إنشاء الحساب');
-  } finally {
-    try {
-      await fbSignOut(secondaryAuth);
-    } catch {
-      /* ignore */
-    }
+    res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: params.name,
+        email,
+        password: params.password,
+        isAdmin: !!params.isAdmin,
+      }),
+    });
+  } catch {
+    throw new Error('تعذر الاتصال بالسيرفر لإنشاء الحساب');
   }
 
-  if (!createdUid) {
-    throw new Error('فشل إنشاء الحساب');
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    uid?: string;
+    username?: string;
+    role?: 'admin' | 'user';
+  };
+
+  if (!res.ok) {
+    throw new Error(data.error || 'فشل إنشاء الحساب');
   }
-
-  const trimmed = params.name.trim();
-  const key = normalizeUsernameKey(trimmed);
-
-  await runTransaction(db, async (tx) => {
-    const unameRef = doc(db, 'usernames', key);
-    const userRef = doc(db, 'users', createdUid!);
-    const reserved = await tx.get(unameRef);
-    if (reserved.exists() && reserved.data()?.uid !== createdUid) {
-      throw new Error('الاسم مستخدم بالفعل، جرب اسماً آخر');
-    }
-    tx.set(unameRef, {
-      uid: createdUid,
-      username: trimmed,
-      created_at: serverTimestamp(),
-    });
-    tx.set(userRef, {
-      uid: createdUid,
-      email,
-      username: trimmed,
-      onboarded_at: serverTimestamp(),
-      created_at: serverTimestamp(),
-      last_seen: null,
-    });
-  });
 
   return {
-    uid: createdUid,
+    uid: data.uid || '',
     email,
-    username: trimmed,
+    username: data.username || params.name.trim(),
+    role: data.role,
     onboarded_at: null,
     created_at: null,
     last_seen: null,

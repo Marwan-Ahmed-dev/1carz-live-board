@@ -67,6 +67,7 @@ export interface AppUser {
   uid: string;
   email: string;
   username: string | null; // null حتى يكتمل الـ onboarding
+  role?: 'admin' | 'user';
   onboarded_at: Timestamp | null;
   created_at: Timestamp | null;
   last_seen: Timestamp | null;
