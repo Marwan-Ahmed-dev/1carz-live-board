@@ -22,20 +22,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
 import { downloadAllCarImages } from '@/lib/downloadCarImages';
 import { PRIORITY_LABELS } from '@/lib/priority';
-import { Car as CarType, CarStatus, CarCondition } from '@/lib/types';
+import { Car as CarType, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
 import { CopyButton } from '@/components/CopyButton';
 import { Lightbox } from '@/components/Lightbox';
 import { formatPrice, formatRelativeDate, formatFullDate } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
-
-const STATUS_META: Record<CarStatus, { label: string; color: string }> = {
-  active: { label: 'متاحة', color: 'bg-green-100 text-green-700' },
-  inactive: { label: 'غير معروضة', color: 'bg-gray-100 text-gray-700' },
-  reserved: { label: 'محجوزة', color: 'bg-amber-100 text-amber-700' },
-  sold: { label: 'مباعة', color: 'bg-red-100 text-red-700' },
-};
+import { StatusBadge } from '@/components/StatusBadge';
 
 const CONDITION_META: Record<CarCondition, string> = {
   new: 'جديدة',
@@ -215,12 +209,12 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                     </button>
                   </div>
                 )}
-                {/* Badge "قيدوي" */}
+                {/* Badge "مميز" */}
                 {car.is_featured && (
                   <div className="absolute bottom-3 right-3 z-10">
                     <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
                       <Star size={14} fill="currentColor" />
-                      قيدوي
+                      مميز
                     </span>
                   </div>
                 )}
@@ -317,7 +311,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                   <Share2 size={18} />
                 </a>
               </div>
-              <div className="price-display text-3xl sm:text-4xl text-accent-yellow-hover">
+              <div className="price-display text-3xl sm:text-4xl text-accent-yellow-hover" dir="ltr">
                 {formatPrice(car.price)} <span className="text-lg font-medium text-text-secondary">ج.م</span>
               </div>
             </div>
@@ -355,15 +349,11 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               </div>
               {/* التوفر */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
-                <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
-                  <Calendar size={14} />
-                  التوفر
-                </div>
-                <span
-                  className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${STATUS_META[car.status].color}`}
-                >
-                  {STATUS_META[car.status].label}
-                </span>
+                <div className="flex items-center gap-1.5 text-xs text-text-muted mb-2">
+                    <Calendar size={14} />
+                    التوفر
+                  </div>
+                <StatusBadge status={car.status} size="md" />
               </div>
             </div>
 

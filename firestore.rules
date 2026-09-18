@@ -15,26 +15,35 @@ service cloud.firestore {
     match /users/{uid} {
       allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
-      allow create: if isSignedIn() && request.auth.uid == uid
-                    && request.resource.data.uid == uid;
-      allow update: if isSignedIn() && request.auth.uid == uid
+      allow create: if isAdmin()
+                    || (isSignedIn() && request.auth.uid == uid
+                        && request.resource.data.uid == uid);
+      allow update: if isAdmin()
+                    || (isSignedIn() && request.auth.uid == uid
                     && !('uid' in request.resource.data.diff(resource.data).affectedKeys())
                     && !('email' in request.resource.data.diff(resource.data).affectedKeys())
                     && !('created_at' in request.resource.data.diff(resource.data).affectedKeys())
                     && (
                       !('username' in request.resource.data.diff(resource.data).affectedKeys())
                       || resource.data.username == null
-                    );
+                    ));
       allow delete: if isAdmin();
     }
 
     // Unique username reservations. Key is the normalized name.
     match /usernames/{name} {
       allow get: if isSignedIn();
-      allow create: if isSignedIn()
-                    && request.resource.data.uid == request.auth.uid;
+      allow create: if isAdmin()
+                    || (isSignedIn()
+                        && request.resource.data.uid == request.auth.uid);
+      allow update: if isAdmin();
       allow delete: if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ============== User Groups ==============
+    match /groups/{groupId} {
+      allow read, write: if isAdmin();
     }
 
     // ============== Cars Collection ==============

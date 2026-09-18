@@ -24,6 +24,7 @@ import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
+import { StatusBadge } from '@/components/StatusBadge';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string }> = {
   arabyatna: { label: PRIORITY_LABELS.arabyatna, icon: Heart, color: 'text-rose-400 bg-rose-500/15' },
@@ -228,14 +229,10 @@ export default function AdminCarsPage() {
                           <Icon size={10} />
                           {meta.label}
                         </span>
-                        {c.status !== 'active' && (
-                          <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 font-bold">
-                            {c.status === 'reserved' ? 'محجوزة' : c.status === 'sold' ? 'مباعة' : 'غير معروضة'}
-                          </span>
-                        )}
+                        <StatusBadge status={c.status} tone="admin" />
                       </div>
 
-                      <div className="badge-number text-base sm:text-lg font-bold text-admin-accent">
+                      <div className="badge-number text-base sm:text-lg font-bold text-admin-accent" dir="ltr">
                         {formatPrice(c.price)} <span className="text-xs font-medium text-admin-text-muted">ج.م</span>
                       </div>
                     </div>

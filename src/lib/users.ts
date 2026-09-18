@@ -34,6 +34,17 @@ export function normalizeUsernameKey(username: string): string {
   return username.trim().replace(/\s+/g, '_').toLowerCase();
 }
 
+/** التحقق من اسم المستخدم (نفس قواعد صفحة الـ onboarding) */
+export function validateUsername(val: string): string | null {
+  const trimmed = val.trim();
+  if (trimmed.length < 3) return 'الاسم يجب أن يكون 3 أحرف على الأقل';
+  if (trimmed.length > 20) return 'الاسم يجب ألا يزيد عن 20 حرف';
+  if (!/^[\u0600-\u06FFa-zA-Z0-9\s]+$/.test(trimmed)) {
+    return 'الاسم يجب أن يحتوي على حروف عربية أو إنجليزية وأرقام ومسافات فقط';
+  }
+  return null;
+}
+
 export async function fetchAllUsers(): Promise<AppUser[]> {
   const ref = collection(db, USERS_COLLECTION);
   const snap = await getDocs(ref);

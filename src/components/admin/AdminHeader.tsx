@@ -59,7 +59,7 @@ export function AdminHeader() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.push('/')}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-admin-bg hover:bg-admin-border text-admin-text text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-admin-bg hover:bg-admin-border text-admin-text text-sm font-medium transition-colors"
               title="العودة للتطبيق"
             >
               <Car size={16} />

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, DollarSign } from 'lucide-react';
+import { formatPriceInput, parsePriceInput } from '@/lib/format';
 
 interface PriceFilterProps {
   onApply: (min: number | undefined, max: number | undefined) => void;
@@ -9,25 +10,24 @@ interface PriceFilterProps {
   initialMax?: number;
 }
 
-/**
- * فلتر السعر (collapsible)
- * - زرين: min و max
- * - "تطبيق" + "إعادة تعيين"
- */
 export function PriceFilter({ onApply, initialMin, initialMax }: PriceFilterProps) {
   const [open, setOpen] = useState(false);
-  const [minVal, setMinVal] = useState<string>(initialMin?.toString() || '');
-  const [maxVal, setMaxVal] = useState<string>(initialMax?.toString() || '');
+  const [minVal, setMinVal] = useState<string>(
+    initialMin != null ? formatPriceInput(String(initialMin)) : ''
+  );
+  const [maxVal, setMaxVal] = useState<string>(
+    initialMax != null ? formatPriceInput(String(initialMax)) : ''
+  );
 
   const handleApply = () => {
-    const minRaw = minVal.trim() ? Number(minVal) : undefined;
-    const maxRaw = maxVal.trim() ? Number(maxVal) : undefined;
-    const min = minRaw != null && Number.isFinite(minRaw) ? minRaw : undefined;
-    const max = maxRaw != null && Number.isFinite(maxRaw) ? maxRaw : undefined;
+    const minRaw = minVal.trim() ? parsePriceInput(minVal) : undefined;
+    const maxRaw = maxVal.trim() ? parsePriceInput(maxVal) : undefined;
+    const min = minRaw != null && Number.isFinite(minRaw) && minRaw > 0 ? minRaw : undefined;
+    const max = maxRaw != null && Number.isFinite(maxRaw) && maxRaw > 0 ? maxRaw : undefined;
     if (min != null && max != null && min > max) {
       onApply(max, min);
-      setMinVal(String(max));
-      setMaxVal(String(min));
+      setMinVal(formatPriceInput(String(max)));
+      setMaxVal(formatPriceInput(String(min)));
       return;
     }
     onApply(min, max);
@@ -59,25 +59,25 @@ export function PriceFilter({ onApply, initialMin, initialMax }: PriceFilterProp
             <div>
               <label className="block text-xs font-medium text-text-secondary mb-1">أقل سعر</label>
               <input
-                type="number"
-                min={0}
-                value={minVal}
-                onChange={(e) => setMinVal(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 rounded-lg bg-white border border-border-medium text-text-primary text-sm focus:border-accent-yellow focus:ring-2 focus:ring-accent-yellow/20"
+                type="text"
                 inputMode="numeric"
+                value={minVal}
+                onChange={(e) => setMinVal(formatPriceInput(e.target.value))}
+                placeholder="0"
+                dir="ltr"
+                className="w-full px-3 py-2 rounded-lg bg-white border border-border-medium text-text-primary text-sm text-left price-display focus:border-accent-yellow focus:ring-2 focus:ring-accent-yellow/20"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-text-secondary mb-1">أعلى سعر</label>
               <input
-                type="number"
-                min={0}
-                value={maxVal}
-                onChange={(e) => setMaxVal(e.target.value)}
-                placeholder="∞"
-                className="w-full px-3 py-2 rounded-lg bg-white border border-border-medium text-text-primary text-sm focus:border-accent-yellow focus:ring-2 focus:ring-accent-yellow/20"
+                type="text"
                 inputMode="numeric"
+                value={maxVal}
+                onChange={(e) => setMaxVal(formatPriceInput(e.target.value))}
+                placeholder="∞"
+                dir="ltr"
+                className="w-full px-3 py-2 rounded-lg bg-white border border-border-medium text-text-primary text-sm text-left price-display focus:border-accent-yellow focus:ring-2 focus:ring-accent-yellow/20"
               />
             </div>
           </div>

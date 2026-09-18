@@ -1,26 +1,35 @@
 // دوال مساعدة لتنسيق الأسعار والعملات والأرقام
-// نستخدم Intl.NumberFormat لعرض الأرقام بالعربية مع فاصلة كل 3 أرقام
+// الأسعار تُعرض دائماً بأرقام إنجليزية مع فاصلة كل 3 أرقام
 
 /**
- * تنسيق السعر للعرض (بالعربية المصرية)
+ * تحويل الأرقام العربية/الفارسية إلى إنجليزية
+ */
+export function toEnglishDigits(value: string): string {
+  return value
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+}
+
+/**
+ * تنسيق السعر للعرض بأرقام إنجليزية
  * مثال: 1980000 → "1,980,000"
  */
 export function formatPrice(price: number): string {
-  return new Intl.NumberFormat('ar-EG', {
+  if (!Number.isFinite(price)) return '0';
+  return new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 0,
   }).format(price);
 }
 
 /**
- * تنسيق قيمة الـ input أثناء الكتابة (يستخدم الفاصلة الإنجليزية كل 3 أرقام)
+ * تنسيق قيمة الـ input أثناء الكتابة (فاصلة إنجليزية كل 3 أرقام)
  * مثال: "1980000" → "1,980,000"
- *
- * - بياخد string فيه أرقام (مع أو بدون فواصل)
- * - بيرجع string فيه فواصل إنجليزية (عشان الـ input يعرضها بشكل مألوف)
  */
 export function formatPriceInput(value: string): string {
-  const num = parseInt(value.replace(/[^0-9]/g, ''), 10);
-  if (isNaN(num) || num === 0) return '';
+  const digits = toEnglishDigits(value).replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  if (isNaN(num)) return '';
   return num.toLocaleString('en-US');
 }
 
@@ -29,7 +38,8 @@ export function formatPriceInput(value: string): string {
  * مثال: "1,980,000" → 1980000
  */
 export function parsePriceInput(value: string): number {
-  return parseInt(value.replace(/[^0-9]/g, ''), 10) || 0;
+  const digits = toEnglishDigits(value).replace(/[^0-9]/g, '');
+  return parseInt(digits, 10) || 0;
 }
 
 /**

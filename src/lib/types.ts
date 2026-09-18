@@ -14,11 +14,11 @@ import { Timestamp } from 'firebase/firestore';
 export type Priority = 'arabyatna' | 'top' | 'high' | 'medium' | 'low';
 
 /**
- * حالات العربية
- * - active: متاحة للعرض
- * - inactive: غير معروضة
+ * حالات التوفر
+ * - active: متاحة
  * - reserved: محجوزة
  * - sold: مباعة
+ * - inactive: قيمة قديمة (لم تعد تُختار في الواجهة)
  */
 export type CarStatus = 'active' | 'inactive' | 'reserved' | 'sold';
 
@@ -46,7 +46,7 @@ export interface Car {
   image_url: string; // رابط الصورة الرئيسية
   additional_images: string[]; // صور إضافية (بحد أقصى 29 صورة إضافية، الإجمالي 30)
   condition: CarCondition; // جودة العربية
-  is_featured: boolean; // مميزة (تعرض badge "قيدوي")
+  is_featured: boolean; // مميزة (تعرض badge "مميز")
   // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل
   // حتى لو المستخدم ما عملش onboarding لسه.
   // ['all'] = لكل المستخدمين، ['uid1', 'uid2'] = لهؤلاء بس
@@ -70,6 +70,17 @@ export interface AppUser {
   onboarded_at: Timestamp | null;
   created_at: Timestamp | null;
   last_seen: Timestamp | null;
+}
+
+/**
+ * مجموعة مستخدمين يديرها الأدمن
+ */
+export interface UserGroup {
+  id: string;
+  name: string;
+  memberUids: string[];
+  created_at: Timestamp | null;
+  updated_at: Timestamp | null;
 }
 
 /**

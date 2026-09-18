@@ -6,7 +6,7 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: 'AIzaSyDNMKJcOfLLaOkVKkurzFxIPRw33Voujas',
   authDomain: 'carz-live-board.firebaseapp.com',
   projectId: 'carz-live-board',

@@ -9,6 +9,7 @@ import { MAX_DESCRIPTION_WORDS, PRIORITY_LABELS, PRIORITY_ORDER, countWords } fr
 import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
 import { formatPriceInput, parsePriceInput } from '@/lib/format';
+import { STATUS_OPTIONS, getStatusMeta } from '@/lib/carStatus';
 
 interface CarFormProps {
   /** عربية موجودة (للـ edit) */
@@ -41,13 +42,6 @@ const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = PRIORITY_ORD
 const CONDITION_OPTIONS: Array<{ value: CarCondition; label: string }> = [
   { value: 'used', label: 'مستعملة' },
   { value: 'zero_km', label: 'كسر زيرو' },
-];
-
-const STATUS_OPTIONS: Array<{ value: CarStatus; label: string }> = [
-  { value: 'active', label: 'متاحة' },
-  { value: 'inactive', label: 'غير معروضة' },
-  { value: 'reserved', label: 'محجوزة' },
-  { value: 'sold', label: 'مباعة' },
 ];
 
 /**
@@ -404,34 +398,11 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
             inputMode="numeric"
             value={price}
             onChange={(e) => {
-              // اسمح فقط بالأرقام — اعرضها بدون فواصل أثناء الكتابة (أسرع)
-              // الفواصل تتضاف عند الـ blur
-              const raw = e.target.value.replace(/[^0-9]/g, '');
-              setPrice(raw);
-            }}
-            onBlur={(e) => {
-              // أضف الفواصل لما المستخدم يخلّص الكتابة
-              const raw = e.target.value.replace(/[^0-9]/g, '');
-              setPrice(raw ? formatPriceInput(raw) : '');
-            }}
-            onFocus={(e) => {
-              // لو فيه فواصل، شيلها عشان المستخدم يقدر يعدّل الرقم
-              const target = e.target as HTMLInputElement | null;
-              const raw = target?.value.replace(/[^0-9]/g, '') ?? '';
-              setPrice(raw);
-              // حط الـ cursor في الآخر — بنحفظ الـ target في متغير لأن الـ SyntheticEvent ممكن يتغير
-              if (target) {
-                requestAnimationFrame(() => {
-                  try {
-                    target.setSelectionRange(raw.length, raw.length);
-                  } catch {
-                    /* الـ input ممكن يكون اتشال — نتجاهل الخطأ */
-                  }
-                });
-              }
+              setPrice(formatPriceInput(e.target.value));
             }}
             placeholder="1,980,000"
-            className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
+            dir="ltr"
+            className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-left price-display"
             required
           />
         </div>
@@ -455,8 +426,8 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         </div>
       </div>
 
-      {/* Priority + Condition + Status */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Priority + Condition */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="priority" className="block text-sm font-bold text-admin-text-muted mb-1">
             الأولوية
@@ -487,20 +458,41 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
             ))}
           </select>
         </div>
-        <div>
-          <label htmlFor="status" className="block text-sm font-bold text-admin-text-muted mb-1">
-            الحالة (التوفر)
-          </label>
-          <select
-            id="status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as CarStatus)}
-            className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text focus:border-admin-accent/50"
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+      </div>
+
+      <div className="bg-admin-card border border-admin-border rounded-2xl p-4">
+        <label className="block text-sm font-bold text-admin-text-muted mb-2">
+          الحالة (التوفر)
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {(status === 'inactive'
+            ? [{ value: 'inactive' as CarStatus, label: getStatusMeta('inactive').label }, ...STATUS_OPTIONS]
+            : STATUS_OPTIONS
+          ).map((o) => {
+            const selected = status === o.value;
+            const selectedClass =
+              o.value === 'active'
+                ? 'bg-green-600 text-white border-green-700'
+                : o.value === 'reserved'
+                ? 'bg-orange-500 text-white border-orange-600'
+                : o.value === 'sold'
+                ? 'bg-red-600 text-white border-red-700'
+                : 'bg-slate-500 text-white border-slate-600';
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setStatus(o.value)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-colors ${
+                  selected
+                    ? selectedClass
+                    : 'bg-admin-bg border-admin-border text-admin-text-muted hover:text-admin-text'
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -515,7 +507,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         <Star size={18} className={isFeatured ? 'text-admin-accent' : 'text-admin-text-muted'} fill={isFeatured ? 'currentColor' : 'none'} />
         <div className="flex-1">
           <div className="text-sm font-bold text-admin-text">عربية مميزة</div>
-          <div className="text-xs text-admin-text-muted">تعرض شارة "قيدوي" على البطاقة</div>
+          <div className="text-xs text-admin-text-muted">تعرض شارة "مميز" على البطاقة</div>
         </div>
       </label>
 

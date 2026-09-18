@@ -32,7 +32,7 @@ export function StatCard({ label, value, icon, accent = 'yellow' }: StatCardProp
         </div>
       </div>
       <div className="badge-number text-3xl sm:text-4xl font-bold text-admin-text mb-1">
-        {value.toLocaleString('ar-EG')}
+        {value.toLocaleString('en-US')}
       </div>
       <div className="text-xs sm:text-sm text-admin-text-muted font-medium">
         {label}

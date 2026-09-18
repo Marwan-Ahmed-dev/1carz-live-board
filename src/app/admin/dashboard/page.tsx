@@ -9,6 +9,7 @@ import { StatCard } from '@/components/admin/StatCard';
 import { LoadingState } from '@/components/LoadingState';
 import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
+import { StatusBadge } from '@/components/StatusBadge';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -137,18 +138,11 @@ export default function AdminDashboardPage() {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-admin-text-muted mt-0.5">
                       <span className="badge-number">{c.code}</span>
-                      <span>·</span>
-                      <span>
-                        {c.priority === 'arabyatna' && 'عربياتنا'}
-                        {c.priority === 'top' && 'قصوى'}
-                        {c.priority === 'high' && 'عالية'}
-                        {c.priority === 'medium' && 'متوسطة'}
-                        {c.priority === 'low' && 'منخفضة'}
-                      </span>
+                      <StatusBadge status={c.status} tone="admin" />
                     </div>
                   </div>
                   {/* السعر */}
-                  <div className="badge-number text-sm font-bold text-admin-accent flex-shrink-0">
+                  <div className="badge-number text-sm font-bold text-admin-accent flex-shrink-0" dir="ltr">
                     {formatPrice(c.price)}
                   </div>
                 </li>
