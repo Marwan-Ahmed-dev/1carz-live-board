@@ -64,7 +64,7 @@ export function BuyersPanel() {
   return (
     <div className="bg-admin-card border border-admin-border rounded-2xl p-4 sm:p-5">
       <div className="flex items-start gap-2 mb-4">
-        <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center flex-shrink-0">
+        <div className="w-11 h-11 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center flex-shrink-0">
           <Users size={18} />
         </div>
         <div className="min-w-0">
@@ -84,7 +84,7 @@ export function BuyersPanel() {
             key={opt.key}
             type="button"
             onClick={() => setTab(opt.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            className={`px-3 min-h-[44px] rounded-lg text-xs font-bold transition-colors ${
               tab === opt.key
                 ? 'bg-admin-accent text-admin-bg'
                 : 'bg-admin-bg text-admin-text-muted hover:text-admin-text'
@@ -157,7 +157,7 @@ export function BuyersPanel() {
         <button
           type="button"
           onClick={() => setVisible((n) => n + PAGE_SIZE)}
-          className="mt-3 w-full py-2 rounded-xl bg-admin-bg hover:bg-admin-border text-sm font-bold text-admin-text transition-colors"
+          className="mt-3 w-full py-3 min-h-[44px] rounded-xl bg-admin-bg hover:bg-admin-border text-sm font-bold text-admin-text transition-colors"
         >
           عرض المزيد
         </button>

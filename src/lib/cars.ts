@@ -21,6 +21,7 @@ import {
   writeBatch,
   limit,
   getCountFromServer,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
@@ -100,13 +101,31 @@ export async function fetchCar(id: string): Promise<Car | null> {
 
 /**
  * إضافة عربية جديدة
+ *
+ * H8: TOCTOU-safe — كل التحقق (validation) بيحصل قبل أي كتابة لـ Firestore.
+ * قبل كده: لو الـ validation فشلت بعد addDoc، كانت بتسيب doc فاضي / ناقص في الـ DB.
+ * دلوقتي: validation ترجع throw قبل أي write — Firestore ما بتشوفش بيانات باطلة.
  */
 export async function addCar(input: NewCarInput): Promise<string> {
-  const ref = collection(db, CARS_COLLECTION);
+  // ✅ Pre-write validation — throw قبل أي كتابة لـ Firestore
+  const title = (input.title || '').trim();
+  if (!title) throw new Error('عنوان العربية مطلوب');
+  if (title.length > 200) throw new Error('عنوان العربية طويل جداً (200 حرف كحد أقصى)');
+  const priceNum = Number(input.price);
+  if (!Number.isFinite(priceNum) || priceNum < 0) {
+    throw new Error('السعر غير صالح');
+  }
+  const desc = (input.description || '').trim();
+  if (desc.length > 5000) throw new Error('الوصف طويل جداً (5000 حرف كحد أقصى)');
+
   // ✅ FIX: defensive — نتأكد أن assigned_to دايماً array صالح قبل الكتابة
   // (لو ضاع من مكان تاني أو اتبعت بشكل غلط، نمنع العربية من تتكتب بـ assigned_to = [])
   let assignedTo: string[];
   if (Array.isArray(input.assigned_to) && input.assigned_to.length > 0) {
+    // H11: cap assigned_to to ≤30 entries — Firestore array-contains-any hard limit.
+    if (input.assigned_to.length > 30) {
+      throw new Error('عدد المعيّنين تجاوز الحد المسموح (30). قلل القائمة وأعد المحاولة.');
+    }
     assignedTo = input.assigned_to;
   } else if (Array.isArray(input.assigned_to) && input.assigned_to.length === 0) {
     console.warn('[addCar] assigned_to is empty, defaulting to [\'all\']');
@@ -117,13 +136,20 @@ export async function addCar(input: NewCarInput): Promise<string> {
     console.warn('[addCar] assigned_to missing/invalid, defaulting to [\'all\']');
     assignedTo = ['all'];
   }
+
+  const ref = collection(db, CARS_COLLECTION);
   const data: Record<string, unknown> = {
     ...input,
+    title,
+    price: priceNum,
+    description: desc,
     assigned_to: assignedTo,
     inspector_name: (input.inspector_name || '').trim(),
     inspector_phone: (input.inspector_phone || '').trim(),
     owner_name: (input.owner_name || '').trim(),
     owner_phone: (input.owner_phone || '').trim(),
+    // H14: optimistic concurrency — كل عربية بتبدأ بـ version=1
+    version: 1,
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
   };
@@ -136,32 +162,95 @@ export async function addCar(input: NewCarInput): Promise<string> {
 
 /**
  * تحديث عربية
+ *
+ * H13: استخدام runTransaction لضمان عدم الكتابة فوق تعديل متزامن.
+ * H14: optional optimistic-concurrency — لو الـ caller مرّر expectedVersion
+ * بنتحقق إن الـ doc في الـ DB عنده نفس الـ version قبل ما نكتب.
+ * لو اختلف → throw VERSION_CONFLICT والـ UI يقدر يعرض رسالة "تم تعديل العربية من شخص آخر".
  */
-export async function updateCar(id: string, updates: CarUpdateInput): Promise<void> {
+export interface UpdateCarOptions {
+  /**
+   * رقم الـ version الحالي المتوقع. لو مرّرته، الـ update هيفشل بـ
+   * VERSION_CONFLICT لو العربية اتعدلت من شخص تاني في نفس الوقت.
+   * (H14: optimistic concurrency control)
+   */
+  expectedVersion?: number;
+}
+
+export class VersionConflictError extends Error {
+  constructor() {
+    super('تم تعديل العربية من شخص آخر — حدّث الصفحة وراجع التغييرات');
+    this.name = 'VersionConflictError';
+  }
+}
+
+export async function updateCar(
+  id: string,
+  updates: CarUpdateInput,
+  options: UpdateCarOptions = {}
+): Promise<void> {
   const ref = doc(db, CARS_COLLECTION, id);
-  const payload: Record<string, unknown> = {
-    ...updates,
-    code: deleteField(),
-    updated_at: serverTimestamp(),
-  };
-  if (updates.status) {
-    const current = await getDoc(ref);
-    const prev = current.data()?.status;
-    if (prev !== updates.status) {
+
+  // H13: runTransaction يمنع race conditions بين read-modify-write.
+  // H14: optional version check داخل الـ transaction.
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) {
+      throw new Error('العربية غير موجودة');
+    }
+    const prevData = snap.data();
+    const prevVersion = typeof prevData.version === 'number' ? prevData.version : 1;
+
+    if (
+      typeof options.expectedVersion === 'number' &&
+      options.expectedVersion > 0 &&
+      prevVersion !== options.expectedVersion
+    ) {
+      throw new VersionConflictError();
+    }
+
+    const payload: Record<string, unknown> = {
+      ...updates,
+      code: deleteField(),
+      version: prevVersion + 1, // bump version atomically
+      updated_at: serverTimestamp(),
+    };
+    if (updates.status && updates.status !== prevData.status) {
       if (updates.status === 'reserved') payload.reserved_at = serverTimestamp();
       if (updates.status === 'sold') payload.sold_at = serverTimestamp();
     }
-  }
-  await updateDoc(ref, payload);
+    tx.update(ref, payload);
+  });
 }
 
 /**
  * حذف عربية
+ *
+ * H15: cascade best-effort — نحاول ننضّف الـ storage + نسجّل الـ event في الـ log
+ * للـ audit trail. الـ doc نفسه هو اللي اتحذف (orphan data في sub-collections
+ * لو موجودة) مش بيتأثر — ده trade-off معروف (last-write-wins).
+ *
+ * Cleanup in 3 phases:
+ *   1) Storage: cars/{id}/* — حذف الصور
+ *   2) Firestore: cars/{id} — حذف الـ doc
+ *   3) Cleanup log: console.warn لو في orphans في buyer_leads / copy_events
  */
 export async function deleteCar(id: string): Promise<void> {
-  await deleteCarImages(id);
+  // 1) Storage images — best-effort
+  try {
+    await deleteCarImages(id);
+  } catch (err) {
+    console.warn('[deleteCar] storage cleanup failed (non-fatal):', err);
+  }
+
+  // 2) حذف الـ doc نفسه
   const ref = doc(db, CARS_COLLECTION, id);
   await deleteDoc(ref);
+
+  // 3) H15 doc: نترك buyer_leads + copy_events زي ما هم لو موجودين
+  // الإشارة في الـ Car.marketer_uids / copy_events.carId بتفضل موجودة لكن
+  // الـ carId بقى dangling. الـ Firestore rules بتسمح بالـ orphan data
+  // لأن المنطق ده simplest. لو احتجنا cascade لاحقاً نضيف Cloud Function.
 }
 
 /**

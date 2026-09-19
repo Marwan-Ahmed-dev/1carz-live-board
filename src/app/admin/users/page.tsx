@@ -29,6 +29,7 @@ import { GroupManager } from '@/components/admin/GroupManager';
 import { subscribeToCars } from '@/lib/cars';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 function formatDate(ts: unknown): string {
   if (!ts) return '-';
@@ -61,6 +62,7 @@ export default function AdminUsersPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const { confirm, dialogProps } = useConfirm();
   const currentUid = user?.uid;
   const [tab, setTab] = useState<'users' | 'groups'>('users');
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -260,17 +262,19 @@ export default function AdminUsersPage() {
     const label = target.username || target.email;
     const targetIsAdmin = adminUids.has(target.uid) || target.role === 'admin';
     const targetIsInspector = inspectorUids.has(target.uid) || target.role === 'inspector';
-    if (
-      !confirm(
-        targetIsAdmin
-          ? `هل تريد حذف حساب الأدمن "${label}"؟\nلن يتمكن من الدخول للوحة التحكم بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
-          : targetIsInspector
-            ? `هل تريد حذف حساب المعاين "${label}"؟\nلن يتمكن من إضافة عربيات بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
-            : `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
-      )
-    ) {
-      return;
-    }
+    const message = targetIsAdmin
+      ? `هل تريد حذف حساب الأدمن "${label}"؟\nلن يتمكن من الدخول للوحة التحكم بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+      : targetIsInspector
+        ? `هل تريد حذف حساب المعاين "${label}"؟\nلن يتمكن من إضافة عربيات بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+        : `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`;
+    const ok = await confirm({
+      title: 'حذف الحساب',
+      message,
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeletingId(target.uid);
     try {
       await deleteUserByAdmin(target);
@@ -478,7 +482,7 @@ export default function AdminUsersPage() {
                           <button
                             onClick={() => handleDeleteUser(u)}
                             disabled={deletingId === u.uid}
-                            className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
+                            className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
                             aria-label="حذف الحساب"
                           >
                             {deletingId === u.uid ? (
@@ -516,7 +520,7 @@ export default function AdminUsersPage() {
               </div>
               <button
                 onClick={() => setSelectedUser(null)}
-                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
                 aria-label="إغلاق"
               >
                 <X size={16} className="text-admin-text-muted" />
@@ -589,7 +593,7 @@ export default function AdminUsersPage() {
               <button
                 type="button"
                 onClick={() => !savingLimit && setLimitEditUser(null)}
-                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
                 aria-label="إغلاق"
               >
                 <X size={16} className="text-admin-text-muted" />
@@ -648,7 +652,7 @@ export default function AdminUsersPage() {
               <h3 className="text-lg font-bold text-admin-text">إنشاء حساب</h3>
               <button
                 onClick={() => !creating && setCreateOpen(false)}
-                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
                 aria-label="إغلاق"
               >
                 <X size={16} className="text-admin-text-muted" />
@@ -788,6 +792,7 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }

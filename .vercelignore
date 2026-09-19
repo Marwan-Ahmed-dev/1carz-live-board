@@ -1,0 +1,34 @@
+# Vercel upload exclusions — keep the deploy bundle small and skip
+# noise that can confuse the build (e.g. disabled build logs sitting
+# next to the active .next cache).
+
+# Build output
+.next/
+.next_old_disabled/
+out/
+
+# VCS + heavy metadata
+.git/
+.gitattributes
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Internal process / planning docs (not needed at runtime)
+process/
+
+# Editor + OS noise
+.vscode/
+.idea/
+.DS_Store
+
+# Disabled log artifacts (kept locally for archaeology)
+*.log.disabled
+*.bak.disabled
+
+# Firebase service-account key — NEVER upload
+scripts/serviceAccountKey.json

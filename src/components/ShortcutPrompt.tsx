@@ -52,7 +52,7 @@ export function ShortcutPrompt({
       <div className="bg-bg-card w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl p-6 shadow-medium modal-in relative">
         <button
           onClick={onDismiss}
-          className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-white hover:bg-bg-card-hover flex items-center justify-center cursor-pointer"
+          className="absolute top-4 left-4 w-11 h-11 rounded-lg bg-white hover:bg-bg-card-hover flex items-center justify-center cursor-pointer"
           aria-label="إغلاق"
         >
           <X size={18} className="text-text-muted" />

@@ -314,21 +314,55 @@ export type CarImageSlot = CarImageSlotExisting | CarImageSlotNew;
 
 /**
  * يرفع الصور الجديدة ويحافظ على ترتيب الخانات (الموجودة + الجديدة مخلوطة).
+ *
+ * H16: orphan-image cleanup — لو حصل خطأ في النص (network, user nav away
+ * mid-upload) الصور اللي اترفعت فعلاً لازم تتشال من Storage عشان ما تفضل
+ * عائمة في cars/{carId}/ من غير ما تكون مربوطة بـ doc.
+ *
+ * المنطق: لو الـ car doc نفسه مش موجود وقت الـ cleanup (الـ call جاي من
+ * addCar → updateDoc حلقتين منفصلتين)، الـ parent بيمسح الصور من الـ error
+ * handler. هنا بنرجع upload tracker علشان الـ caller يقدر ينضّف لو محتاج.
  */
+export interface ResolveCarImagesResult {
+  main: string;
+  additional: string[];
+  /** URLs الـ uploaded الجديدة في هذه العملية (ممكن تكون ناقصة لو فشل النص) */
+  uploadedUrls: string[];
+}
+
 export async function resolveCarImages(
   carId: string,
   slots: CarImageSlot[]
-): Promise<{ main: string; additional: string[] }> {
+): Promise<ResolveCarImagesResult> {
   const urls: string[] = [];
-  for (const slot of slots) {
-    if (slot.kind === 'existing') {
-      urls.push(slot.url);
-    } else {
-      urls.push(await uploadCarImage(slot.file, carId));
+  const uploadedUrls: string[] = [];
+
+  try {
+    for (const slot of slots) {
+      if (slot.kind === 'existing') {
+        urls.push(slot.url);
+      } else {
+        const url = await uploadCarImage(slot.file, carId);
+        urls.push(url);
+        uploadedUrls.push(url);
+      }
     }
+  } catch (err) {
+    // H16: فشل النص — ننضّف الصور اللي اترفعت قبل الـ throw
+    if (uploadedUrls.length > 0) {
+      console.warn(
+        `[resolveCarImages] mid-upload failure; cleaning ${uploadedUrls.length} orphans for car ${carId}`
+      );
+      await Promise.allSettled(
+        uploadedUrls.map((u) => deleteCarImage(u).catch(() => undefined))
+      );
+    }
+    throw err;
   }
+
   return {
     main: urls[0] || '',
     additional: urls.slice(1),
+    uploadedUrls,
   };
 }

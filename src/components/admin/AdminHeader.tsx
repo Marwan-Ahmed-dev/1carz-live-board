@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -24,9 +25,17 @@ export function AdminHeader() {
   const pathname = usePathname();
   const { userData } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const { confirm, dialogProps } = useConfirm();
 
   const handleLogout = async () => {
-    if (!confirm('هل تريد تسجيل الخروج؟')) return;
+    const ok = await confirm({
+      title: 'تسجيل الخروج',
+      message: 'هل تريد تسجيل الخروج من لوحة التحكم؟',
+      confirmLabel: 'تسجيل الخروج',
+      cancelLabel: 'إلغاء',
+      variant: 'warning',
+    });
+    if (!ok) return;
     setLoggingOut(true);
     try {
       await signOut();
@@ -38,6 +47,7 @@ export function AdminHeader() {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-30 bg-admin-card border-b border-admin-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -69,7 +79,7 @@ export function AdminHeader() {
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors disabled:opacity-50"
+              className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors disabled:opacity-50"
               aria-label="تسجيل الخروج"
             >
               <LogOut size={18} className="text-admin-text-muted" />
@@ -128,5 +138,7 @@ export function AdminHeader() {
         </nav>
       </div>
     </header>
+    {dialogProps && <ConfirmDialog {...dialogProps} />}
+    </>
   );
 }

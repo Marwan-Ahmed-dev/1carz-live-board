@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { saveUsername } from '@/lib/auth';
-import { checkUsernameAvailable } from '@/lib/users';
+import { checkUsernameAvailable, validateUsername } from '@/lib/users';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -28,25 +28,14 @@ export default function OnboardingPage() {
     }
   }, [user, userData, loading, needsOnboarding, router]);
 
-  // التحقق من صحة الـ username — حروف (عربي/إنجليزي) + أرقام + مسافات
-  // ❌ بدون underscores، بدون رموز خاصة
-  const validate = (val: string): string | null => {
-    const trimmed = val.trim();
-    if (trimmed.length < 3) return 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل';
-    if (trimmed.length > 20) return 'اسم المستخدم يجب ألا يزيد عن 20 حرف';
-    // حروف عربية (0600-06FF) + حروف إنجليزية + أرقام + مسافات
-    if (!/^[\u0600-\u06FFa-zA-Z0-9\s]+$/.test(trimmed)) {
-      return 'اسم المستخدم يجب أن يحتوي على حروف عربية أو إنجليزية وأرقام ومسافات فقط';
-    }
-    return null;
-  };
-
+  // ✅ H6: استخدم validateUsername من users.ts بدل regex داخلي
+  // (يبقى فيه مصدر واحد للتحقق، متطابق مع صفحة الأدمن + signUp)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const trimmed = username.trim();
 
-    const validationErr = validate(trimmed);
+    const validationErr = validateUsername(trimmed);
     if (validationErr) {
       setError(validationErr);
       return;
@@ -135,7 +124,7 @@ export default function OnboardingPage() {
             <button
               type="submit"
               disabled={submitting || success || username.trim().length === 0}
-              className="w-full py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base shadow-soft transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-3 min-h-[44px] rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-base shadow-soft transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <>

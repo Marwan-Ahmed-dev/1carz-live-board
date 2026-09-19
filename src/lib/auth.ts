@@ -23,6 +23,56 @@ import { normalizeUsernameKey, validateUsername } from './users';
 import { validatePhone } from './phone';
 
 /**
+ * H9: throttled last_seen writer.
+ * الـ onAuthStateChanged بيشتغل كل مرة الـ token بيتجدد + كل navigation،
+ * وكنا بنكتب users/{uid}.last_seen مع كل call. ده كان بيرفع writes
+ * بشكل ملحوظ (خصوصاً مع Strict Mode في dev والـ focus events).
+ * الحل: throttling في-memory مع TTL=30s + persisted cache في localStorage
+ * (عشان لو الـ tab اتقفل ورجع، منكتبش تاني فوراً).
+ */
+const LAST_SEEN_TTL_MS = 30_000;
+const LAST_SEEN_KEY_PREFIX = 'lastSeen:';
+
+function readLastSeenTimestamp(uid: string): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const raw = window.localStorage.getItem(LAST_SEEN_KEY_PREFIX + uid);
+    if (!raw) return 0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeLastSeenTimestamp(uid: string, ts: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LAST_SEEN_KEY_PREFIX + uid, String(ts));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+/**
+ * Fire-and-forget update for users/{uid}.last_seen with a 30s in-memory
+ * + localStorage throttle so we don't burn Firestore writes on every
+ * onAuthStateChanged emission.
+ */
+function scheduleLastSeenUpdate(uid: string): void {
+  const now = Date.now();
+  const last = readLastSeenTimestamp(uid);
+  if (now - last < LAST_SEEN_TTL_MS) return;
+  writeLastSeenTimestamp(uid, now);
+  // fire-and-forget — ما نكتررش الـ promise في الـ caller
+  updateDoc(doc(db, 'users', uid), { last_seen: serverTimestamp() }).catch((err) => {
+    console.warn('[scheduleLastSeenUpdate] failed (non-fatal):', err);
+    // rollback the throttle so we can retry next time
+    writeLastSeenTimestamp(uid, last);
+  });
+}
+
+/**
  * تسجيل الدخول بـ email/password
  * rememberMe=true → يبقى مسجّل بعد إغلاق المتصفح
  */
@@ -76,6 +126,9 @@ export async function getUserData(uid: string): Promise<AppUser | null> {
 
 /**
  * إنشاء وثيقة المستخدم بعد أول دخول، وحجز اسم المستخدم القديم إن وُجد.
+ *
+ * H9: الـ last_seen في أول doc creation بيتكتب مرة واحدة (الـ doc جديد).
+ * الـ subsequent updates بتـ throttle (30s) عشان ما نكتبش في كل auth event.
  */
 export async function ensureUserDoc(user: User): Promise<AppUser> {
   const ref = doc(db, 'users', user.uid);
@@ -90,9 +143,12 @@ export async function ensureUserDoc(user: User): Promise<AppUser> {
       last_seen: serverTimestamp() as any,
     };
     await setDoc(ref, newUser);
+    // أول ظهور — ثبّت الـ timestamp في localStorage عشان أول refresh بعد كده يـ throttle
+    writeLastSeenTimestamp(user.uid, Date.now());
     return newUser;
   }
-  await updateDoc(ref, { last_seen: serverTimestamp() });
+  // H9: throttled — مش بنكتب في كل auth event
+  scheduleLastSeenUpdate(user.uid);
   const data = snap.data() as AppUser;
   if (data.username) {
     await claimExistingUsername(user.uid, data.username);

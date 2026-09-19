@@ -6,6 +6,7 @@ import { LogOut, Settings, Plus, LogIn, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 interface HeaderProps {
   showUsername?: boolean;
@@ -14,14 +15,24 @@ interface HeaderProps {
 export function Header({ showUsername = true }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, userData, isAdmin, isInspector } = useAuth();
+  const { user, userData, isAdmin, isInspector, loading: authLoading } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
-  const isMarketer = !!user && !isAdmin && !isInspector;
-  const showGuestBack = !user && pathname !== '/';
+  const { confirm, dialogProps } = useConfirm();
+  const rolesReady = !authLoading;
+  const isMarketer = rolesReady && !!user && !isAdmin && !isInspector;
+  const showGuestBack = rolesReady && !user && pathname !== '/';
+  const showGuestLogin = rolesReady && !user;
 
   const handleLogout = async () => {
     if (loggingOut) return;
-    if (!confirm('هل تريد تسجيل الخروج؟')) return;
+    const ok = await confirm({
+      title: 'تسجيل الخروج',
+      message: 'هل تريد تسجيل الخروج من حسابك؟',
+      confirmLabel: 'تسجيل الخروج',
+      cancelLabel: 'إلغاء',
+      variant: 'warning',
+    });
+    if (!ok) return;
     setLoggingOut(true);
     try {
       await signOut();
@@ -33,6 +44,7 @@ export function Header({ showUsername = true }: HeaderProps) {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-30 bg-bg-primary/95 backdrop-blur-sm border-b border-border-soft">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -40,7 +52,7 @@ export function Header({ showUsername = true }: HeaderProps) {
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="w-9 h-9 flex-shrink-0 rounded-xl bg-bg-card hover:bg-bg-card-hover border border-border-soft flex items-center justify-center transition-colors cursor-pointer"
+              className="w-11 h-11 flex-shrink-0 rounded-xl bg-bg-card hover:bg-bg-card-hover border border-border-soft flex items-center justify-center transition-colors cursor-pointer"
               aria-label="رجوع"
             >
               <ArrowRight size={18} className="text-text-primary" />
@@ -72,7 +84,7 @@ export function Header({ showUsername = true }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {!user && (
+          {showGuestLogin && (
             <button
               onClick={() => router.push('/login')}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors cursor-pointer"
@@ -90,7 +102,7 @@ export function Header({ showUsername = true }: HeaderProps) {
               <span className="hidden sm:inline">إضافة مشتري</span>
             </button>
           )}
-          {isInspector && !isAdmin && (
+          {rolesReady && isInspector && !isAdmin && (
             <button
               onClick={() => router.push('/cars/new')}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-medium transition-colors cursor-pointer"
@@ -99,7 +111,7 @@ export function Header({ showUsername = true }: HeaderProps) {
               <span className="hidden sm:inline">إضافة عربية</span>
             </button>
           )}
-          {isAdmin && (
+          {rolesReady && isAdmin && (
             <button
               onClick={() => router.push('/admin/dashboard')}
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-medium transition-colors cursor-pointer"
@@ -108,20 +120,20 @@ export function Header({ showUsername = true }: HeaderProps) {
               <span>دخول الإدارة</span>
             </button>
           )}
-          {isAdmin && (
+          {rolesReady && isAdmin && (
             <button
               onClick={() => router.push('/admin/dashboard')}
-              className="sm:hidden w-9 h-9 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover flex items-center justify-center transition-colors cursor-pointer"
+              className="sm:hidden w-11 h-11 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover flex items-center justify-center transition-colors cursor-pointer"
               aria-label="دخول الإدارة"
             >
               <Settings size={18} className="text-text-primary" />
             </button>
           )}
-          {user && (
+          {rolesReady && user && (
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="w-9 h-9 rounded-lg bg-bg-card hover:bg-bg-card-hover flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+              className="w-11 h-11 rounded-lg bg-bg-card hover:bg-bg-card-hover flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
               aria-label="تسجيل الخروج"
             >
               <LogOut size={18} className="text-text-secondary" />
@@ -130,5 +142,7 @@ export function Header({ showUsername = true }: HeaderProps) {
         </div>
       </div>
     </header>
+    {dialogProps && <ConfirmDialog {...dialogProps} />}
+    </>
   );
 }

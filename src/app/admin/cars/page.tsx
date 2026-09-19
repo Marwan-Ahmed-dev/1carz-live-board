@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string }> = {
   arabyatna: { label: PRIORITY_LABELS.arabyatna, icon: Heart, color: 'text-rose-400 bg-rose-500/15' },
@@ -38,6 +39,7 @@ const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string 
 export default function AdminCarsPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { confirm, dialogProps } = useConfirm();
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -58,14 +60,20 @@ export default function AdminCarsPage() {
   }, []);
 
   const handleFixCars = async () => {
-    if (!confirm(
-      'سيتم فحص كل العربيات وإصلاح:\n' +
+    const ok = await confirm({
+      title: 'فحص وإصلاح كل العربيات',
+      message:
+        'سيتم فحص كل العربيات وإصلاح:\n' +
         '• assigned_to فاضي/ناقص → يتحوّل لـ [\'all\']\n' +
         '• usernames قديمة في assigned_to → تتحوّل لـ UIDs\n' +
         '• status ناقص → يتحوّل لـ \'active\'\n' +
         "• 'sold' و 'reserved' و 'inactive' ما هيتغيروش (متعمد من الأدمن)\n\n" +
-        'متأكد؟'
-    )) return;
+        'متأكد؟',
+      confirmLabel: 'ابدأ الفحص',
+      cancelLabel: 'إلغاء',
+      variant: 'warning',
+    });
+    if (!ok) return;
     setFixing(true);
     try {
       const report = await fixAllCarsAssignment();
@@ -104,7 +112,14 @@ export default function AdminCarsPage() {
   }, [cars, priorityFilter, search]);
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`هل تريد حذف "${title}"؟\nهذا الإجراء لا يمكن التراجع عنه.`)) return;
+    const ok = await confirm({
+      title: 'حذف عربية',
+      message: `هل تريد حذف "${title}"؟\nهذا الإجراء لا يمكن التراجع عنه.`,
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await deleteCar(id);
@@ -252,7 +267,7 @@ export default function AdminCarsPage() {
                     <div className="flex flex-col gap-1.5 flex-shrink-0">
                       <button
                         onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
-                        className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors"
+                        className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors"
                         aria-label="تعديل"
                       >
                         <Edit3 size={16} className="text-admin-text-muted" />
@@ -260,7 +275,7 @@ export default function AdminCarsPage() {
                       <button
                         onClick={() => c.id && handleDelete(c.id, c.title)}
                         disabled={deletingId === c.id}
-                        className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
+                        className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
                         aria-label="حذف"
                       >
                         {deletingId === c.id ? (
@@ -299,7 +314,7 @@ export default function AdminCarsPage() {
               </div>
               <button
                 onClick={() => setFixReport(null)}
-                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center text-admin-text-muted"
+                className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center text-admin-text-muted"
                 aria-label="إغلاق"
               >
                 <X size={16} />
@@ -357,6 +372,7 @@ export default function AdminCarsPage() {
           </div>
         </div>
       )}
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }

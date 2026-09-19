@@ -15,6 +15,7 @@ import {
 import { AppUser, UserGroup } from '@/lib/types';
 import { createGroup, updateGroup, deleteGroup } from '@/lib/groups';
 import { useToast } from '@/hooks/useToast';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 interface GroupManagerProps {
   users: AppUser[];
@@ -27,6 +28,7 @@ function displayName(u: AppUser): string {
 
 export function GroupManager({ users, groups }: GroupManagerProps) {
   const { showToast } = useToast();
+  const { confirm, dialogProps } = useConfirm();
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [modalOpen, setModalOpen] = useState(false);
@@ -110,7 +112,14 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
   };
 
   const handleDelete = async (group: UserGroup) => {
-    if (!confirm(`حذف مجموعة "${group.name}"؟\nلن يتم حذف المستخدمين.`)) return;
+    const ok = await confirm({
+      title: 'حذف مجموعة',
+      message: `حذف مجموعة "${group.name}"؟\nلن يتم حذف المستخدمين.`,
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeletingId(group.id);
     try {
       await deleteGroup(group.id);
@@ -196,7 +205,7 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
                     </button>
                     <button
                       onClick={() => openEdit(group)}
-                      className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                      className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
                       aria-label="تعديل المجموعة"
                     >
                       <Pencil size={15} className="text-admin-text-muted" />
@@ -204,7 +213,7 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
                     <button
                       onClick={() => handleDelete(group)}
                       disabled={deletingId === group.id}
-                      className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center disabled:opacity-50"
+                      className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center disabled:opacity-50"
                       aria-label="حذف المجموعة"
                     >
                       {deletingId === group.id ? (
@@ -254,7 +263,7 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
               </h3>
               <button
                 onClick={closeModal}
-                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
                 aria-label="إغلاق"
               >
                 <X size={16} className="text-admin-text-muted" />
@@ -338,6 +347,7 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
           </div>
         </div>
       )}
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }

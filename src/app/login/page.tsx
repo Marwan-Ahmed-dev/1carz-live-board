@@ -47,7 +47,13 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center p-4 bg-bg-primary relative">
       <button
         type="button"
-        onClick={() => router.push('/')}
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.history.length > 1) {
+            router.back();
+          } else {
+            router.push('/cars');
+          }
+        }}
         className="absolute top-4 right-4 sm:top-6 sm:right-6 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary hover:bg-bg-card-hover text-sm font-medium transition-colors"
       >
         <ArrowRight size={16} />

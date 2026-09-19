@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Cairo, Inter } from 'next/font/google';
-import { ToastProvider } from '@/hooks/useToast';
+import { AppProviders } from '@/components/AppProviders';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
-import { ShortcutPromptHost } from '@/components/ShortcutPromptHost';
 import './globals.css';
 
 // خط عربي: Cairo
@@ -75,10 +74,7 @@ export default function RootLayout({
       </head>
       <body className="font-arabic">
         <ServiceWorkerRegister />
-        <ToastProvider>
-          {children}
-          <ShortcutPromptHost />
-        </ToastProvider>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );
