@@ -33,7 +33,7 @@ npm install
 
 ### 2. Configure Firebase
 
-The Firebase config is already wired in `src/lib/firebase.ts` with your project credentials.
+Copy `.env.local.example` to `.env.local` and fill in the values from your Firebase Console → Project Settings → General → Your apps (web app config). The same values are documented in `src/lib/firebase.ts`.
 
 #### Enable Firebase services
 

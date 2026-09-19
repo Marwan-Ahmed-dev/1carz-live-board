@@ -6,13 +6,33 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
+const requiredEnvVars = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+const missingKeys = Object.entries(requiredEnvVars)
+  .filter(([, value]) => !value)
+  .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
+
+if (missingKeys.length > 0) {
+  throw new Error(
+    `Missing required Firebase environment variables: ${missingKeys.join(', ')}. ` +
+      'See .env.local.example for the full list.'
+  );
+}
+
 export const firebaseConfig = {
-  apiKey: 'AIzaSyDNMKJcOfLLaOkVKkurzFxIPRw33Voujas',
-  authDomain: 'carz-live-board.firebaseapp.com',
-  projectId: 'carz-live-board',
-  storageBucket: 'carz-live-board.firebasestorage.app',
-  messagingSenderId: '311046964099',
-  appId: '1:311046964099:web:c21eedce2a9c049c4a2cb6',
+  apiKey: requiredEnvVars.apiKey!,
+  authDomain: requiredEnvVars.authDomain!,
+  projectId: requiredEnvVars.projectId!,
+  storageBucket: requiredEnvVars.storageBucket!,
+  messagingSenderId: requiredEnvVars.messagingSenderId!,
+  appId: requiredEnvVars.appId!,
 };
 
 // في وضع SSR + CSR، نحتاج إلى التأكد من أن Firebase لا يُهيأ مرتين

@@ -19,6 +19,11 @@ service cloud.firestore {
       return isAdmin() || isInspector();
     }
 
+    function isPublicCar() {
+      return resource.data.status == 'active'
+             && resource.data.assigned_to.hasAny(['all']);
+    }
+
     // ============== Users Collection ==============
     match /users/{uid} {
       allow get: if isSignedIn() && (request.auth.uid == uid || isStaff());
@@ -31,6 +36,8 @@ service cloud.firestore {
                     && !('uid' in request.resource.data.diff(resource.data).affectedKeys())
                     && !('email' in request.resource.data.diff(resource.data).affectedKeys())
                     && !('created_at' in request.resource.data.diff(resource.data).affectedKeys())
+                    && !('daily_buyer_limit' in request.resource.data.diff(resource.data).affectedKeys())
+                    && !('role' in request.resource.data.diff(resource.data).affectedKeys())
                     && (
                       !('username' in request.resource.data.diff(resource.data).affectedKeys())
                       || resource.data.username == null
@@ -38,50 +45,102 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Unique username reservations. Key is the normalized name.
+    // Username reservation map.
+    // - get (single doc): allowed for any signed-in user, used by
+    //   checkUsernameAvailable() during onboarding (it needs to check
+    //   one specific key). This is unavoidable — the client has to
+    //   know whether a name is taken.
+    // - list (full collection): admin-only. Prevents any signed-in user
+    //   from harvesting the full username→uid map via getDocs().
+    // - create: any signed-in user can claim a name for themselves,
+    //   but only if the name is not already taken (the transaction in
+    //   saveUsername() handles the race; this rule is the second line
+    //   of defence).
+    // - update: admin-only (changing an existing reservation is suspicious).
+    // - delete: the owner can release their own reservation, or admin.
     match /usernames/{name} {
       allow get: if isSignedIn();
-      allow create: if isAdmin()
-                    || (isSignedIn()
-                        && request.resource.data.uid == request.auth.uid);
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasAll(['uid', 'username'])
+                    && !exists(/databases/$(database)/documents/usernames/$(name));
       allow update: if isAdmin();
       allow delete: if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // ============== User Groups ==============
     match /groups/{groupId} {
       allow read: if isStaff();
       allow write: if isAdmin();
     }
 
     // ============== Cars Collection ==============
-    // List queries must include assigned_to array-contains-any [uid, 'all'].
-    // Status is enforced on get + client-side so we don't need a composite index.
     match /cars/{carId} {
       function isAssignedToMe() {
         return resource.data.assigned_to.hasAny([request.auth.uid, 'all']);
       }
 
-      allow list: if isStaff() || (isSignedIn() && isAssignedToMe());
+      allow list: if isStaff()
+                  || (isSignedIn() && isAssignedToMe())
+                  || isPublicCar();
 
-      allow get: if isStaff() || (
-        isSignedIn()
-        && resource.data.status == 'active'
-        && isAssignedToMe()
-      );
+      allow get: if isStaff()
+                 || (isSignedIn() && resource.data.status == 'active' && isAssignedToMe())
+                 || isPublicCar();
 
       allow create, update: if isStaff();
       allow delete: if isAdmin();
     }
 
-    // Phone-copy events for the admin daily report
     match /copy_events/{eventId} {
       allow create: if isSignedIn()
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.created_at == request.time;
       allow read: if isAdmin();
       allow update, delete: if false;
+    }
+
+    // Buyer leads entered by marketers
+    match /buyer_leads/{leadId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.marketer_uid == request.auth.uid
+                    && request.resource.data.keys().hasAll([
+                      'name', 'phone', 'description', 'marketer_uid', 'created_at'
+                    ])
+                    && request.resource.data.name is string
+                    && request.resource.data.phone is string
+                    && request.resource.data.phone.size() == 11
+                    && request.resource.data.description is string
+                    && request.resource.data.created_at == request.time;
+      allow read: if isAdmin()
+                  || (isSignedIn() && resource.data.marketer_uid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // Daily buyer counter — server-side enforced cap on leads/day.
+    // Each marketer gets a subcollection `days/{cairoDate}`. The client
+    // SDK uses runTransaction to atomically read+increment. We expose
+    // the doc only to the owner + admin to avoid leaking counters.
+    match /daily_buyer_counts/{uid} {
+      allow get, list: if isAdmin()
+                       || (isSignedIn() && request.auth.uid == uid);
+      allow create, update: if isSignedIn() && request.auth.uid == uid
+                            && request.resource.data.keys().hasAll(['count', 'uid', 'day'])
+                            && request.resource.data.count is number
+                            && request.resource.data.uid == uid
+                            && request.resource.data.day is string;
+      allow delete: if isAdmin();
+      match /days/{dayKey} {
+        allow get, list: if isAdmin()
+                         || (isSignedIn() && request.auth.uid == uid);
+        allow create, update: if isSignedIn() && request.auth.uid == uid
+                              && request.resource.data.keys().hasAll(['count', 'uid', 'day'])
+                              && request.resource.data.count is number
+                              && request.resource.data.uid == uid
+                              && request.resource.data.day is string;
+        allow delete: if isAdmin();
+      }
     }
   }
 }

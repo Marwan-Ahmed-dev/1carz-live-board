@@ -10,6 +10,7 @@ import {
   onSnapshot,
   updateDoc,
   serverTimestamp,
+  limit,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { AppUser } from './types';
@@ -19,6 +20,7 @@ const USERNAMES_COLLECTION = 'usernames';
 
 function normalizeUser(snap: any): AppUser {
   const data = snap.data();
+  const limitRaw = data.daily_buyer_limit;
   return {
     uid: data.uid || snap.id,
     email: data.email || '',
@@ -32,6 +34,10 @@ function normalizeUser(snap: any): AppUser {
           : data.role === 'user'
             ? 'user'
             : undefined,
+    daily_buyer_limit:
+      typeof limitRaw === 'number' && Number.isFinite(limitRaw) && limitRaw > 0
+        ? Math.floor(limitRaw)
+        : undefined,
     onboarded_at: data.onboarded_at || null,
     created_at: data.created_at || null,
     last_seen: data.last_seen || null,
@@ -56,13 +62,15 @@ export function validateUsername(val: string): string | null {
 
 export async function fetchAllUsers(): Promise<AppUser[]> {
   const ref = collection(db, USERS_COLLECTION);
-  const snap = await getDocs(ref);
+  // Cap the read so a runaway collection can't pin a server instance.
+  const q = query(ref, limit(500));
+  const snap = await getDocs(q);
   return snap.docs.map(normalizeUser);
 }
 
 export async function fetchOnboardedUsers(): Promise<AppUser[]> {
   const ref = collection(db, USERS_COLLECTION);
-  const q = query(ref, where('username', '!=', null));
+  const q = query(ref, where('username', '!=', null), limit(500));
   const snap = await getDocs(q);
   return snap.docs.map(normalizeUser);
 }
@@ -77,8 +85,11 @@ export async function checkUsernameAvailable(username: string): Promise<boolean>
 
 export function subscribeToUsers(callback: (users: AppUser[]) => void): () => void {
   const ref = collection(db, USERS_COLLECTION);
+  // Cap at 200 — the admin users page is the only consumer and 200 is
+  // plenty for a single dealership. Past that, add pagination.
+  const q = query(ref, limit(200));
   return onSnapshot(
-    ref,
+    q,
     (snap) => {
       callback(snap.docs.map(normalizeUser));
     },
@@ -148,4 +159,16 @@ export async function countAssignedCars(uid: string): Promise<number> {
     const assigned = d.data().assigned_to || [];
     return assigned.includes(uid) || assigned.includes('all');
   }).length;
+}
+
+/** تحديث حد تسجيل المشترين اليومي لمسوّق (أدمن فقط عبر قواعد Firestore) */
+export async function updateDailyBuyerLimit(uid: string, limit: number): Promise<void> {
+  const value = Math.floor(Number(limit));
+  if (!Number.isFinite(value) || value < 1 || value > 500) {
+    throw new Error('الحد اليومي لازم يكون بين 1 و 500');
+  }
+  await updateDoc(doc(db, USERS_COLLECTION, uid), {
+    daily_buyer_limit: value,
+    updated_at: serverTimestamp(),
+  });
 }

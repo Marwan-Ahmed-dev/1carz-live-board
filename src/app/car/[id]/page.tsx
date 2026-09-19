@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -62,21 +63,18 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
 
   const id = params?.id;
 
-  // Auth guard
+  // Onboarding فقط — الضيوف يقدروا يشوفوا العربيات العامة
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
-    if (needsOnboarding) {
+    if (user && needsOnboarding) {
       router.replace('/onboarding');
     }
   }, [user, authLoading, needsOnboarding, router]);
 
-  // Subscribe to car
+  // Subscribe to car (ضيف أو مسجّل)
   useEffect(() => {
-    if (!id || authLoading || !user) return;
+    if (!id || authLoading) return;
+    if (user && needsOnboarding) return;
     setLoading(true);
     setError(null);
     const unsub = subscribeToCar(
@@ -93,7 +91,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
       }
     );
     return () => unsub();
-  }, [id, user, authLoading]);
+  }, [id, user, authLoading, needsOnboarding]);
 
   // Reset active image when car changes
   useEffect(() => {
@@ -184,7 +182,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     }
   };
 
-  if (authLoading || !user) {
+  if (authLoading || (user && needsOnboarding)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 size={32} className="animate-spin text-accent-yellow" />
@@ -226,12 +224,13 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                 onClick={() => setLightboxOpen(true)}
               >
                 {activeImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={activeImage}
                     alt={car.title}
-                    decoding="async"
-                    className="absolute inset-0 w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 768px"
+                    className="object-cover"
+                    priority
                   />
                 ) : (
                   <div className="flex items-center justify-center w-full h-full">
@@ -322,20 +321,19 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                     <div key={url} className="relative flex-shrink-0">
                       <button
                         onClick={() => setActiveImageIdx(idx)}
-                        className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors striped-bg block ${
+                        className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors striped-bg block ${
                           activeImageIdx === idx
                             ? 'border-accent-yellow'
                             : 'border-border-soft hover:border-accent-yellow/50'
                         }`}
                         aria-label={`صورة ${idx + 1}`}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <Image
                           src={url}
                           alt={`${car.title} - صورة ${idx + 1}`}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover"
+                          fill
+                          sizes="80px"
+                          className="object-cover"
                         />
                       </button>
                       <button

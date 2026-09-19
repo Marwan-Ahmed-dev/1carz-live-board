@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -208,10 +209,15 @@ export default function AdminCarsPage() {
                 <li key={c.id} className="p-3 hover:bg-admin-bg transition-colors">
                   <div className="flex items-start gap-3">
                     {/* صورة */}
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
                       {c.image_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                        <Image
+                          src={c.image_url}
+                          alt={c.title}
+                          fill
+                          sizes="(max-width: 640px) 80px, 96px"
+                          className="object-cover"
+                        />
                       )}
                     </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Download, Loader2, X } from 'lucide-react';
 import { downloadSingleCarImage } from '@/lib/downloadCarImages';
 
@@ -123,14 +124,16 @@ export function Lightbox({
         className="relative w-full h-full max-w-[95vw] max-h-[90vh] mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           key={currentImage}
           src={currentImage}
           alt={`${alt} ${idx + 1}`}
-          decoding="async"
-          className="w-full h-full object-contain select-none"
+          fill
+          sizes="95vw"
+          unoptimized
+          className="object-contain select-none"
           draggable={false}
+          priority
         />
       </div>
 
@@ -144,13 +147,12 @@ export function Lightbox({
                   e.stopPropagation();
                   setIdx(i);
                 }}
-                className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all striped-bg ${
+                className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all striped-bg ${
                   idx === i ? 'border-accent-yellow scale-110' : 'border-white/30 hover:border-white/60'
                 }`}
                 aria-label={`صورة ${i + 1}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                <Image src={url} alt="" fill sizes="56px" className="object-cover" />
               </button>
             ))}
           </div>

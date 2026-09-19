@@ -63,8 +63,17 @@ Add these in Vercel dashboard → Project → Settings → Environment Variables
 | Key | Value | Notes |
 |-----|-------|-------|
 | `NEXT_PUBLIC_ADMIN_WHATSAPP` | `201234567890` | For the "تواصل عبر واتساب" button |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyDNMKJcOfLLaOkVKkurzFxIPRw33Voujas` | (optional — already in src/lib/firebase.ts) |
-| ... rest of Firebase config | (already in source) | |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | (from Firebase Console) | Required — see `.env.local.example` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | (from Firebase Console) | Required |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | (from Firebase Console) | Required |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | (from Firebase Console) | Required |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | (from Firebase Console) | Required |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | (from Firebase Console) | Required |
+| `FIREBASE_PROJECT_ID` | (from Service Account JSON) | Required (Admin SDK) |
+| `FIREBASE_CLIENT_EMAIL` | (from Service Account JSON) | Required (Admin SDK) |
+| `FIREBASE_PRIVATE_KEY` | (from Service Account JSON) | Required (Admin SDK) |
+
+The full list of required env vars is documented in `.env.local.example` — copy that file to `.env.local` and fill in the values from your Firebase Console. **Do not commit `.env.local`** — it's in `.gitignore`.
 
 ---
 

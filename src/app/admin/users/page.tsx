@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -16,11 +17,12 @@ import {
   Shield,
   Eye,
   Phone,
+  SlidersHorizontal,
 } from 'lucide-react';
-import { subscribeToUsers, validateUsername, deleteUserByAdmin } from '@/lib/users';
+import { subscribeToUsers, validateUsername, deleteUserByAdmin, updateDailyBuyerLimit } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { createUserByAdmin } from '@/lib/auth';
-import { AppUser, UserGroup } from '@/lib/types';
+import { AppUser, DEFAULT_DAILY_BUYER_LIMIT, UserGroup } from '@/lib/types';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { GroupManager } from '@/components/admin/GroupManager';
@@ -45,6 +47,16 @@ function formatDate(ts: unknown): string {
   }
 }
 
+function isMarketerAccount(
+  u: AppUser,
+  adminUids: Set<string>,
+  inspectorUids: Set<string>
+): boolean {
+  if (adminUids.has(u.uid) || u.role === 'admin') return false;
+  if (inspectorUids.has(u.uid) || u.role === 'inspector') return false;
+  return true;
+}
+
 export default function AdminUsersPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -66,11 +78,15 @@ export default function AdminUsersPage() {
   const [newPhone, setNewPhone] = useState('');
   const [newRole, setNewRole] = useState<'user' | 'admin' | 'inspector'>('user');
   const [newGroupId, setNewGroupId] = useState('');
+  const [newDailyLimit, setNewDailyLimit] = useState(String(DEFAULT_DAILY_BUYER_LIMIT));
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [adminUids, setAdminUids] = useState<Set<string>>(new Set());
   const [inspectorUids, setInspectorUids] = useState<Set<string>>(new Set());
+  const [editLimit, setEditLimit] = useState('');
+  const [savingLimit, setSavingLimit] = useState(false);
+  const [limitEditUser, setLimitEditUser] = useState<AppUser | null>(null);
 
   useEffect(() => {
     const unsubUsers = subscribeToUsers((u) => {
@@ -176,10 +192,9 @@ export default function AdminUsersPage() {
                 router.push(`/admin/cars/${c.id}`);
               }}
             >
-              <div className="w-12 h-12 rounded-lg bg-admin-card overflow-hidden flex-shrink-0 striped-bg">
+              <div className="relative w-12 h-12 rounded-lg bg-admin-card overflow-hidden flex-shrink-0 striped-bg">
                 {c.image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                  <Image src={c.image_url} alt={c.title} fill sizes="48px" className="object-cover" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -210,6 +225,8 @@ export default function AdminUsersPage() {
         phone: newPhone,
         role: newRole,
         groupId: newGroupId || undefined,
+        daily_buyer_limit:
+          newRole === 'user' ? Math.floor(Number(newDailyLimit)) || DEFAULT_DAILY_BUYER_LIMIT : undefined,
       });
       if (created.role === 'admin' && created.uid) {
         setAdminUids((prev) => new Set(prev).add(created.uid));
@@ -222,7 +239,7 @@ export default function AdminUsersPage() {
           ? 'تم إنشاء حساب أدمن'
           : newRole === 'inspector'
             ? 'تم إنشاء حساب معاين'
-            : 'تم إنشاء الحساب بنجاح';
+            : 'تم إنشاء حساب مسوّق';
       showToast(toastMsg, 'success');
       setCreateOpen(false);
       setNewName('');
@@ -231,6 +248,7 @@ export default function AdminUsersPage() {
       setNewPhone('');
       setNewRole('user');
       setNewGroupId('');
+      setNewDailyLimit(String(DEFAULT_DAILY_BUYER_LIMIT));
     } catch (err: unknown) {
       setCreateError((err as Error)?.message || 'فشل إنشاء الحساب');
     } finally {
@@ -353,6 +371,8 @@ export default function AdminUsersPage() {
               <ul className="divide-y divide-admin-border">
                 {filteredUsers.map((u) => {
                   const userGroups = groupsForUser(u.uid);
+                  const marketer = isMarketerAccount(u, adminUids, inspectorUids);
+                  const dailyLimit = u.daily_buyer_limit ?? DEFAULT_DAILY_BUYER_LIMIT;
                   return (
                     <li
                       key={u.uid}
@@ -362,7 +382,7 @@ export default function AdminUsersPage() {
                         <UserIcon size={22} className="text-admin-accent" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-admin-text truncate flex items-center gap-1.5">
+                        <h3 className="text-sm font-bold text-admin-text truncate flex items-center gap-1.5 flex-wrap">
                           {u.username || u.email.split('@')[0]}
                           {(adminUids.has(u.uid) || u.role === 'admin') && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-admin-accent/15 text-admin-accent text-[10px] font-bold">
@@ -376,6 +396,11 @@ export default function AdminUsersPage() {
                               معاين
                             </span>
                           )}
+                          {marketer && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
+                              مسوق
+                            </span>
+                          )}
                         </h3>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-admin-text-muted mt-0.5">
                           <span className="flex items-center gap-1">
@@ -386,6 +411,11 @@ export default function AdminUsersPage() {
                             <span className="flex items-center gap-1" dir="ltr">
                               <Phone size={11} />
                               {u.phone}
+                            </span>
+                          )}
+                          {marketer && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-admin-bg text-admin-accent font-bold">
+                              حد يومي: {dailyLimit}
                             </span>
                           )}
                         </div>
@@ -414,8 +444,28 @@ export default function AdminUsersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {marketer && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLimitEditUser(u);
+                              setEditLimit(String(dailyLimit));
+                            }}
+                            className="flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                            aria-label="تعديل حد المشترين"
+                          >
+                            <SlidersHorizontal size={16} className="text-emerald-400" />
+                            <span className="badge-number text-sm font-bold text-emerald-400">
+                              {dailyLimit}
+                            </span>
+                            <span className="text-[10px] text-emerald-400/80">الحد</span>
+                          </button>
+                        )}
                         <button
-                          onClick={() => setSelectedUser(u)}
+                          onClick={() => {
+                            setSelectedUser(u);
+                            setEditLimit(String(dailyLimit));
+                          }}
                           className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-admin-bg hover:bg-admin-border transition-colors"
                         >
                           <CarIcon size={16} className="text-admin-accent" />
@@ -472,7 +522,115 @@ export default function AdminUsersPage() {
                 <X size={16} className="text-admin-text-muted" />
               </button>
             </div>
+            {!adminUids.has(selectedUser.uid) &&
+              selectedUser.role !== 'admin' &&
+              !inspectorUids.has(selectedUser.uid) &&
+              selectedUser.role !== 'inspector' && (
+                <div className="mb-4 p-3 rounded-xl bg-admin-bg border border-admin-border space-y-2">
+                  <label className="block text-xs font-bold text-admin-text-muted">
+                    حد المشترين اليومي
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={editLimit}
+                      onChange={(e) => setEditLimit(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl bg-admin-card border border-admin-border text-admin-text text-sm"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      disabled={savingLimit}
+                      onClick={async () => {
+                        setSavingLimit(true);
+                        try {
+                          await updateDailyBuyerLimit(selectedUser.uid, Number(editLimit));
+                          showToast('تم تحديث الحد اليومي', 'success');
+                          setSelectedUser({
+                            ...selectedUser,
+                            daily_buyer_limit: Math.floor(Number(editLimit)),
+                          });
+                        } catch (err: unknown) {
+                          showToast((err as Error)?.message || 'فشل التحديث', 'error');
+                        } finally {
+                          setSavingLimit(false);
+                        }
+                      }}
+                      className="px-3 py-2 rounded-xl bg-admin-accent text-admin-bg text-sm font-bold disabled:opacity-60"
+                    >
+                      {savingLimit ? <Loader2 size={14} className="animate-spin" /> : 'حفظ'}
+                    </button>
+                  </div>
+                </div>
+              )}
             <SelectedUserCars uid={selectedUser.uid} />
+          </div>
+        </div>
+      )}
+
+      {limitEditUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={() => !savingLimit && setLimitEditUser(null)}
+        >
+          <div
+            className="bg-admin-card border border-admin-border rounded-2xl w-full max-w-sm p-5 modal-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-admin-text">تعديل حد المشترين</h3>
+                <p className="text-xs text-admin-text-muted mt-0.5">
+                  {limitEditUser.username || limitEditUser.email}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !savingLimit && setLimitEditUser(null)}
+                className="w-8 h-8 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                aria-label="إغلاق"
+              >
+                <X size={16} className="text-admin-text-muted" />
+              </button>
+            </div>
+            <p className="text-sm text-admin-text-muted mb-3">
+              كام مشتري يقدر المسوّق يسجّلهم في اليوم الواحد؟
+            </p>
+            <label className="block text-xs font-bold text-admin-text-muted mb-1.5">
+              الحد اليومي
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={500}
+              value={editLimit}
+              onChange={(e) => setEditLimit(e.target.value)}
+              className="w-full px-3 py-3 rounded-xl bg-admin-bg border border-admin-border text-admin-text text-base font-bold mb-4"
+              dir="ltr"
+            />
+            <button
+              type="button"
+              disabled={savingLimit}
+              onClick={async () => {
+                setSavingLimit(true);
+                try {
+                  const value = Math.floor(Number(editLimit));
+                  await updateDailyBuyerLimit(limitEditUser.uid, value);
+                  showToast(`تم تحديث الحد إلى ${value}`, 'success');
+                  setLimitEditUser(null);
+                } catch (err: unknown) {
+                  showToast((err as Error)?.message || 'فشل التحديث', 'error');
+                } finally {
+                  setSavingLimit(false);
+                }
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm disabled:opacity-60"
+            >
+              {savingLimit ? <Loader2 size={16} className="animate-spin" /> : null}
+              حفظ الحد
+            </button>
           </div>
         </div>
       )}
@@ -559,7 +717,7 @@ export default function AdminUsersPage() {
                 <div className="space-y-3">
                   {(
                     [
-                      { value: 'user', label: 'مستخدم عادي' },
+                      { value: 'user', label: 'مسوق' },
                       { value: 'inspector', label: 'معاين' },
                       { value: 'admin', label: 'ادمن' },
                     ] as const
@@ -580,6 +738,24 @@ export default function AdminUsersPage() {
                   ))}
                 </div>
               </div>
+              {newRole === 'user' && (
+                <div>
+                  <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                    حد المشترين اليومي
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={newDailyLimit}
+                    onChange={(e) => setNewDailyLimit(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                    required
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-admin-text-muted mt-1">افتراضي {DEFAULT_DAILY_BUYER_LIMIT}</p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-bold text-admin-text-muted mb-1">
                   كلمة المرور

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
@@ -272,11 +273,13 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
                     isMain ? 'border-admin-accent' : 'border-admin-border'
                   }`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={slot.url}
                     alt={`صورة ${idx + 1}`}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                    className="object-cover"
+                    unoptimized={slot.kind === 'new'}
                   />
                   {isMain && (
                     <div className="absolute top-1 right-1">

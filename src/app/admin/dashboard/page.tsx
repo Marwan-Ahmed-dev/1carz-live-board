@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -13,17 +14,15 @@ import {
   CirclePlus,
   Bookmark,
   BadgeCheck,
-  Copy,
 } from 'lucide-react';
 import { subscribeToCars, subscribeToPriorityCounts } from '@/lib/cars';
-import { AppUser, Car } from '@/lib/types';
+import { Car } from '@/lib/types';
 import { StatCard } from '@/components/admin/StatCard';
 import { LoadingState } from '@/components/LoadingState';
 import { formatPrice } from '@/lib/format';
 import { StatusBadge } from '@/components/StatusBadge';
 import { formatCairoTodayLabel, isTodayInCairo } from '@/lib/cairoDay';
-import { rankCopyLeaders, subscribeToTodaysCopyEvents } from '@/lib/copyEvents';
-import { subscribeToUsers } from '@/lib/users';
+import { BuyersPanel } from '@/components/admin/BuyersPanel';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -37,8 +36,6 @@ export default function AdminDashboardPage() {
     total: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [copyLeaders, setCopyLeaders] = useState<ReturnType<typeof rankCopyLeaders>>([]);
 
   useEffect(() => {
     const unsubCars = subscribeToCars(
@@ -49,15 +46,9 @@ export default function AdminDashboardPage() {
       { onError: () => setLoading(false) }
     );
     const unsubCounts = subscribeToPriorityCounts(setCounts);
-    const unsubUsers = subscribeToUsers(setUsers);
-    const unsubCopies = subscribeToTodaysCopyEvents((events) => {
-      setCopyLeaders(rankCopyLeaders(events));
-    });
     return () => {
       unsubCars();
       unsubCounts();
-      unsubUsers();
-      unsubCopies();
     };
   }, []);
 
@@ -71,16 +62,6 @@ export default function AdminDashboardPage() {
     }),
     [cars]
   );
-  const namedLeaders = useMemo(() => {
-    const byUid = new Map(users.map((u) => [u.uid, u]));
-    return copyLeaders.slice(0, 5).map((leader) => {
-      const user = byUid.get(leader.uid);
-      return {
-        ...leader,
-        label: user?.username || leader.label,
-      };
-    });
-  }, [copyLeaders, users]);
 
   return (
     <div className="space-y-6">
@@ -111,45 +92,7 @@ export default function AdminDashboardPage() {
           <StatCard label="اتحجزت" value={daily.reserved} accent="amber" icon={<Bookmark size={20} />} />
           <StatCard label="اتباعت" value={daily.sold} accent="green" icon={<BadgeCheck size={20} />} />
         </div>
-        <div className="bg-admin-card border border-admin-border rounded-2xl p-4 sm:p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center">
-              <Copy size={18} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-admin-text">مين نسخ رقم أكتر</h3>
-              <p className="text-xs text-admin-text-muted">نسخ أرقام المعاين أو المالك اليوم</p>
-            </div>
-          </div>
-          {namedLeaders.length === 0 ? (
-            <p className="text-sm text-admin-text-muted py-2">لسه مفيش نسخ أرقام النهاردة</p>
-          ) : (
-            <ol className="space-y-2">
-              {namedLeaders.map((leader, index) => (
-                <li
-                  key={leader.uid}
-                  className="flex items-center gap-3 py-2 border-b border-admin-border last:border-0 last:pb-0"
-                >
-                  <span
-                    className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center ${
-                      index === 0
-                        ? 'bg-admin-accent text-admin-bg'
-                        : 'bg-admin-bg text-admin-text-muted'
-                    }`}
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="flex-1 min-w-0 truncate text-sm font-bold text-admin-text">
-                    {leader.label}
-                  </span>
-                  <span className="badge-number text-sm font-bold text-admin-accent">
-                    {leader.count}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
+        <BuyersPanel />
       </section>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -217,10 +160,9 @@ export default function AdminDashboardPage() {
                   onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
                   className="flex items-center gap-3 p-3 hover:bg-admin-bg cursor-pointer transition-colors"
                 >
-                  <div className="w-14 h-14 rounded-lg bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
+                  <div className="relative w-14 h-14 rounded-lg bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
                     {c.image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                      <Image src={c.image_url} alt={c.title} fill sizes="56px" className="object-cover" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

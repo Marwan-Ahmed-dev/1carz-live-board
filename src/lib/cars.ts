@@ -18,6 +18,9 @@ import {
   Timestamp,
   QueryConstraint,
   DocumentData,
+  writeBatch,
+  limit,
+  getCountFromServer,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
@@ -198,7 +201,14 @@ export interface CarFixReport {
  *
  * Use case: لو العربيات القديمة اتكتبت بـ `assigned_to = []` أو `status='inactive'`،
  * المستخدمين مش هيشوفوها حتى لو assigned_to صحيح. ده one-time fix.
+ *
+ * Performance: يستخدم writeBatch لتجميع كل التعديلات في round-trips قليلة
+ * (Firestore batch max = 500 عملية، فنقسّم على دفعات). قبل كنا بنعمل
+ * sequential updateDoc لكل عربية (N round-trips) — ده كان بيتسبب في
+ * بطء شديد لو عندك 100+ عربية.
  */
+const FIRESTORE_BATCH_LIMIT = 500;
+
 export async function fixAllCarsAssignment(): Promise<CarFixReport> {
   const ref = collection(db, CARS_COLLECTION);
   const snap = await getDocs(ref);
@@ -215,6 +225,14 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
       usernameToUid.set(username, d.id);
     }
   });
+
+  // Collect pending updates (id → { assignedToAfter, statusAfter }) so we
+  // can flush them in a single writeBatch per 500 cars.
+  const pendingUpdates: Array<{
+    id: string;
+    assignedToAfter: string[];
+    statusAfter: string;
+  }> = [];
 
   const report: CarFixReport = {
     cars: [],
@@ -286,17 +304,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     }
 
     if (needsFix) {
-      try {
-        await updateDoc(doc(db, CARS_COLLECTION, id), {
-          assigned_to: assignedToAfter,
-          status: statusAfter,
-        });
-        report.fixedCount++;
-      } catch (err) {
-        console.error(`[fixAllCarsAssignment] failed to fix ${id}:`, err);
-        reasons.push(`فشل التحديث: ${(err as Error).message}`);
-        needsFix = false;
-      }
+      pendingUpdates.push({ id, assignedToAfter, statusAfter });
     }
 
     report.cars.push({
@@ -312,6 +320,34 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     });
   }
 
+  // Flush in batches of 500 (Firestore hard limit).
+  for (let i = 0; i < pendingUpdates.length; i += FIRESTORE_BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    const slice = pendingUpdates.slice(i, i + FIRESTORE_BATCH_LIMIT);
+    slice.forEach((u) => {
+      batch.update(doc(db, CARS_COLLECTION, u.id), {
+        assigned_to: u.assignedToAfter,
+        status: u.statusAfter,
+        updated_at: serverTimestamp(),
+      });
+    });
+    try {
+      await batch.commit();
+      report.fixedCount += slice.length;
+    } catch (err) {
+      console.error('[fixAllCarsAssignment] batch commit failed:', err);
+      // Mark the affected cars as failed so the UI can show the reason.
+      const message = (err as Error).message;
+      for (const u of slice) {
+        const car = report.cars.find((c) => c.id === u.id);
+        if (car) {
+          car.changed = false;
+          car.reason = `${car.reason} · فشل التحديث: ${message}`;
+        }
+      }
+    }
+  }
+
   console.log('[fixAllCarsAssignment] report:', report);
   return report;
 }
@@ -322,19 +358,22 @@ export interface SubscribeToCarsFilters {
   maxPrice?: number;
   /** User UID — adds assignment query required by Firestore list rules */
   uid?: string | null;
+  /** ضيف بدون login: عربيات الكل النشطة فقط */
+  publicOnly?: boolean;
   onError?: (err: Error) => void;
 }
 
 /**
  * Real-time listener على مجموعة العربيات.
  *
- * لما uid موجود (مستخدم عادي):
+ * لما uid موجود (مسوّق / مستخدم):
  *   query = assigned_to array-contains-any [uid, 'all']
- *   ده لازم يطابق قواعد الـ list. الحالة (status) بتتتفلتر client-side
- *   عشان ما نحتاجش composite index، والـ get rule بيمنع فتح غير النشطة.
  *
- * لما uid مش موجود (أدمن):
- *   query = orderBy created_at — الـ admin claim بيسمح بالـ list الكامل.
+ * لما publicOnly (ضيف):
+ *   query = assigned_to array-contains 'all' + status active
+ *
+ * لما uid مش موجود ومش public (أدمن):
+ *   query = orderBy created_at
  */
 export function subscribeToCars(
   callback: (cars: Car[]) => void,
@@ -343,7 +382,10 @@ export function subscribeToCars(
   const ref = collection(db, CARS_COLLECTION);
   const constraints: QueryConstraint[] = [];
 
-  if (filters.uid) {
+  if (filters.publicOnly) {
+    constraints.push(where('assigned_to', 'array-contains', 'all'));
+    constraints.push(where('status', '==', 'active'));
+  } else if (filters.uid) {
     constraints.push(where('assigned_to', 'array-contains-any', [filters.uid, 'all']));
   }
 
@@ -357,21 +399,31 @@ export function subscribeToCars(
     constraints.push(where('price', '<=', filters.maxPrice));
   }
 
-  // OrderBy يتعارض مع array-contains-any من غير composite index.
-  // الترتيب بيتم client-side في useCars.sortByCreatedAtDesc.
-  if (!filters.uid) {
+  // OrderBy يتعارض مع array-contains من غير composite index.
+  if (!filters.uid && !filters.publicOnly) {
     constraints.push(orderBy('created_at', 'desc'));
   }
 
+  // Performance guard: cap any admin/owner query to 200 cars.
+  // لو عندك أكتر من 200 عربية، الإحصائيات في الـ dashboard هتستخدم
+  // getCountFromServer (مش onSnapshot) لتجنّب قراءة المستندات كلها.
+  constraints.push(limit(200));
+
   const q = query(ref, ...constraints);
   const uid = filters.uid;
+  const publicOnly = !!filters.publicOnly;
   return onSnapshot(
     q,
     (snap) => {
       const rawCars = snap.docs.map(normalizeCar);
-      const cars = uid
-        ? rawCars.filter((c) => isCarVisibleToUser(c, uid))
-        : rawCars;
+      let cars = rawCars;
+      if (uid) {
+        cars = rawCars.filter((c) => isCarVisibleToUser(c, uid));
+      } else if (publicOnly) {
+        cars = rawCars.filter(
+          (c) => c.status === 'active' && Array.isArray(c.assigned_to) && c.assigned_to.includes('all')
+        );
+      }
       callback(cars);
     },
     (err) => {
@@ -413,6 +465,10 @@ export function subscribeToCar(
 
 /**
  * عداد العربيات حسب الأولوية (للإحصائيات في admin dashboard)
+ *
+ * استخدام getCountFromServer بدل onSnapshot يقلّل القراءة بشكل كبير
+ * (مش محتاجين الـ docs نفسها — بس الأرقام). الـ `subscribeTo*` المتبقي
+ * لسه يستخدم snapshot listener للـ lists.
  */
 export interface PriorityCounts {
   arabyatna: number;
@@ -423,25 +479,45 @@ export interface PriorityCounts {
   total: number;
 }
 
+async function fetchPriorityCounts(): Promise<PriorityCounts> {
+  const counts: PriorityCounts = { arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 };
+  for (const p of PRIORITY_ORDER) {
+    const snap = await getCountFromServer(
+      query(collection(db, CARS_COLLECTION), where('priority', '==', p))
+    );
+    const n = snap.data().count;
+    counts[p] = n;
+    counts.total += n;
+  }
+  return counts;
+}
+
 export function subscribeToPriorityCounts(callback: (counts: PriorityCounts) => void): () => void {
-  const ref = collection(db, CARS_COLLECTION);
-  return onSnapshot(
-    ref,
-    (snap) => {
-      const counts: PriorityCounts = { arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 };
-      snap.docs.forEach((d) => {
-        const data = d.data();
-        counts.total++;
-        const p: string = data.priority;
-        if ((PRIORITY_ORDER as string[]).includes(p)) {
-          counts[p as Priority]++;
-        }
-      });
-      callback(counts);
-    },
-    (err) => {
+  // Polling كل 30 ثانية مع getCountFromServer. مش real-time لكن
+  // الـ admin dashboard مش محتاج تحديث في الـ ms.
+  // لو احتجت real-time لاحقاً، ممكن نستخدم onSnapshot مع select(field)
+  // بس ده أعقد شوية.
+  let cancelled = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  const tick = async () => {
+    try {
+      const counts = await fetchPriorityCounts();
+      if (!cancelled) callback(counts);
+    } catch (err) {
       console.error('[subscribeToPriorityCounts] error:', err);
-      callback({ arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 });
+      if (!cancelled) {
+        callback({ arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 });
+      }
     }
-  );
+  };
+
+  // kick off immediately + every 30s
+  void tick();
+  timer = setInterval(tick, 30_000);
+
+  return () => {
+    cancelled = true;
+    if (timer) clearInterval(timer);
+  };
 }
