@@ -97,7 +97,9 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.created_at == request.time;
-      allow read: if isAdmin();
+      // H23: staff-only read (admin + inspector) — البيانات دي حساسة
+      // (مين اتصل برقم مين) ولازم ما تطلعش لليوزر العادي.
+      allow read: if isStaff();
       allow update, delete: if false;
     }
 

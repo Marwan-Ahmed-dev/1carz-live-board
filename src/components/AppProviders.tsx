@@ -7,6 +7,14 @@ import { AppUser } from '@/lib/types';
 import { AuthContext, type UseAuthResult } from '@/hooks/useAuth';
 import { ToastProvider } from '@/hooks/useToast';
 import { ShortcutPromptHost } from '@/components/ShortcutPromptHost';
+import { initAppCheck } from '@/lib/firebase';
+
+// H22: فعّل App Check على أول mount (client-only).
+// الـ init جوّاه SSR-safe + key-missing guard — لو الـ env var مش موجود
+// بيطبع info وبيكمّل بدون App Check.
+if (typeof window !== 'undefined') {
+  initAppCheck();
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

@@ -112,7 +112,11 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     setShareUrl(window.location.href);
   }, [id]);
-  const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`;
+  // H21: useMemo عشان ما نعيد الـ encodeURIComponent في كل render
+  const whatsappShareUrl = useMemo(
+    () => `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`,
+    [shareMessage, shareUrl]
+  );
 
   const handleDownloadImages = async () => {
     if (!car || allImages.length === 0 || downloading || downloadingOne !== null) return;
@@ -247,7 +251,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                         void handleDownloadOne(activeImageIdx);
                       }}
                       disabled={downloadingOne !== null || downloading}
-                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors disabled:opacity-50"
+                      className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors disabled:opacity-50"
                       aria-label="تحميل هذه الصورة"
                       title="تحميل هذه الصورة"
                     >
@@ -263,7 +267,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                         e.stopPropagation();
                         setLightboxOpen(true);
                       }}
-                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                      className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       aria-label="تكبير الصورة"
                     >
                       <Maximize2 size={16} />
@@ -295,7 +299,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                         e.stopPropagation();
                         setActiveImageIdx((idx) => (idx - 1 + allImages.length) % allImages.length);
                       }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
                       aria-label="السابق"
                     >
                       <ChevronRight size={20} />
@@ -305,7 +309,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                         e.stopPropagation();
                         setActiveImageIdx((idx) => (idx + 1) % allImages.length);
                       }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
                       aria-label="التالي"
                     >
                       <ChevronLeft size={20} />
