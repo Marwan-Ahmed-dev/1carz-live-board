@@ -14,29 +14,19 @@ export const MAX_CAR_IMAGES = 30;
  */
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
-/**
- * نفس منطق ضغط صور العربيات في تطبيق Flutter (admin_car_form_page):
- * أبعاد حسب حجم الملف الأصلي + JPEG بجودة ثابتة.
- */
-function getFlutterCompressParams(originalSize: number): {
-  maxWidth: number;
-  maxHeight: number;
-  quality: number;
-} {
-  if (originalSize > 2 * 1024 * 1024) {
-    return { maxWidth: 600, maxHeight: 450, quality: 0.6 };
-  }
-  if (originalSize > 1024 * 1024) {
-    return { maxWidth: 700, maxHeight: 525, quality: 0.65 };
-  }
-  if (originalSize > 500 * 1024) {
-    return { maxWidth: 800, maxHeight: 600, quality: 0.75 };
-  }
-  return { maxWidth: 800, maxHeight: 600, quality: 0.7 };
-}
+/** أبعاد واضحة للعرض — أقرب لـ StorageImageService في Flutter (1280×960) */
+const MAX_WIDTH = 1280;
+const MAX_HEIGHT = 960;
+
+/** هدف المساحة بعد الضغط */
+const TARGET_MIN_BYTES = 150 * 1024;
+const TARGET_MAX_BYTES = 200 * 1024;
+
+const QUALITY_FLOOR = 0.55;
+const QUALITY_CEIL = 0.88;
 
 /** زي copyResize في Flutter: landscape → maxWidth، portrait → maxHeight */
-function flutterResizeSize(
+function fitWithinBox(
   srcW: number,
   srcH: number,
   maxWidth: number,
@@ -89,10 +79,54 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<B
   });
 }
 
+function drawToCanvas(
+  source: CanvasImageSource,
+  width: number,
+  height: number
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) {
+    throw new Error('تعذر ضغط الصورة');
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, 0, 0, width, height);
+  return canvas;
+}
+
+/** يضبط جودة JPEG عشان المساحة توقع بين 150–200KB قد الإمكان */
+async function encodeNearTarget(canvas: HTMLCanvasElement): Promise<Blob> {
+  let lo = QUALITY_FLOOR;
+  let hi = QUALITY_CEIL;
+  let best = await canvasToJpegBlob(canvas, 0.78);
+
+  for (let i = 0; i < 8; i++) {
+    const mid = (lo + hi) / 2;
+    const blob = await canvasToJpegBlob(canvas, mid);
+    best = blob;
+    if (blob.size > TARGET_MAX_BYTES) {
+      hi = mid;
+    } else if (blob.size < TARGET_MIN_BYTES) {
+      lo = mid;
+    } else {
+      return blob;
+    }
+  }
+
+  if (best.size > TARGET_MAX_BYTES) {
+    best = await canvasToJpegBlob(canvas, QUALITY_FLOOR);
+  }
+  return best;
+}
+
 /**
- * ضغط صور العربيات — مطابق لتطبيق 1CARZ Flutter:
- * resize حسب الحجم + encodeJpg بجودة 60–75.
- * دايماً بيرجع JPEG مضغوط (مش بيرجع الأصلية لو الضغط "مش عاجبه").
+ * ضغط صور العربيات بجودة واضحة للعين ومساحة ~150–200KB.
+ * الأبعاد حوالي 1280×960 (مش 600×450 اللي كانت بتبوّظ الصورة).
  */
 export async function compressCarImage(file: File): Promise<File> {
   if (!isImageFile(file)) {
@@ -115,46 +149,28 @@ export async function compressCarImage(file: File): Promise<File> {
     throw new Error('تعذر قراءة أبعاد الصورة');
   }
 
-  const { maxWidth, maxHeight, quality } = getFlutterCompressParams(file.size);
-  const { width, height } = flutterResizeSize(srcW, srcH, maxWidth, maxHeight);
+  let { width, height } = fitWithinBox(srcW, srcH, MAX_WIDTH, MAX_HEIGHT);
+  let canvas = drawToCanvas(source, width, height);
+  let blob = await encodeNearTarget(canvas);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) {
-    throw new Error('تعذر ضغط الصورة');
+  // لو لسه أكبر من 200KB عند أقل جودة، صغّر شوية وأعدّ
+  if (blob.size > TARGET_MAX_BYTES) {
+    const smaller = fitWithinBox(srcW, srcH, 1080, 810);
+    width = smaller.width;
+    height = smaller.height;
+    canvas = drawToCanvas(source, width, height);
+    blob = await encodeNearTarget(canvas);
   }
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(source, 0, 0, width, height);
+
   if ('close' in source && typeof source.close === 'function') {
     source.close();
   }
 
-  let blob = await canvasToJpegBlob(canvas, quality);
-
-  // لو لسه كبيرة أوي زي Flutter الـ aggressive pass
-  if (blob.size > 500 * 1024) {
-    const tighter = await canvasToJpegBlob(canvas, Math.max(0.45, quality - 0.15));
-    if (tighter.size < blob.size) blob = tighter;
-  }
-
   const base = file.name.replace(/\.[^.]+$/, '') || 'car';
-  const out = new File([blob], `${base}.jpg`, {
+  return new File([blob], `${base}.jpg`, {
     type: 'image/jpeg',
     lastModified: Date.now(),
   });
-
-  if (typeof console !== 'undefined') {
-    console.info(
-      `[compressCarImage] ${Math.round(file.size / 1024)}KB → ${Math.round(out.size / 1024)}KB (${width}x${height}, q=${quality})`
-    );
-  }
-
-  return out;
 }
 
 /**
@@ -164,11 +180,11 @@ export async function compressCarImage(file: File): Promise<File> {
  * @returns URL الصورة على Storage
  */
 export async function uploadCarImage(file: File, carId: string): Promise<string> {
-  // لو الفورم ضغط بالفعل لـ JPEG صغير، متضغطش تاني
+  // لو الفورم ضغط بالفعل ضمن الهدف، متضغطش تاني
   const alreadyCompressed =
     file.type === 'image/jpeg' &&
     file.name.endsWith('.jpg') &&
-    file.size <= 500 * 1024;
+    file.size <= TARGET_MAX_BYTES + 20 * 1024;
   const compressed = alreadyCompressed ? file : await compressCarImage(file);
 
   const timestamp = Date.now();
