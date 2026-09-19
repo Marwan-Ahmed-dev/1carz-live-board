@@ -24,7 +24,7 @@ export default function OnboardingPage() {
       return;
     }
     if (userData && userData.username !== null && !needsOnboarding) {
-      router.replace('/');
+      router.replace('/cars');
     }
   }, [user, userData, loading, needsOnboarding, router]);
 
@@ -66,7 +66,7 @@ export default function OnboardingPage() {
       setSuccess(true);
       // انتظار قصير ثم التوجيه — اختصار الشاشة يظهر بعد الدخول على الجهاز
       setTimeout(() => {
-        router.replace('/');
+        router.replace('/cars');
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'حدث خطأ، حاول مرة أخرى');

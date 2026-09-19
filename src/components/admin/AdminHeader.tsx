@@ -5,6 +5,7 @@ import { Car, LogOut, LayoutDashboard, ListChecks, Users, Plus } from 'lucide-re
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -42,8 +43,8 @@ export function AdminHeader() {
         <div className="flex items-center justify-between gap-3 mb-3">
           {/* الشعار */}
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-admin-accent flex items-center justify-center">
-              <Car size={20} className="text-admin-bg" strokeWidth={2.5} />
+            <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-xl">
+              <BrandLogo size={40} />
             </div>
             <div className="flex flex-col">
               <h1 className="text-sm sm:text-base font-bold text-admin-text">1CARZ Admin</h1>
@@ -58,7 +59,7 @@ export function AdminHeader() {
           {/* أزرار التحكم */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/cars')}
               className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-admin-bg hover:bg-admin-border text-admin-text text-sm font-medium transition-colors"
               title="العودة للتطبيق"
             >

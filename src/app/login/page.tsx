@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Car, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { signIn } from '@/lib/auth';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
     } else if (isAdmin) {
       router.replace('/admin/dashboard');
     } else {
-      router.replace('/');
+      router.replace('/cars');
     }
   }, [user, authLoading, needsOnboarding, isAdmin, router]);
 
@@ -43,12 +44,21 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-bg-primary">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-bg-primary relative">
+      <button
+        type="button"
+        onClick={() => router.push('/')}
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary hover:bg-bg-card-hover text-sm font-medium transition-colors"
+      >
+        <ArrowRight size={16} />
+        رجوع
+      </button>
+
       <div className="w-full max-w-md">
         {/* Logo + Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-accent-yellow mb-4 shadow-medium">
-            <Car size={40} className="text-text-primary" strokeWidth={2.5} />
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl overflow-hidden mb-4 shadow-medium">
+            <BrandLogo size={80} rounded={false} className="rounded-2xl" />
           </div>
           <h1 className="text-3xl font-bold text-text-primary mb-2">
             1CARZ LIVE BOARD

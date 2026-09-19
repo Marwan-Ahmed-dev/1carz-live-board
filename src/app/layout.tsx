@@ -24,12 +24,16 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: '1CARZ LIVE BOARD',
   description: 'لوحة العربيات الحية - 1CARZ',
-  manifest: '/manifest.json?v=6',
+  manifest: '/manifest.json?v=8',
   applicationName: '1CARZ LIVE BOARD',
   appleWebApp: {
     capable: false,
     statusBarStyle: 'default',
     title: '1CARZ',
+  },
+  icons: {
+    icon: [{ url: '/favicon.png?v=8', type: 'image/png' }],
+    apple: [{ url: '/icons/apple-touch-icon.png?v=8', sizes: '180x180', type: 'image/png' }],
   },
   formatDetection: {
     telephone: false,
@@ -52,15 +56,16 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" className={`${cairo.variable} ${inter.variable}`}>
       <head>
         {/* PWA: ربط manifest */}
-        <link rel="manifest" href="/manifest.json?v=6" />
+        <link rel="manifest" href="/manifest.json?v=8" />
         <script
           dangerouslySetInnerHTML={{
             __html:
               "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();});",
           }}
         />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="icon" href="/favicon.png?v=8" type="image/png" />
+        <link rel="shortcut icon" href="/favicon.ico?v=8" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=8" />
         {/* PWA: theme color for Android */}
         <meta name="theme-color" content="#FCD34D" />
         {/* PWA: Apple specific */}

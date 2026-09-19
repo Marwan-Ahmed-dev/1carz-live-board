@@ -1,6 +1,7 @@
 'use client';
 
 import { Car } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 
 interface LoadingStateProps {
   count?: number;
@@ -18,8 +19,8 @@ function BrandSpinner({ label = 'جاري التحميل...' }: { label?: string
         <span className="absolute inset-0 rounded-full bg-accent-yellow/25 animate-ping" />
         <span className="absolute inset-1 rounded-full border-2 border-accent-yellow/30" />
         <span className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-accent-yellow border-r-accent-yellow/40 animate-spin" />
-        <span className="absolute inset-[10px] rounded-full bg-accent-yellow flex items-center justify-center shadow-soft">
-          <Car size={22} className="text-text-primary" strokeWidth={2.4} />
+        <span className="absolute inset-[10px] rounded-full overflow-hidden flex items-center justify-center shadow-soft">
+          <BrandLogo size={52} rounded={false} className="rounded-full" />
         </span>
       </div>
       <div className="text-center space-y-1.5">

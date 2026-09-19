@@ -1,26 +1,23 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { LogOut, Settings, Car, Plus } from 'lucide-react';
+import { LogOut, Settings, Plus, LogIn, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
+import { BrandLogo } from '@/components/BrandLogo';
 
 interface HeaderProps {
-  /** عرض اسم المستخدم في الـ header (في الصفحة الرئيسية) */
   showUsername?: boolean;
 }
 
-/**
- * الـ Header الموحد للـ user PWA
- * - يمين: شعار 1CARZ + مؤشر live
- * - وسط: اسم المستخدم (اختياري)
- * - يسار: زر دخول الإدارة (admin فقط) + تسجيل الخروج
- */
 export function Header({ showUsername = true }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, userData, isAdmin, isInspector } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const isMarketer = !!user && !isAdmin && !isInspector;
+  const showGuestBack = !user && pathname !== '/';
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -28,7 +25,7 @@ export function Header({ showUsername = true }: HeaderProps) {
     setLoggingOut(true);
     try {
       await signOut();
-      router.replace('/login');
+      router.replace('/');
     } catch (err) {
       console.error('Logout failed:', err);
       setLoggingOut(false);
@@ -38,28 +35,61 @@ export function Header({ showUsername = true }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 bg-bg-primary/95 backdrop-blur-sm border-b border-border-soft">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-        {/* الشعار (يمين في RTL) */}
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-accent-yellow flex items-center justify-center">
-            <Car size={20} className="text-text-primary" strokeWidth={2.5} />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-sm sm:text-base font-bold text-text-primary leading-tight">
-                1CARZ LIVE BOARD
-              </h1>
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="مباشر" />
+        <div className="flex items-center gap-2 min-w-0">
+          {showGuestBack && (
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="w-9 h-9 flex-shrink-0 rounded-xl bg-bg-card hover:bg-bg-card-hover border border-border-soft flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="رجوع"
+            >
+              <ArrowRight size={18} className="text-text-primary" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push(user ? '/cars' : '/')}
+            className="flex items-center gap-2 cursor-pointer min-w-0"
+            aria-label="الصفحة الرئيسية"
+          >
+            <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-xl">
+              <BrandLogo size={40} />
             </div>
-            {showUsername && userData?.username && (
-              <span className="text-xs text-text-muted">
-                مرحباً، <span className="font-medium text-text-secondary">{userData.username}</span>
-              </span>
-            )}
-          </div>
+            <div className="flex flex-col text-right min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm sm:text-base font-bold text-text-primary leading-tight truncate">
+                  1CARZ LIVE BOARD
+                </h1>
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="مباشر" />
+              </div>
+              {showUsername && userData?.username && (
+                <span className="text-xs text-text-muted truncate">
+                  مرحباً، <span className="font-medium text-text-secondary">{userData.username}</span>
+                </span>
+              )}
+            </div>
+          </button>
         </div>
 
-        {/* الأزرار (يسار في RTL) */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!user && (
+            <button
+              onClick={() => router.push('/login')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors cursor-pointer"
+            >
+              <LogIn size={16} />
+              <span>دخول</span>
+            </button>
+          )}
+          {isMarketer && (
+            <button
+              onClick={() => router.push('/buyers/new')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-medium transition-colors cursor-pointer"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">إضافة مشتري</span>
+            </button>
+          )}
           {isInspector && !isAdmin && (
             <button
               onClick={() => router.push('/cars/new')}

@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       role?: 'admin' | 'user' | 'inspector';
       groupId?: string;
       isAdmin?: boolean;
+      daily_buyer_limit?: number;
     };
 
     const nameErr = validateUsername(body.name || '');
@@ -89,6 +90,14 @@ export async function POST(req: NextRequest) {
     const key = normalizeUsernameKey(trimmed);
     const auth = getAdminAuth();
     const db = getAdminDb();
+
+    let dailyBuyerLimit = 5;
+    if (role === 'user') {
+      const raw = Number(body.daily_buyer_limit);
+      if (Number.isFinite(raw) && raw >= 1 && raw <= 500) {
+        dailyBuyerLimit = Math.floor(raw);
+      }
+    }
 
     const unameRef = db.collection('usernames').doc(key);
     const reserved = await unameRef.get();
@@ -123,6 +132,7 @@ export async function POST(req: NextRequest) {
         username: trimmed,
         phone,
         role,
+        ...(role === 'user' ? { daily_buyer_limit: dailyBuyerLimit } : {}),
         onboarded_at: FieldValue.serverTimestamp(),
         created_at: FieldValue.serverTimestamp(),
         last_seen: null,
@@ -166,6 +176,7 @@ export async function POST(req: NextRequest) {
       username: trimmed,
       phone,
       role,
+      ...(role === 'user' ? { daily_buyer_limit: dailyBuyerLimit } : {}),
     });
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status;

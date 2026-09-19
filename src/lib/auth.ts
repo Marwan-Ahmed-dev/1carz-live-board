@@ -184,6 +184,7 @@ export async function createUserByAdmin(params: {
   phone: string;
   role?: 'admin' | 'user' | 'inspector';
   groupId?: string;
+  daily_buyer_limit?: number;
 }): Promise<AppUser> {
   const nameErr = validateUsername(params.name);
   if (nameErr) throw new Error(nameErr);
@@ -217,6 +218,7 @@ export async function createUserByAdmin(params: {
         phone: params.phone,
         role: params.role || 'user',
         groupId: params.groupId || '',
+        daily_buyer_limit: params.daily_buyer_limit,
       }),
     });
   } catch {
@@ -229,6 +231,7 @@ export async function createUserByAdmin(params: {
     username?: string;
     role?: 'admin' | 'user' | 'inspector';
     phone?: string;
+    daily_buyer_limit?: number;
   };
 
   if (!res.ok) {
@@ -241,6 +244,7 @@ export async function createUserByAdmin(params: {
     username: data.username || params.name.trim(),
     phone: data.phone || params.phone,
     role: data.role,
+    daily_buyer_limit: data.daily_buyer_limit,
     onboarded_at: null,
     created_at: null,
     last_seen: null,

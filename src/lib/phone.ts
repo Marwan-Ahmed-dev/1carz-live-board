@@ -10,6 +10,15 @@ export function validatePhone(phone: string): string | null {
   return null;
 }
 
+/** رقم المشتري لازم 11 رقم بالظبط */
+export function validateBuyerPhone(phone: string): string | null {
+  const digits = digitsOnly(phone);
+  if (digits.length !== 11) {
+    return 'رقم المشتري لازم يكون 11 رقم';
+  }
+  return null;
+}
+
 export function formatPhoneDisplay(phone: string): string {
   return (phone || '').trim();
 }

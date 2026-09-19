@@ -76,10 +76,26 @@ export interface AppUser {
   username: string | null; // null حتى يكتمل الـ onboarding
   phone?: string;
   role?: AccountRole;
+  /** حد تسجيل المشترين اليومي للمسوّق — افتراضي 5 */
+  daily_buyer_limit?: number;
   onboarded_at: Timestamp | null;
   created_at: Timestamp | null;
   last_seen: Timestamp | null;
 }
+
+/** تسجيل مشتري من المسوّق */
+export interface BuyerLead {
+  id: string;
+  name: string;
+  phone: string;
+  description: string;
+  marketer_uid: string;
+  marketer_name: string | null;
+  marketer_phone: string | null;
+  created_at: Timestamp | null;
+}
+
+export const DEFAULT_DAILY_BUYER_LIMIT = 5;
 
 /**
  * مجموعة مستخدمين يديرها الأدمن

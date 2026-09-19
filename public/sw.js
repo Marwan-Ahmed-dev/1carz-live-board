@@ -15,6 +15,8 @@ const RUNTIME_CACHE = '1carz-runtime-v6';
 const STATIC_ASSETS = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
+  '/favicon.png',
   '/favicon.ico',
 ];
 

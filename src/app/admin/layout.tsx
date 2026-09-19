@@ -25,8 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
     if (!isAdmin) {
-      // مش admin → رجع للصفحة الرئيسية
-      router.replace('/');
+      router.replace('/cars');
     }
   }, [user, loading, needsOnboarding, isAdmin, router]);
 

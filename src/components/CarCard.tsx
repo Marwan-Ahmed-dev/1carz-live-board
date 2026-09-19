@@ -13,16 +13,45 @@ interface CarCardProps {
   car: CarType;
 }
 
+function ContactBlock({
+  role,
+  name,
+  phone,
+  copyLabel,
+  carId,
+}: {
+  role: string;
+  name?: string;
+  phone?: string;
+  copyLabel: string;
+  carId?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg bg-bg-primary/80 px-1.5 py-1 sm:px-2 sm:py-1.5 space-y-0.5">
+      <div className="text-[10px] sm:text-xs text-text-muted font-medium">{role}</div>
+      <div className="text-[11px] sm:text-sm font-bold text-text-primary truncate">{name || '—'}</div>
+      <div className="flex items-center gap-0.5 min-w-0">
+        <span className="badge-number text-[11px] sm:text-sm text-text-secondary truncate flex-1" dir="ltr">
+          {phone || '—'}
+        </span>
+        <CopyButton
+          text={phone || ''}
+          label={copyLabel}
+          size="sm"
+          trackPhone
+          carId={carId}
+          className="flex-shrink-0 !w-6 !h-6 sm:!w-7 sm:!h-7"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function CarCard({ car }: CarCardProps) {
   const router = useRouter();
   const { isAdmin, isInspector } = useAuth();
-  const isStaff = isAdmin || isInspector;
   const isFeatured = car.is_featured;
   const additionalCount = car.additional_images?.length || 0;
-  const contactName = isStaff ? car.owner_name : car.inspector_name;
-  const contactPhone = isStaff ? car.owner_phone : car.inspector_phone;
-  const contactRole = isStaff ? 'المالك' : 'المعاين';
-  const copyLabel = isStaff ? 'نسخ رقم المالك' : 'نسخ رقم المعاين';
 
   return (
     <div className="relative flex flex-col h-full bg-bg-card rounded-xl sm:rounded-2xl overflow-hidden shadow-soft border border-border-soft">
@@ -68,25 +97,40 @@ export function CarCard({ car }: CarCardProps) {
           <span className="text-[10px] sm:text-sm font-medium text-text-secondary mr-0.5"> ج.م</span>
         </p>
 
-        <div className="min-w-0 rounded-lg bg-bg-primary/80 px-1.5 py-1 sm:px-2 sm:py-1.5 space-y-0.5">
-          <div className="text-[10px] sm:text-xs text-text-muted font-medium">{contactRole}</div>
-          <div className="text-[11px] sm:text-sm font-bold text-text-primary truncate">
-            {contactName || '—'}
-          </div>
-          <div className="flex items-center gap-0.5 min-w-0">
-            <span className="badge-number text-[11px] sm:text-sm text-text-secondary truncate flex-1" dir="ltr">
-              {contactPhone || '—'}
-            </span>
-            <CopyButton
-              text={contactPhone || ''}
-              label={copyLabel}
-              size="sm"
-              trackPhone
+        {isAdmin ? (
+          <div className="space-y-1">
+            <ContactBlock
+              role="المعاين"
+              name={car.inspector_name || ''}
+              phone={car.inspector_phone || ''}
+              copyLabel="نسخ رقم المعاين"
               carId={car.id}
-              className="flex-shrink-0 !w-6 !h-6 sm:!w-7 sm:!h-7"
+            />
+            <ContactBlock
+              role="المالك"
+              name={car.owner_name || ''}
+              phone={car.owner_phone || ''}
+              copyLabel="نسخ رقم المالك"
+              carId={car.id}
             />
           </div>
-        </div>
+        ) : isInspector ? (
+          <ContactBlock
+            role="المالك"
+            name={car.owner_name || ''}
+            phone={car.owner_phone || ''}
+            copyLabel="نسخ رقم المالك"
+            carId={car.id}
+          />
+        ) : (
+          <ContactBlock
+            role="المعاين"
+            name={car.inspector_name || ''}
+            phone={car.inspector_phone || ''}
+            copyLabel="نسخ رقم المعاين"
+            carId={car.id}
+          />
+        )}
 
         <div className="mt-auto flex items-center gap-1.5 pt-0.5">
           <StatusBadge status={car.status} size="sm" className="!text-[10px] sm:!text-xs !px-1.5 !py-0.5" />

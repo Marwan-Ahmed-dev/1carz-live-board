@@ -25,7 +25,7 @@ export default function InspectorNewCarPage() {
       return;
     }
     if (!isAdmin && !isInspector) {
-      router.replace('/');
+      router.replace('/cars');
     }
   }, [user, loading, isAdmin, isInspector, router]);
 
@@ -60,12 +60,12 @@ export default function InspectorNewCarPage() {
         'تم إنشاء العربية لكن فشل رفع الصور. تواصل مع الأدمن لإكمال الصور.',
         'error'
       );
-      router.push('/');
+      router.push('/cars');
       return;
     }
 
     showToast('تم إضافة العربية بنجاح', 'success');
-    router.push('/');
+    router.push('/cars');
   };
 
   return (

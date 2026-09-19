@@ -14,14 +14,12 @@ export interface UseCarsOptions {
   maxPrice?: number;
   /** فقط العربيات المعيّنة لـ UID (من غير 'all') */
   assignedOnly?: boolean;
+  /** تصفح بدون login — عربيات الكل النشطة */
+  publicOnly?: boolean;
 }
 
 /**
  * Returns قائمة العربيات المُفلترة + realtime updates
- *
- * ✅ FIX: الـ subscription بيعيد نفسه لما الـ uid يتغير (كان بيستخدم [] فارغ
- * ومرتبط بـ mount بس — ده كان بيسبب إن لو الـ auth اتأخر، الـ snapshot
- * بيتم بـ auth=null وما بيتجددش لما اليوزر يدخل).
  */
 export function useCars(opts: UseCarsOptions = {}) {
   const [allCars, setAllCars] = useState<Car[]>([]);
@@ -29,8 +27,7 @@ export function useCars(opts: UseCarsOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // ما نعملش query من غير uid — الـ collection-wide query بيت거ّض من قواعد المستخدم.
-    if (!opts.uid) {
+    if (!opts.uid && !opts.publicOnly) {
       setAllCars([]);
       setLoading(true);
       setError(null);
@@ -46,7 +43,8 @@ export function useCars(opts: UseCarsOptions = {}) {
         setError(null);
       },
       {
-        uid: opts.uid,
+        uid: opts.publicOnly ? null : opts.uid,
+        publicOnly: opts.publicOnly,
         onError: (err) => {
           setError(err.message || 'فشل تحميل العربيات');
           setLoading(false);
@@ -56,11 +54,11 @@ export function useCars(opts: UseCarsOptions = {}) {
     return () => {
       unsub();
     };
-  }, [opts.uid]);
+  }, [opts.uid, opts.publicOnly]);
 
   const cars = useMemo(() => {
     let filtered = allCars;
-    if (opts.uid) {
+    if (opts.uid && !opts.publicOnly) {
       filtered = filtered.filter((c) => isCarVisibleToUser(c, opts.uid!));
     }
     if (opts.priority && opts.priority !== 'all') {
@@ -76,15 +74,11 @@ export function useCars(opts: UseCarsOptions = {}) {
       filtered = filtered.filter((c) => c.price <= opts.maxPrice!);
     }
     return filtered;
-  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice, opts.assignedOnly]);
+  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice, opts.assignedOnly, opts.publicOnly]);
 
   return { cars, allCars, loading, error };
 }
 
-/**
- * ترتيب العربيات داخل قائمة حسب created_at desc (الأحدث أولاً)
- * تم إزالة display_order — العربيات دلوقت بترتب تلقائياً حسب تاريخ الإضافة.
- */
 function sortByCreatedAtDesc(cars: Car[]): Car[] {
   return [...cars].sort((a, b) => {
     const aTime = a.created_at?.seconds || 0;
@@ -93,11 +87,6 @@ function sortByCreatedAtDesc(cars: Car[]): Car[] {
   });
 }
 
-/**
- * تجميع العربيات حسب الأولوية مع sort داخل كل مجموعة حسب created_at desc
- *
- * ✅ تم إزالة قسم 'عادي' — كل العربيات دلوقت بتتجميع تحت قسم priority بتاعها.
- */
 export function groupCars(cars: Car[]) {
   const priorityGroups = Object.fromEntries(PRIORITY_ORDER.map((p) => [p, [] as Car[]])) as Record<
     Priority,
@@ -110,7 +99,6 @@ export function groupCars(cars: Car[]) {
     }
   });
 
-  // sort داخل كل مجموعة priority
   (Object.keys(priorityGroups) as Priority[]).forEach((k) => {
     priorityGroups[k] = sortByCreatedAtDesc(priorityGroups[k]);
   });
@@ -120,10 +108,6 @@ export function groupCars(cars: Car[]) {
   };
 }
 
-/**
- * تجميع العربيات حسب الأولوية فقط (للتوافق الخلفي)
- * كل عربية بتندرج في priority array الخاص بيها — مرتبة حسب created_at desc
- */
 export function groupByPriority(cars: Car[]) {
   const groups = Object.fromEntries(PRIORITY_ORDER.map((p) => [p, [] as Car[]])) as Record<
     string,
