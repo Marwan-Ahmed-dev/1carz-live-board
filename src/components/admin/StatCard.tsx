@@ -7,7 +7,7 @@ interface StatCardProps {
   value: number;
   icon: ReactNode;
   /** لون التأكيد على البطاقة (tailwind class) */
-  accent?: 'yellow' | 'amber' | 'gray' | 'muted';
+  accent?: 'yellow' | 'amber' | 'gray' | 'muted' | 'green' | 'blue' | 'rose';
 }
 
 /**
@@ -21,6 +21,9 @@ export function StatCard({ label, value, icon, accent = 'yellow' }: StatCardProp
     amber: 'bg-amber-500/15 text-amber-400',
     gray: 'bg-slate-500/15 text-slate-300',
     muted: 'bg-slate-700/30 text-slate-400',
+    green: 'bg-emerald-500/15 text-emerald-400',
+    blue: 'bg-sky-500/15 text-sky-400',
+    rose: 'bg-rose-500/15 text-rose-400',
   };
   const accentClass = accentMap[accent];
 

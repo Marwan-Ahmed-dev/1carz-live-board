@@ -39,16 +39,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       );
     }
     return (
-      <div className="min-h-screen bg-admin-bg flex items-center justify-center">
-        <LoadingState count={3} variant="card" />
+      <div className="min-h-screen bg-admin-bg text-admin-text flex items-center justify-center">
+        <LoadingState variant="page" />
       </div>
     );
   }
 
   if (!userData) {
     return (
-      <div className="min-h-screen bg-admin-bg flex items-center justify-center">
-        <LoadingState count={3} variant="card" />
+      <div className="min-h-screen bg-admin-bg text-admin-text flex items-center justify-center">
+        <LoadingState variant="page" />
       </div>
     );
   }

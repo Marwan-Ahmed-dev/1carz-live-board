@@ -9,6 +9,7 @@ export interface UseAuthResult {
   user: User | null;
   userData: AppUser | null;
   isAdmin: boolean;
+  isInspector: boolean;
   loading: boolean;
   needsOnboarding: boolean;
   error: string | null;
@@ -18,6 +19,7 @@ export function useAuth(): UseAuthResult {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<AppUser | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isInspector, setIsInspector] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +35,7 @@ export function useAuth(): UseAuthResult {
       if (!fbUser) {
         setUserData(null);
         setIsAdmin(false);
+        setIsInspector(false);
         setLoading(false);
         return;
       }
@@ -42,14 +45,16 @@ export function useAuth(): UseAuthResult {
         const data = await getUserData(fbUser.uid);
         if (cancelled || thisGen !== generation) return;
         setUserData(data);
-        const { isAdmin: adminFlag } = await refreshClaims();
+        const { isAdmin: adminFlag, isInspector: inspectorFlag } = await refreshClaims();
         if (cancelled || thisGen !== generation) return;
         setIsAdmin(adminFlag);
+        setIsInspector(inspectorFlag || data?.role === 'inspector');
       } catch (err) {
         console.error('useAuth: failed to load user data', err);
         if (cancelled || thisGen !== generation) return;
         setUserData(null);
         setIsAdmin(false);
+        setIsInspector(false);
         setError('فشل تحميل بيانات الحساب. حاول تحديث الصفحة.');
       } finally {
         if (!cancelled && thisGen === generation) setLoading(false);
@@ -63,5 +68,5 @@ export function useAuth(): UseAuthResult {
 
   const needsOnboarding = !!user && userData !== null && userData.username === null;
 
-  return { user, userData, isAdmin, loading, needsOnboarding, error };
+  return { user, userData, isAdmin, isInspector, loading, needsOnboarding, error };
 }

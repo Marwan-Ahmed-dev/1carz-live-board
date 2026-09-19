@@ -46,7 +46,7 @@ export default function HomePage() {
   if (authLoading || !user || needsOnboarding) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingState count={6} />
+        <LoadingState variant="page" />
       </div>
     );
   }
@@ -65,7 +65,7 @@ export default function HomePage() {
   if (!userData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingState count={6} />
+        <LoadingState variant="page" />
       </div>
     );
   }

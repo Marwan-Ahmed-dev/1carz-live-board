@@ -14,6 +14,8 @@ import {
   Users as UsersIcon,
   Trash2,
   Shield,
+  Eye,
+  Phone,
 } from 'lucide-react';
 import { subscribeToUsers, validateUsername, deleteUserByAdmin } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
@@ -61,11 +63,14 @@ export default function AdminUsersPage() {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+  const [newRole, setNewRole] = useState<'user' | 'admin' | 'inspector'>('user');
+  const [newGroupId, setNewGroupId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [adminUids, setAdminUids] = useState<Set<string>>(new Set());
+  const [inspectorUids, setInspectorUids] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubUsers = subscribeToUsers((u) => {
@@ -105,8 +110,11 @@ export default function AdminUsersPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { admins?: string[] };
-        if (!cancelled) setAdminUids(new Set(data.admins || []));
+        const data = (await res.json()) as { admins?: string[]; inspectors?: string[] };
+        if (!cancelled) {
+          setAdminUids(new Set(data.admins || []));
+          setInspectorUids(new Set(data.inspectors || []));
+        }
       } catch {
         /* keep empty — badges optional */
       }
@@ -128,14 +136,15 @@ export default function AdminUsersPage() {
       list = list.filter(
         (u) =>
           u.username?.toLowerCase().includes(s) ||
-          u.email.toLowerCase().includes(s)
+          u.email.toLowerCase().includes(s) ||
+          (u.phone || '').includes(s)
       );
     }
     return list;
   }, [users, search]);
 
   const SelectedUserCars = ({ uid }: { uid: string }) => {
-    const [cars, setCars] = useState<Array<{ id?: string; title: string; code: string; image_url: string }>>([]);
+    const [cars, setCars] = useState<Array<{ id?: string; title: string; image_url: string }>>([]);
     const [carsLoading, setCarsLoading] = useState(true);
     useEffect(() => {
       const unsub = subscribeToCars(
@@ -175,7 +184,7 @@ export default function AdminUsersPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-admin-text truncate">{c.title}</div>
-                <div className="text-xs text-admin-text-muted">{c.code}</div>
+                <div className="text-xs text-admin-text-muted truncate">{c.title}</div>
               </div>
             </div>
           ))
@@ -198,17 +207,30 @@ export default function AdminUsersPage() {
         name: newName,
         email: newEmail,
         password: newPassword,
-        isAdmin: newIsAdmin,
+        phone: newPhone,
+        role: newRole,
+        groupId: newGroupId || undefined,
       });
       if (created.role === 'admin' && created.uid) {
         setAdminUids((prev) => new Set(prev).add(created.uid));
       }
-      showToast(newIsAdmin ? 'تم إنشاء حساب أدمن' : 'تم إنشاء الحساب بنجاح', 'success');
+      if (created.role === 'inspector' && created.uid) {
+        setInspectorUids((prev) => new Set(prev).add(created.uid));
+      }
+      const toastMsg =
+        newRole === 'admin'
+          ? 'تم إنشاء حساب أدمن'
+          : newRole === 'inspector'
+            ? 'تم إنشاء حساب معاين'
+            : 'تم إنشاء الحساب بنجاح';
+      showToast(toastMsg, 'success');
       setCreateOpen(false);
       setNewName('');
       setNewEmail('');
       setNewPassword('');
-      setNewIsAdmin(false);
+      setNewPhone('');
+      setNewRole('user');
+      setNewGroupId('');
     } catch (err: unknown) {
       setCreateError((err as Error)?.message || 'فشل إنشاء الحساب');
     } finally {
@@ -219,11 +241,14 @@ export default function AdminUsersPage() {
   const handleDeleteUser = async (target: AppUser) => {
     const label = target.username || target.email;
     const targetIsAdmin = adminUids.has(target.uid) || target.role === 'admin';
+    const targetIsInspector = inspectorUids.has(target.uid) || target.role === 'inspector';
     if (
       !confirm(
         targetIsAdmin
           ? `هل تريد حذف حساب الأدمن "${label}"؟\nلن يتمكن من الدخول للوحة التحكم بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
-          : `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+          : targetIsInspector
+            ? `هل تريد حذف حساب المعاين "${label}"؟\nلن يتمكن من إضافة عربيات بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
+            : `هل تريد حذف حساب "${label}"؟\nلن يتمكن من تسجيل الدخول بعد ذلك.\nهذا الإجراء لا يمكن التراجع عنه.`
       )
     ) {
       return;
@@ -232,6 +257,11 @@ export default function AdminUsersPage() {
     try {
       await deleteUserByAdmin(target);
       setAdminUids((prev) => {
+        const next = new Set(prev);
+        next.delete(target.uid);
+        return next;
+      });
+      setInspectorUids((prev) => {
         const next = new Set(prev);
         next.delete(target.uid);
         return next;
@@ -258,7 +288,8 @@ export default function AdminUsersPage() {
           <button
             onClick={() => {
               setCreateError(null);
-              setNewIsAdmin(false);
+              setNewRole('user');
+              setNewGroupId('');
               setCreateOpen(true);
             }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm"
@@ -339,12 +370,24 @@ export default function AdminUsersPage() {
                               أدمن
                             </span>
                           )}
+                          {(inspectorUids.has(u.uid) || u.role === 'inspector') && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold">
+                              <Eye size={10} />
+                              معاين
+                            </span>
+                          )}
                         </h3>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-admin-text-muted mt-0.5">
                           <span className="flex items-center gap-1">
                             <Mail size={11} />
                             {u.email}
                           </span>
+                          {u.phone && (
+                            <span className="flex items-center gap-1" dir="ltr">
+                              <Phone size={11} />
+                              {u.phone}
+                            </span>
+                          )}
                         </div>
                         {userGroups.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
@@ -482,6 +525,63 @@ export default function AdminUsersPage() {
               </div>
               <div>
                 <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                  رقم التليفون
+                </label>
+                <input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="01xxxxxxxxx"
+                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                  required
+                  dir="ltr"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                  المجموعة
+                </label>
+                <select
+                  value={newGroupId}
+                  onChange={(e) => setNewGroupId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                >
+                  <option value="">بدون مجموعة</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-admin-text-muted mb-2">نوع الحساب</label>
+                <div className="space-y-3">
+                  {(
+                    [
+                      { value: 'user', label: 'مستخدم عادي' },
+                      { value: 'inspector', label: 'معاين' },
+                      { value: 'admin', label: 'ادمن' },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      className="flex items-center gap-3 min-h-11 px-2 py-2 rounded-xl cursor-pointer hover:bg-admin-bg"
+                    >
+                      <input
+                        type="radio"
+                        name="account-role"
+                        checked={newRole === opt.value}
+                        onChange={() => setNewRole(opt.value)}
+                        className="w-5 h-5 border-admin-border text-admin-accent"
+                      />
+                      <span className="text-sm font-bold text-admin-text">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-admin-text-muted mb-1">
                   كلمة المرور
                 </label>
                 <input
@@ -495,16 +595,6 @@ export default function AdminUsersPage() {
                   dir="ltr"
                 />
               </div>
-              <label className="flex items-center gap-2 px-1 py-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newIsAdmin}
-                  onChange={(e) => setNewIsAdmin(e.target.checked)}
-                  className="w-4 h-4 rounded border-admin-border text-admin-accent"
-                />
-                <span className="text-sm font-bold text-admin-text">حساب أدمن</span>
-                <span className="text-xs text-admin-text-muted">يقدر يدخل لوحة التحكم</span>
-              </label>
               {createError && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400">
                   {createError}

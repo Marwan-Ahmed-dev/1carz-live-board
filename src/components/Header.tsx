@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { LogOut, Settings, Car } from 'lucide-react';
+import { LogOut, Settings, Car, Plus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
 
@@ -19,7 +19,7 @@ interface HeaderProps {
  */
 export function Header({ showUsername = true }: HeaderProps) {
   const router = useRouter();
-  const { user, userData, isAdmin } = useAuth();
+  const { user, userData, isAdmin, isInspector } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -60,6 +60,15 @@ export function Header({ showUsername = true }: HeaderProps) {
 
         {/* الأزرار (يسار في RTL) */}
         <div className="flex items-center gap-2">
+          {isInspector && !isAdmin && (
+            <button
+              onClick={() => router.push('/cars/new')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-medium transition-colors cursor-pointer"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">إضافة عربية</span>
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => router.push('/admin/dashboard')}

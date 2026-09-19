@@ -11,10 +11,18 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.role == 'admin';
     }
 
+    function isInspector() {
+      return isSignedIn() && request.auth.token.role == 'inspector';
+    }
+
+    function isStaff() {
+      return isAdmin() || isInspector();
+    }
+
     // ============== Users Collection ==============
     match /users/{uid} {
-      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow list: if isAdmin();
+      allow get: if isSignedIn() && (request.auth.uid == uid || isStaff());
+      allow list: if isStaff();
       allow create: if isAdmin()
                     || (isSignedIn() && request.auth.uid == uid
                         && request.resource.data.uid == uid);
@@ -43,7 +51,8 @@ service cloud.firestore {
 
     // ============== User Groups ==============
     match /groups/{groupId} {
-      allow read, write: if isAdmin();
+      allow read: if isStaff();
+      allow write: if isAdmin();
     }
 
     // ============== Cars Collection ==============
@@ -54,15 +63,25 @@ service cloud.firestore {
         return resource.data.assigned_to.hasAny([request.auth.uid, 'all']);
       }
 
-      allow list: if isAdmin() || (isSignedIn() && isAssignedToMe());
+      allow list: if isStaff() || (isSignedIn() && isAssignedToMe());
 
-      allow get: if isAdmin() || (
+      allow get: if isStaff() || (
         isSignedIn()
         && resource.data.status == 'active'
         && isAssignedToMe()
       );
 
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Phone-copy events for the admin daily report
+    match /copy_events/{eventId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.created_at == request.time;
+      allow read: if isAdmin();
+      allow update, delete: if false;
     }
   }
 }

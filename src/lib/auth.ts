@@ -20,6 +20,7 @@ import {
 import { auth, db } from './firebase';
 import { AppUser } from './types';
 import { normalizeUsernameKey, validateUsername } from './users';
+import { validatePhone } from './phone';
 
 /**
  * تسجيل الدخول بـ email/password
@@ -165,11 +166,12 @@ export async function checkIsAdmin(user: User | null): Promise<boolean> {
   return tokenResult.claims?.role === 'admin';
 }
 
-export async function refreshClaims(): Promise<{ isAdmin: boolean }> {
+export async function refreshClaims(): Promise<{ isAdmin: boolean; isInspector: boolean }> {
   const user = auth.currentUser;
-  if (!user) return { isAdmin: false };
+  if (!user) return { isAdmin: false, isInspector: false };
   const tokenResult = await user.getIdTokenResult(true);
-  return { isAdmin: tokenResult.claims?.role === 'admin' };
+  const role = tokenResult.claims?.role;
+  return { isAdmin: role === 'admin', isInspector: role === 'inspector' };
 }
 
 /**
@@ -179,7 +181,9 @@ export async function createUserByAdmin(params: {
   name: string;
   email: string;
   password: string;
-  isAdmin?: boolean;
+  phone: string;
+  role?: 'admin' | 'user' | 'inspector';
+  groupId?: string;
 }): Promise<AppUser> {
   const nameErr = validateUsername(params.name);
   if (nameErr) throw new Error(nameErr);
@@ -191,6 +195,8 @@ export async function createUserByAdmin(params: {
   if (!params.password || params.password.length < 6) {
     throw new Error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
   }
+  const phoneErr = validatePhone(params.phone || '');
+  if (phoneErr) throw new Error(phoneErr);
 
   const current = auth.currentUser;
   if (!current) throw new Error('يجب تسجيل الدخول');
@@ -208,7 +214,9 @@ export async function createUserByAdmin(params: {
         name: params.name,
         email,
         password: params.password,
-        isAdmin: !!params.isAdmin,
+        phone: params.phone,
+        role: params.role || 'user',
+        groupId: params.groupId || '',
       }),
     });
   } catch {
@@ -219,7 +227,8 @@ export async function createUserByAdmin(params: {
     error?: string;
     uid?: string;
     username?: string;
-    role?: 'admin' | 'user';
+    role?: 'admin' | 'user' | 'inspector';
+    phone?: string;
   };
 
   if (!res.ok) {
@@ -230,6 +239,7 @@ export async function createUserByAdmin(params: {
     uid: data.uid || '',
     email,
     username: data.username || params.name.trim(),
+    phone: data.phone || params.phone,
     role: data.role,
     onboarded_at: null,
     created_at: null,

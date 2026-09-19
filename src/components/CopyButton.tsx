@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
+import { logPhoneCopy } from '@/lib/copyEvents';
 
 interface CopyButtonProps {
   /** النص اللي هيتنسخ */
@@ -15,6 +17,9 @@ interface CopyButtonProps {
   variant?: 'icon' | 'inline';
   /** className إضافية */
   className?: string;
+  /** تسجيل النسخ في تقرير الأدمن اليومي */
+  trackPhone?: boolean;
+  carId?: string;
 }
 
 /**
@@ -28,19 +33,29 @@ export function CopyButton({
   size = 'sm',
   variant = 'icon',
   className = '',
+  trackPhone = false,
+  carId,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const { showToast } = useToast();
+  const { userData } = useAuth();
   const Icon = copied ? Check : Copy;
   const iconSize = size === 'sm' ? 14 : 18;
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (!text?.trim()) {
+      showToast('لا يوجد رقم للنسخ', 'error');
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       showToast('تم النسخ ✓', 'success');
+      if (trackPhone) {
+        void logPhoneCopy({ carId, username: userData?.username });
+      }
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       // Fallback: حاول بطريقة قديمة
@@ -55,6 +70,9 @@ export function CopyButton({
         document.body.removeChild(textarea);
         setCopied(true);
         showToast('تم النسخ ✓', 'success');
+        if (trackPhone) {
+          void logPhoneCopy({ carId, username: userData?.username });
+        }
         setTimeout(() => setCopied(false), 2000);
       } catch (e2) {
         showToast('فشل النسخ', 'error');

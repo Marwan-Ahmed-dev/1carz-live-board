@@ -98,15 +98,17 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
         </button>
       )}
 
-      {/* الصورة */}
+      {/* الصورة الحالية فقط — تحميل كل الصور مرة واحدة كان يثقل iOS */}
       <div
         className="relative w-full h-full max-w-[95vw] max-h-[90vh] mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          key={currentImage}
           src={currentImage}
           alt={`${alt} ${idx + 1}`}
+          decoding="async"
           className="w-full h-full object-contain select-none"
           draggable={false}
         />
@@ -129,7 +131,7 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
                 aria-label={`صورة ${i + 1}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-cover" />
+                <img src={url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
               </button>
             ))}
           </div>

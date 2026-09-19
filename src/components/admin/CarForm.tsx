@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
-import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE, CarImageSlot } from '@/lib/storage';
+import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE, CarImageSlot, compressCarImage } from '@/lib/storage';
+import { validatePhone } from '@/lib/phone';
 import { MAX_DESCRIPTION_WORDS, PRIORITY_LABELS, PRIORITY_ORDER, countWords } from '@/lib/priority';
 import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
@@ -63,8 +64,10 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [code, setCode] = useState(initial?.code || '');
   const [carTitle, setCarTitle] = useState(initial?.title || '');
+  const [inspectorName, setInspectorName] = useState(initial?.inspector_name || '');
+  const [inspectorPhone, setInspectorPhone] = useState(initial?.inspector_phone || '');
+  const [ownerPhone, setOwnerPhone] = useState(initial?.owner_phone || '');
   const [price, setPrice] = useState<string>(
     initial?.price ? formatPriceInput(initial.price.toString()) : ''
   );
@@ -117,21 +120,10 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleNewFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = '';
     if (files.length === 0) return;
-
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      if (f.size > MAX_IMAGE_SIZE) {
-        setError(`الصورة ${i + 1} أكبر من 5 ميجابايت`);
-        return;
-      }
-      if (!f.type.startsWith('image/')) {
-        setError(`الملف ${i + 1} ليس صورة`);
-        return;
-      }
-    }
 
     const newTotal = slots.length + files.length;
     if (newTotal > MAX_CAR_IMAGES) {
@@ -141,15 +133,26 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
       return;
     }
 
-    setError(null);
-    const added: FormImageSlot[] = files.map((file, i) => ({
-      id: `new-${Date.now()}-${i}`,
-      kind: 'new',
-      file,
-      url: URL.createObjectURL(file),
-    }));
-    setSlots((prev) => [...prev, ...added]);
-    e.target.value = '';
+    try {
+      const compressed = await Promise.all(
+        files.map(async (f, i) => {
+          if (f.size > MAX_IMAGE_SIZE) {
+            throw new Error(`الصورة ${i + 1} أكبر من 10 ميجابايت`);
+          }
+          return compressCarImage(f);
+        })
+      );
+      setError(null);
+      const added: FormImageSlot[] = compressed.map((file, i) => ({
+        id: `new-${Date.now()}-${i}`,
+        kind: 'new',
+        file,
+        url: URL.createObjectURL(file),
+      }));
+      setSlots((prev) => [...prev, ...added]);
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'فشل تجهيز الصور');
+    }
   };
 
   const removeSlot = (idx: number) => {
@@ -177,9 +180,13 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   };
 
   const validate = (): string | null => {
-    if (!code.trim()) return 'كود العربية مطلوب';
     if (!carTitle.trim()) return 'عنوان العربية مطلوب';
     if (carTitle.length > 100) return 'العنوان يجب ألا يزيد عن 100 حرف';
+    if (!inspectorName.trim()) return 'اسم المعاين مطلوب';
+    const inspectorPhoneErr = validatePhone(inspectorPhone);
+    if (inspectorPhoneErr) return `رقم المعاين: ${inspectorPhoneErr}`;
+    const ownerPhoneErr = validatePhone(ownerPhone);
+    if (ownerPhoneErr) return `رقم المالك: ${ownerPhoneErr}`;
     if (!price || parsePriceInput(price) < 0) return 'السعر يجب أن يكون رقم صحيح';
     if (countWords(description) > MAX_DESCRIPTION_WORDS) return `الوصف يجب ألا يزيد عن ${MAX_DESCRIPTION_WORDS} كلمة`;
     if (assignedTo.length === 0) return 'اختر "الكل" أو مستخدماً واحداً على الأقل';
@@ -206,7 +213,6 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
       const firstExisting = slots.find((s) => s.kind === 'existing');
 
       const data: NewCarInput = {
-        code: code.trim(),
         title: carTitle.trim(),
         price: parsePriceInput(price),
         description: description.trim(),
@@ -216,6 +222,9 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         additional_images: keptExisting.slice(firstExisting ? 1 : 0),
         condition,
         is_featured: isFeatured,
+        inspector_name: inspectorName.trim(),
+        inspector_phone: inspectorPhone.trim(),
+        owner_phone: ownerPhone.trim(),
         assigned_to: assignedTo,
       };
       await onSave(data, imageSlots, removedExistingImages);
@@ -343,7 +352,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
               {totalImageCount === 0 ? 'اختر صور' : `إضافة صور (${MAX_CAR_IMAGES - totalImageCount} متبقي)`}
             </label>
             <p className="text-xs text-admin-text-muted">
-              JPG / PNG · حد أقصى 5 ميجابايت لكل صورة · حد أقصى {MAX_CAR_IMAGES} صورة إجمالاً
+              JPG / PNG · تُضغط تلقائياً · حد أقصى 10 ميجابايت لكل صورة · حد أقصى {MAX_CAR_IMAGES} صورة إجمالاً
             </p>
           </div>
         )}
@@ -353,37 +362,59 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         )}
       </div>
 
-      {/* Code + Title */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label htmlFor="code" className="block text-sm font-bold text-admin-text-muted mb-1">
-            كود العربية <span className="text-red-400">*</span>
-          </label>
-          <input
-            id="code"
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="C-2024-001"
-            className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="title" className="block text-sm font-bold text-admin-text-muted mb-1">
-            العنوان <span className="text-red-400">*</span>
-          </label>
-          <input
-            id="title"
-            type="text"
-            value={carTitle}
-            onChange={(e) => setCarTitle(e.target.value)}
-            placeholder="مثل: هيونداي توسان 2022"
-            maxLength={100}
-            className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
-            required
-          />
-        </div>
+      <div>
+        <label htmlFor="title" className="block text-sm font-bold text-admin-text-muted mb-1">
+          العنوان <span className="text-red-400">*</span>
+        </label>
+        <input
+          id="title"
+          type="text"
+          value={carTitle}
+          onChange={(e) => setCarTitle(e.target.value)}
+          placeholder="مثل: هيونداي توسان 2022"
+          maxLength={100}
+          className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
+          required
+        />
+      </div>
+
+      <div className="bg-admin-card border border-admin-border rounded-2xl p-4 space-y-3">
+        <label className="block text-sm font-bold text-admin-text-muted">
+          المعاين <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="text"
+          value={inspectorName}
+          onChange={(e) => setInspectorName(e.target.value)}
+          placeholder="اسم المعاين"
+          className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
+          required
+        />
+        <input
+          type="tel"
+          value={inspectorPhone}
+          onChange={(e) => setInspectorPhone(e.target.value)}
+          placeholder="رقم المعاين"
+          dir="ltr"
+          className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-left"
+          required
+        />
+      </div>
+
+      <div className="bg-admin-card border border-admin-border rounded-2xl p-4 space-y-3">
+        <label className="block text-sm font-bold text-admin-text-muted">
+          رقم المالك <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="tel"
+          value={ownerPhone}
+          onChange={(e) => setOwnerPhone(e.target.value)}
+          placeholder="رقم مالك العربية"
+          dir="ltr"
+          className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-left"
+          required
+        />
+        <p className="text-xs text-admin-text-muted">يظهر للأدمن والمعاينين فقط — المستخدم العادي لا يراه</p>
       </div>
 
       {/* Price */}

@@ -92,7 +92,8 @@ export default function AdminCarsPage() {
       list = list.filter(
         (c) =>
           c.title.toLowerCase().includes(s) ||
-          c.code.toLowerCase().includes(s) ||
+          (c.inspector_name || '').toLowerCase().includes(s) ||
+          (c.inspector_phone || '').includes(s) ||
           c.description.toLowerCase().includes(s)
       );
     }
@@ -153,7 +154,7 @@ export default function AdminCarsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث بالعنوان أو الكود..."
+            placeholder="ابحث بالعنوان أو المعاين..."
             className="w-full pr-9 pl-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-sm"
           />
         </div>
@@ -222,9 +223,11 @@ export default function AdminCarsPage() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
-                        <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
-                          {c.code}
-                        </span>
+                        {c.inspector_name && (
+                          <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
+                            {c.inspector_name}
+                          </span>
+                        )}
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}>
                           <Icon size={10} />
                           {meta.label}

@@ -2,12 +2,9 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import {
   ArrowRight,
-  Phone,
   Calendar,
-  Tag,
   Star,
   Shield,
   Car as CarIcon,
@@ -17,6 +14,7 @@ import {
   Share2,
   Maximize2,
   Download,
+  UserRound,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
@@ -46,7 +44,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   // استخدام use() مع object عادي بيكسر React لأن use() hook بيتطلب تكون
   // بنداؤه consistent في كل الـ renders. الحل: destructure مباشرة.
   const router = useRouter();
-  const { user, loading: authLoading, needsOnboarding } = useAuth();
+  const { user, isAdmin, isInspector, loading: authLoading, needsOnboarding } = useAuth();
   const { showToast } = useToast();
   const [car, setCar] = useState<CarType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,18 +100,8 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   );
   const activeImage = allImages[activeImageIdx] || car?.image_url || '';
 
-  // رابط الـ WhatsApp للتواصل (مع الأدمن)
-  const whatsappNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '';
-  const contactMessage = car
-    ? `استفسار عن العربية: ${car.title} (${car.code}) - السعر: ${formatPrice(car.price)} ج.م`
-    : 'استفسار من تطبيق 1CARZ';
-  const whatsappUrl = whatsappNumber
-    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(contactMessage)}`
-    : '#';
-
-  // رابط الـ WhatsApp SHARE (مشاركة عامة، بدون رقم محدد)
   const shareMessage = car
-    ? `🚗 ${car.title}\n📋 كود: ${car.code}\n💰 السعر: ${formatPrice(car.price)} ج.م${car.description ? `\n\n${car.description}` : ''}\n\nمن تطبيق 1CARZ`
+    ? `🚗 ${car.title}\n💰 السعر: ${formatPrice(car.price)} ج.م${car.description ? `\n\n${car.description}` : ''}\n\nمن تطبيق 1CARZ`
     : 'عربية من تطبيق 1CARZ';
   const [shareUrl, setShareUrl] = useState('');
   useEffect(() => {
@@ -125,9 +113,16 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     if (!car || allImages.length === 0 || downloading) return;
     setDownloading(true);
     try {
-      await downloadAllCarImages(allImages, car.code || car.title);
+      const result = await downloadAllCarImages(allImages, car.title);
+      if (result === 'cancelled') return;
       showToast(
-        allImages.length === 1 ? 'تم تحميل الصورة' : `تم تحميل ${allImages.length} صور`,
+        result === 'shared'
+          ? allImages.length === 1
+            ? 'تم مشاركة الصورة'
+            : `تم مشاركة ${allImages.length} صور`
+          : allImages.length === 1
+            ? 'تم تحميل الصورة'
+            : `تم تحميل ${allImages.length} صور`,
         'success'
       );
     } catch (err: unknown) {
@@ -180,13 +175,12 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                 onClick={() => setLightboxOpen(true)}
               >
                 {activeImage ? (
-                  <Image
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
                     src={activeImage}
                     alt={car.title}
-                    fill
-                    priority
-                    sizes="(max-width: 768px) 100vw, 768px"
-                    className="object-cover"
+                    decoding="async"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
                 ) : (
                   <div className="flex items-center justify-center w-full h-full">
@@ -271,6 +265,8 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                       <img
                         src={url}
                         alt={`${car.title} - صورة ${idx + 1}`}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     </button>
@@ -317,18 +313,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Meta grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {/* الكود — مع زر نسخ */}
-              <div className="bg-bg-card border border-border-soft rounded-xl p-3">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <Tag size={14} />
-                    الكود
-                  </div>
-                  <CopyButton text={car.code} label="نسخ الكود" size="sm" />
-                </div>
-                <div className="badge-number text-sm font-bold text-text-primary">{car.code}</div>
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {/* الحالة */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
                 <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
@@ -358,6 +343,52 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Description — مع زر نسخ */}
+            {(car.inspector_name || car.inspector_phone) && (
+              <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-bold text-text-secondary flex items-center gap-1.5">
+                    <UserRound size={14} />
+                    المعاين
+                  </h3>
+                  <CopyButton
+                    text={car.inspector_phone}
+                    label="نسخ رقم المعاين"
+                    size="sm"
+                    variant="inline"
+                    trackPhone
+                    carId={car.id}
+                  />
+                </div>
+                {car.inspector_name && (
+                  <div className="text-sm font-bold text-text-primary">{car.inspector_name}</div>
+                )}
+                {car.inspector_phone && (
+                  <div className="text-sm text-text-secondary mt-1" dir="ltr">
+                    {car.inspector_phone}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(isAdmin || isInspector) && car.owner_phone && (
+              <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-bold text-text-secondary">رقم المالك</h3>
+                  <CopyButton
+                    text={car.owner_phone}
+                    label="نسخ رقم المالك"
+                    size="sm"
+                    variant="inline"
+                    trackPhone
+                    carId={car.id}
+                  />
+                </div>
+                <div className="text-sm font-bold text-text-primary" dir="ltr">
+                  {car.owner_phone}
+                </div>
+              </div>
+            )}
+
             {car.description && (
               <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -368,23 +399,6 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                   {car.description}
                 </p>
               </div>
-            )}
-
-            {/* WhatsApp CTA — للتواصل مع الأدمن */}
-            {car.status === 'active' && (
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-base transition-colors ${
-                  whatsappNumber
-                    ? 'bg-green-500 hover:bg-green-600 text-white'
-                    : 'bg-bg-card-hover text-text-muted cursor-not-allowed pointer-events-none'
-                }`}
-              >
-                <Phone size={20} />
-                تواصل عبر واتساب
-              </a>
             )}
 
             {/* Timestamps — تاريخ نسبي + hover للتفاصيل */}

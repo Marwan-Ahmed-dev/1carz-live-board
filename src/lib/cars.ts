@@ -9,6 +9,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   onSnapshot,
   query,
   where,
@@ -43,7 +44,6 @@ function normalizeCar(snap: DocumentData): Car {
   }
   return {
     id: snap.id,
-    code: data.code || '',
     title: data.title || '',
     price: data.price || 0,
     description: data.description || '',
@@ -53,9 +53,14 @@ function normalizeCar(snap: DocumentData): Car {
     additional_images: data.additional_images || [],
     condition: data.condition || 'used',
     is_featured: data.is_featured || false,
+    inspector_name: typeof data.inspector_name === 'string' ? data.inspector_name : '',
+    inspector_phone: typeof data.inspector_phone === 'string' ? data.inspector_phone : '',
+    owner_phone: typeof data.owner_phone === 'string' ? data.owner_phone : '',
     assigned_to: assignedTo,
     created_at: data.created_at || null,
     updated_at: data.updated_at || null,
+    reserved_at: data.reserved_at || null,
+    sold_at: data.sold_at || null,
   } as Car;
 }
 
@@ -108,12 +113,18 @@ export async function addCar(input: NewCarInput): Promise<string> {
     console.warn('[addCar] assigned_to missing/invalid, defaulting to [\'all\']');
     assignedTo = ['all'];
   }
-  const data = {
+  const data: Record<string, unknown> = {
     ...input,
     assigned_to: assignedTo,
+    inspector_name: (input.inspector_name || '').trim(),
+    inspector_phone: (input.inspector_phone || '').trim(),
+    owner_phone: (input.owner_phone || '').trim(),
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
   };
+  if (input.status === 'reserved') data.reserved_at = serverTimestamp();
+  if (input.status === 'sold') data.sold_at = serverTimestamp();
+  delete (data as { code?: string }).code;
   const docRef = await addDoc(ref, data);
   return docRef.id;
 }
@@ -123,10 +134,20 @@ export async function addCar(input: NewCarInput): Promise<string> {
  */
 export async function updateCar(id: string, updates: CarUpdateInput): Promise<void> {
   const ref = doc(db, CARS_COLLECTION, id);
-  await updateDoc(ref, {
+  const payload: Record<string, unknown> = {
     ...updates,
+    code: deleteField(),
     updated_at: serverTimestamp(),
-  });
+  };
+  if (updates.status) {
+    const current = await getDoc(ref);
+    const prev = current.data()?.status;
+    if (prev !== updates.status) {
+      if (updates.status === 'reserved') payload.reserved_at = serverTimestamp();
+      if (updates.status === 'sold') payload.sold_at = serverTimestamp();
+    }
+  }
+  await updateDoc(ref, payload);
 }
 
 /**

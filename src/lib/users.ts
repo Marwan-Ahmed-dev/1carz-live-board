@@ -23,7 +23,15 @@ function normalizeUser(snap: any): AppUser {
     uid: data.uid || snap.id,
     email: data.email || '',
     username: data.username || null,
-    role: data.role === 'admin' ? 'admin' : data.role === 'user' ? 'user' : undefined,
+    phone: typeof data.phone === 'string' ? data.phone : '',
+    role:
+      data.role === 'admin'
+        ? 'admin'
+        : data.role === 'inspector'
+          ? 'inspector'
+          : data.role === 'user'
+            ? 'user'
+            : undefined,
     onboarded_at: data.onboarded_at || null,
     created_at: data.created_at || null,
     last_seen: data.last_seen || null,

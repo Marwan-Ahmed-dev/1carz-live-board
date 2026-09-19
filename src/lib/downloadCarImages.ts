@@ -1,11 +1,21 @@
 const FETCH_TIMEOUT_MS = 25000;
 const DOWNLOAD_GAP_MS = 550;
 
+export type DownloadImagesResult = 'shared' | 'downloaded' | 'cancelled';
+
 function isMobileDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
+  if (typeof navigator === 'undefined') return false;
   return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent || ""
+    navigator.userAgent || ''
   );
+}
+
+/** iPhone/iPad + iPadOS that reports itself as MacIntel. */
+function isIOSDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/i.test(ua)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
 function crc32(bytes: Uint8Array): number {
@@ -105,22 +115,30 @@ function createZip(files: Array<{ name: string; data: Uint8Array }>): Blob {
   ]);
 
   return new Blob([bytesToBlobPart(concatBytes([localPart, centralPart, end]))], {
-    type: "application/zip",
+    type: 'application/zip',
   });
 }
 
 function guessExt(blob: Blob, url: string): string {
-  const fromType = blob.type.split("/")[1];
-  if (fromType && /^[a-z0-9]+$/i.test(fromType) && !fromType.includes("octet")) {
-    return fromType === "jpeg" ? "jpg" : fromType;
+  const fromType = blob.type.split('/')[1];
+  if (fromType && /^[a-z0-9]+$/i.test(fromType) && !fromType.includes('octet')) {
+    return fromType === 'jpeg' ? 'jpg' : fromType;
   }
   const fromUrl = url.match(/\.(jpe?g|png|webp|gif|bmp)(?:$|\?)/i);
-  return fromUrl ? fromUrl[1].replace("jpeg", "jpg").toLowerCase() : "jpg";
+  return fromUrl ? fromUrl[1].replace('jpeg', 'jpg').toLowerCase() : 'jpg';
+}
+
+function imageMime(blob: Blob, ext: string): string {
+  if (blob.type && blob.type.startsWith('image/')) return blob.type;
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  return 'image/jpeg';
 }
 
 function safeBaseName(name: string): string {
-  const cleaned = name.replace(/[^\w\u0600-\u06FF-]+/g, "_").replace(/^_+|_+$/g, "");
-  return cleaned || "car";
+  const cleaned = name.replace(/[^\w\u0600-\u06FF-]+/g, '_').replace(/^_+|_+$/g, '');
+  return cleaned || 'car';
 }
 
 function sleep(ms: number): Promise<void> {
@@ -129,18 +147,22 @@ function sleep(ms: number): Promise<void> {
 
 function triggerDownload(blob: Blob, filename: string) {
   const href = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = href;
   a.download = filename;
-  a.rel = "noopener";
+  a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 8000);
+  // iOS can cancel the download if the object URL is revoked too quickly.
+  window.setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(href);
+  }, 60_000);
 }
 
 function nextImageProxyUrl(imageUrl: string): string {
-  const params = new URLSearchParams({ url: imageUrl, w: "2048", q: "90" });
+  const params = new URLSearchParams({ url: imageUrl, w: '2048', q: '90' });
   return `/_next/image?${params.toString()}`;
 }
 
@@ -149,9 +171,9 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
-      mode: "cors",
-      credentials: "omit",
-      cache: "no-store",
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
       signal: controller.signal,
     });
   } finally {
@@ -162,7 +184,7 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
 async function blobFromResponse(res: Response): Promise<Blob> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
-  if (!blob || blob.size === 0) throw new Error("empty image");
+  if (!blob || blob.size === 0) throw new Error('empty image');
   return blob;
 }
 
@@ -175,33 +197,89 @@ async function fetchImageBlob(url: string): Promise<Blob> {
   return await blobFromResponse(await fetchWithTimeout(url, 8000));
 }
 
-export async function downloadAllCarImages(urls: string[], baseName: string): Promise<void> {
+function toImageFiles(images: Array<{ name: string; data: Uint8Array; type: string }>): File[] {
+  return images.map(
+    (img) => new File([bytesToBlobPart(img.data)], img.name, { type: img.type })
+  );
+}
+
+function canShareFiles(files: File[]): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.canShare === 'function' &&
+    typeof navigator.share === 'function' &&
+    navigator.canShare({ files })
+  );
+}
+
+async function shareFiles(files: File[], title: string): Promise<DownloadImagesResult | 'failed'> {
+  try {
+    await navigator.share({ files, title });
+    return 'shared';
+  } catch (err) {
+    const name = err instanceof DOMException || err instanceof Error ? err.name : '';
+    if (name === 'AbortError') return 'cancelled';
+    return 'failed';
+  }
+}
+
+export async function downloadAllCarImages(
+  urls: string[],
+  baseName: string
+): Promise<DownloadImagesResult> {
   const unique = [...new Set(urls.filter(Boolean))];
   if (unique.length === 0) {
-    throw new Error("لا توجد صور للتحميل");
+    throw new Error('لا توجد صور للتحميل');
   }
 
   const base = safeBaseName(baseName);
-  const mobile = isMobileDevice();
-
-  if (!mobile && unique.length > 1) {
-    const files: Array<{ name: string; data: Uint8Array }> = [];
-    for (let i = 0; i < unique.length; i++) {
-      const blob = await fetchImageBlob(unique[i]);
-      files.push({
-        name: `${base}-${i + 1}.${guessExt(blob, unique[i])}`,
-        data: new Uint8Array(await blob.arrayBuffer()),
-      });
-    }
-    triggerDownload(createZip(files), `${base}-images.zip`);
-    return;
-  }
+  const images: Array<{ name: string; data: Uint8Array; type: string }> = [];
 
   for (let i = 0; i < unique.length; i++) {
     const blob = await fetchImageBlob(unique[i]);
-    triggerDownload(blob, `${base}-${i + 1}.${guessExt(blob, unique[i])}`);
-    if (i < unique.length - 1) {
+    const ext = guessExt(blob, unique[i]);
+    images.push({
+      name: `${base}-${i + 1}.${ext}`,
+      data: new Uint8Array(await blob.arrayBuffer()),
+      type: imageMime(blob, ext),
+    });
+  }
+
+  const files = toImageFiles(images);
+
+  // iOS ignores every programmatic <a download> after the first one in a tap.
+  // Share all images in one sheet (Save to Photos), otherwise one ZIP.
+  if (isIOSDevice()) {
+    if (canShareFiles(files)) {
+      const shared = await shareFiles(files, base);
+      if (shared !== 'failed') return shared;
+    }
+
+    if (images.length === 1) {
+      triggerDownload(new Blob([bytesToBlobPart(images[0].data)], { type: images[0].type }), images[0].name);
+      return 'downloaded';
+    }
+
+    const zipBlob = createZip(images.map(({ name, data }) => ({ name, data })));
+    const zipFile = new File([zipBlob], `${base}-images.zip`, { type: 'application/zip' });
+    if (canShareFiles([zipFile])) {
+      const shared = await shareFiles([zipFile], base);
+      if (shared !== 'failed') return shared;
+    }
+    triggerDownload(zipBlob, `${base}-images.zip`);
+    return 'downloaded';
+  }
+
+  if (!isMobileDevice() && images.length > 1) {
+    triggerDownload(createZip(images.map(({ name, data }) => ({ name, data }))), `${base}-images.zip`);
+    return 'downloaded';
+  }
+
+  for (let i = 0; i < images.length; i++) {
+    triggerDownload(new Blob([bytesToBlobPart(images[i].data)], { type: images[i].type }), images[i].name);
+    if (i < images.length - 1) {
       await sleep(DOWNLOAD_GAP_MS);
     }
   }
+  return 'downloaded';
 }

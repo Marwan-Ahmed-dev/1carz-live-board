@@ -35,9 +35,10 @@ export type CarCondition = 'new' | 'used' | 'excellent' | 'good' | 'zero_km';
 /**
  * الـ Car document كما هو مخزّن في Firestore
  */
+export type AccountRole = 'admin' | 'user' | 'inspector';
+
 export interface Car {
   id?: string;
-  code: string; // مثل "C-2024-001"
   title: string; // العنوان (يحتوي على كل معلومات العربية)
   price: number; // السعر بالجنيه المصري
   description: string; // وصف قصير بالعربي
@@ -47,12 +48,17 @@ export interface Car {
   additional_images: string[]; // صور إضافية (بحد أقصى 29 صورة إضافية، الإجمالي 30)
   condition: CarCondition; // جودة العربية
   is_featured: boolean; // مميزة (تعرض badge "مميز")
+  inspector_name: string;
+  inspector_phone: string;
+  owner_phone: string;
   // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل
   // حتى لو المستخدم ما عملش onboarding لسه.
   // ['all'] = لكل المستخدمين، ['uid1', 'uid2'] = لهؤلاء بس
   assigned_to: string[];
   created_at: Timestamp | null;
   updated_at: Timestamp | null;
+  reserved_at?: Timestamp | null;
+  sold_at?: Timestamp | null;
 }
 
 /**
@@ -67,7 +73,8 @@ export interface AppUser {
   uid: string;
   email: string;
   username: string | null; // null حتى يكتمل الـ onboarding
-  role?: 'admin' | 'user';
+  phone?: string;
+  role?: AccountRole;
   onboarded_at: Timestamp | null;
   created_at: Timestamp | null;
   last_seen: Timestamp | null;
@@ -91,6 +98,7 @@ export interface AuthUser {
   uid: string;
   email: string | null;
   isAdmin: boolean;
+  isInspector?: boolean;
 }
 
 /**

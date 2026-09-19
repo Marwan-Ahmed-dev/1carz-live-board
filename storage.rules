@@ -6,12 +6,17 @@ service firebase.storage {
       return request.auth != null && request.auth.token.role == 'admin';
     }
 
+    function isStaff() {
+      return request.auth != null &&
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'inspector');
+    }
+
     match /cars/{carId}/{fileName} {
       // Download URLs with tokens still work for <img>. Listing a folder
       // must not be public — that leaked unpublished photos by car id.
       allow get: if true;
-      allow list: if isAdmin();
-      allow write, delete: if isAdmin();
+      allow list: if isStaff();
+      allow write, delete: if isStaff();
     }
   }
 }

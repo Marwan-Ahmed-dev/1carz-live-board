@@ -7,6 +7,7 @@ import { Car as CarType } from '@/lib/types';
 import { formatPrice } from '@/lib/format';
 import { CopyButton } from '@/components/CopyButton';
 import { StatusBadge } from '@/components/StatusBadge';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CarCardProps {
   car: CarType;
@@ -14,8 +15,11 @@ interface CarCardProps {
 
 export function CarCard({ car }: CarCardProps) {
   const router = useRouter();
+  const { isAdmin, isInspector } = useAuth();
   const isFeatured = car.is_featured;
   const additionalCount = car.additional_images?.length || 0;
+  const copyPhone = isAdmin || isInspector ? car.owner_phone : car.inspector_phone;
+  const copyLabel = isAdmin || isInspector ? 'نسخ رقم المالك' : 'نسخ رقم المعاين';
 
   return (
     <div className="relative bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
@@ -64,8 +68,16 @@ export function CarCard({ car }: CarCardProps) {
         </p>
         <div className="flex items-center justify-between gap-2 mb-3">
           <span className="inline-flex items-center gap-1 badge-number bg-bg-primary px-2 py-0.5 rounded text-xs sm:text-sm">
-            <span className="truncate">{car.code}</span>
-            <CopyButton text={car.code} label="نسخ الكود" size="sm" />
+            <span className="truncate" dir="ltr">
+              {copyPhone || '—'}
+            </span>
+            <CopyButton
+              text={copyPhone || ''}
+              label={copyLabel}
+              size="sm"
+              trackPhone
+              carId={car.id}
+            />
           </span>
           <StatusBadge status={car.status} size="md" />
         </div>

@@ -20,25 +20,27 @@ function validateUsername(val: string): string | null {
   return null;
 }
 
-async function listAdminUids(): Promise<string[]> {
+async function listRoleUids(): Promise<{ admins: string[]; inspectors: string[] }> {
   const auth = getAdminAuth();
   const admins: string[] = [];
+  const inspectors: string[] = [];
   let pageToken: string | undefined;
   do {
     const page = await auth.listUsers(1000, pageToken);
     for (const u of page.users) {
       if (u.customClaims?.role === 'admin') admins.push(u.uid);
+      if (u.customClaims?.role === 'inspector') inspectors.push(u.uid);
     }
     pageToken = page.pageToken;
   } while (pageToken);
-  return admins;
+  return { admins, inspectors };
 }
 
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin(req);
-    const admins = await listAdminUids();
-    return NextResponse.json({ admins });
+    const roles = await listRoleUids();
+    return NextResponse.json(roles);
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status;
     if (status) return jsonError(status, (err as Error).message);
@@ -54,6 +56,9 @@ export async function POST(req: NextRequest) {
       name?: string;
       email?: string;
       password?: string;
+      phone?: string;
+      role?: 'admin' | 'user' | 'inspector';
+      groupId?: string;
       isAdmin?: boolean;
     };
 
@@ -67,8 +72,19 @@ export async function POST(req: NextRequest) {
     if (!body.password || body.password.length < 6) {
       return jsonError(400, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
     }
+    const phone = (body.phone || '').trim();
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 8 || phoneDigits.length > 15) {
+      return jsonError(400, 'رقم التليفون غير صالح');
+    }
 
-    const makeAdmin = !!body.isAdmin;
+    const role =
+      body.role === 'admin' || body.isAdmin
+        ? 'admin'
+        : body.role === 'inspector'
+          ? 'inspector'
+          : 'user';
+    const groupId = (body.groupId || '').trim();
     const trimmed = (body.name || '').trim();
     const key = normalizeUsernameKey(trimmed);
     const auth = getAdminAuth();
@@ -90,8 +106,8 @@ export async function POST(req: NextRequest) {
         disabled: false,
       });
       uid = record.uid;
-      if (makeAdmin) {
-        await auth.setCustomUserClaims(uid, { role: 'admin' });
+      if (role === 'admin' || role === 'inspector') {
+        await auth.setCustomUserClaims(uid, { role });
       }
 
       const userRef = db.collection('users').doc(uid);
@@ -105,11 +121,23 @@ export async function POST(req: NextRequest) {
         uid,
         email,
         username: trimmed,
-        role: makeAdmin ? 'admin' : 'user',
+        phone,
+        role,
         onboarded_at: FieldValue.serverTimestamp(),
         created_at: FieldValue.serverTimestamp(),
         last_seen: null,
       });
+      if (groupId) {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupSnap = await groupRef.get();
+        if (!groupSnap.exists) {
+          throw Object.assign(new Error('المجموعة غير موجودة'), { status: 400 });
+        }
+        batch.update(groupRef, {
+          memberUids: FieldValue.arrayUnion(uid),
+          updated_at: FieldValue.serverTimestamp(),
+        });
+      }
       await batch.commit();
     } catch (err: unknown) {
       if (uid) {
@@ -136,7 +164,8 @@ export async function POST(req: NextRequest) {
       uid,
       email,
       username: trimmed,
-      role: makeAdmin ? 'admin' : 'user',
+      phone,
+      role,
     });
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status;

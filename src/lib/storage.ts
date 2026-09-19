@@ -10,9 +10,80 @@ import { storage } from './firebase';
 export const MAX_CAR_IMAGES = 30;
 
 /**
- * الحد الأقصى لحجم الصورة الواحدة (5 ميجابايت)
+ * الحد الأقصى لحجم الصورة الواحدة قبل الضغط (10 ميجابايت)
  */
-export const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_IMAGE_EDGE = 1920;
+const JPEG_QUALITY = 0.85;
+
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  return /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(file.name);
+}
+
+async function loadImageElement(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = 'async';
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('تعذر قراءة الصورة'));
+      img.src = url;
+    });
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * يضغط الصورة قبل الرفع لتقليل استهلاك Storage وتخفيف المعرض على iOS،
+ * مع الإبقاء على جودة واضحة عند العرض والتحميل.
+ */
+export async function compressCarImage(file: File): Promise<File> {
+  if (!isImageFile(file)) {
+    throw new Error('يجب أن يكون الملف صورة');
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    throw new Error('حجم الصورة يجب أن يكون أقل من 10 ميجابايت');
+  }
+
+  let source: ImageBitmap | HTMLImageElement;
+  try {
+    source = await createImageBitmap(file);
+  } catch {
+    source = await loadImageElement(file);
+  }
+
+  const srcW = 'width' in source ? source.width : (source as ImageBitmap).width;
+  const srcH = 'height' in source ? source.height : (source as ImageBitmap).height;
+  const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(srcW, srcH));
+  const width = Math.max(1, Math.round(srcW * scale));
+  const height = Math.max(1, Math.round(srcH * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('تعذر ضغط الصورة');
+  }
+  ctx.drawImage(source, 0, 0, width, height);
+  if ('close' in source && typeof source.close === 'function') {
+    source.close();
+  }
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)
+  );
+  if (!blob) {
+    throw new Error('تعذر ضغط الصورة');
+  }
+
+  const base = file.name.replace(/\.[^.]+$/, '') || 'car';
+  return new File([blob], `${base}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+}
 
 /**
  * رفع صورة عربية واحدة
@@ -21,24 +92,15 @@ export const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
  * @returns URL الصورة على Storage
  */
 export async function uploadCarImage(file: File, carId: string): Promise<string> {
-  // validation: حجم أقل من 5MB
-  if (file.size > MAX_IMAGE_SIZE) {
-    throw new Error('حجم الصورة يجب أن يكون أقل من 5 ميجابايت');
-  }
-  // validation: نوع الصورة
-  if (!file.type.startsWith('image/')) {
-    throw new Error('يجب أن يكون الملف صورة');
-  }
+  const compressed = await compressCarImage(file);
 
-  // توليد اسم فريد: timestamp + random + extension
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);
-  const filename = `${timestamp}-${random}.${ext}`;
+  const filename = `${timestamp}-${random}.jpg`;
   const path = `cars/${carId}/${filename}`;
 
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
+  await uploadBytes(storageRef, compressed, { contentType: 'image/jpeg' });
   const url = await getDownloadURL(storageRef);
   return url;
 }
@@ -74,7 +136,7 @@ export async function uploadCarImages(
   // validation: نوع وحجم كل ملف
   files.forEach((file, idx) => {
     if (file.size > MAX_IMAGE_SIZE) {
-      throw new Error(`الصورة رقم ${idx + 1} أكبر من 5 ميجابايت`);
+      throw new Error(`الصورة رقم ${idx + 1} أكبر من 10 ميجابايت`);
     }
     if (!file.type.startsWith('image/')) {
       throw new Error(`الملف رقم ${idx + 1} ليس صورة`);

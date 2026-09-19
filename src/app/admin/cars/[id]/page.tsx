@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { fetchCar } from '@/lib/cars';
+import { fetchCar, updateCar } from '@/lib/cars';
 import { resolveCarImages, deleteCarImage, extractStoragePath, CarImageSlot } from '@/lib/storage';
 import { CarForm } from '@/components/admin/CarForm';
 import { NewCarInput, Car } from '@/lib/types';
@@ -78,11 +76,10 @@ export default function EditCarPage({ params }: { params: { id: string } }) {
       ).catch((e) => console.error('Error deleting removed images:', e));
     }
 
-    await updateDoc(doc(db, 'cars', car.id!), {
+    await updateCar(car.id!, {
       ...data,
       image_url: main,
       additional_images: additional,
-      updated_at: serverTimestamp(),
     });
 
     showToast('تم تحديث العربية بنجاح', 'success');
