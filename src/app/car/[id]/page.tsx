@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
-import { downloadAllCarImages } from '@/lib/downloadCarImages';
+import { downloadAllCarImages, downloadSingleCarImage, shareCarImageFiles } from '@/lib/downloadCarImages';
 import { PRIORITY_LABELS } from '@/lib/priority';
 import { Car as CarType, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
@@ -52,6 +52,13 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingOne, setDownloadingOne] = useState<number | null>(null);
+  const [iosShare, setIosShare] = useState<{
+    title: string;
+    batches: File[][];
+    batchIndex: number;
+  } | null>(null);
+  const [iosSharing, setIosSharing] = useState(false);
 
   const id = params?.id;
 
@@ -110,16 +117,20 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`;
 
   const handleDownloadImages = async () => {
-    if (!car || allImages.length === 0 || downloading) return;
+    if (!car || allImages.length === 0 || downloading || downloadingOne !== null) return;
     setDownloading(true);
     try {
       const result = await downloadAllCarImages(allImages, car.title);
-      if (result === 'cancelled') return;
+      if (result.status === 'cancelled') return;
+      if (result.status === 'needs-ios-confirm') {
+        setIosShare({ title: result.title, batches: result.batches, batchIndex: 0 });
+        return;
+      }
       showToast(
-        result === 'shared'
+        result.status === 'shared'
           ? allImages.length === 1
             ? 'تم مشاركة الصورة'
-            : `تم مشاركة ${allImages.length} صور`
+            : `تم تجهيز ${allImages.length} صور — احفظها من الشاشة`
           : allImages.length === 1
             ? 'تم تحميل الصورة'
             : `تم تحميل ${allImages.length} صور`,
@@ -130,6 +141,46 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
       showToast(message, 'error');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleIosShareBatch = async () => {
+    if (!iosShare || iosSharing) return;
+    const batch = iosShare.batches[iosShare.batchIndex];
+    if (!batch?.length) return;
+    setIosSharing(true);
+    try {
+      const result = await shareCarImageFiles(batch, iosShare.title);
+      if (result === 'cancelled') return;
+      const nextIndex = iosShare.batchIndex + 1;
+      if (nextIndex < iosShare.batches.length) {
+        setIosShare({ ...iosShare, batchIndex: nextIndex });
+        showToast(`تم حفظ المجموعة ${nextIndex} — كمّل الباقي`, 'success');
+      } else {
+        setIosShare(null);
+        const total = iosShare.batches.reduce((n, b) => n + b.length, 0);
+        showToast(`تم تجهيز ${total} صور — احفظها في تطبيق الصور`, 'success');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'فشل حفظ الصور';
+      showToast(message, 'error');
+    } finally {
+      setIosSharing(false);
+    }
+  };
+
+  const handleDownloadOne = async (index: number) => {
+    if (!car || !allImages[index] || downloading || downloadingOne !== null) return;
+    setDownloadingOne(index);
+    try {
+      const result = await downloadSingleCarImage(allImages[index], car.title, index + 1);
+      if (result === 'cancelled') return;
+      showToast(result === 'shared' ? 'تم مشاركة الصورة' : 'تم تحميل الصورة', 'success');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'فشل تحميل الصورة';
+      showToast(message, 'error');
+    } finally {
+      setDownloadingOne(null);
     }
   };
 
@@ -187,16 +238,33 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                     <CarIcon size={80} className="text-text-muted opacity-30" strokeWidth={1.5} />
                   </div>
                 )}
-                {/* زر تكبير (يظهر على hover) */}
+                {/* زر تكبير + تحميل الصورة الحالية */}
                 {activeImage && (
-                  <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDownloadOne(activeImageIdx);
+                      }}
+                      disabled={downloadingOne !== null || downloading}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors disabled:opacity-50"
+                      aria-label="تحميل هذه الصورة"
+                      title="تحميل هذه الصورة"
+                    >
+                      {downloadingOne === activeImageIdx ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setLightboxOpen(true);
                       }}
-                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       aria-label="تكبير الصورة"
                     >
                       <Maximize2 size={16} />
@@ -251,25 +319,43 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               {allImages.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                   {allImages.map((url, idx) => (
-                    <button
-                      key={url}
-                      onClick={() => setActiveImageIdx(idx)}
-                      className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors striped-bg ${
-                        activeImageIdx === idx
-                          ? 'border-accent-yellow'
-                          : 'border-border-soft hover:border-accent-yellow/50'
-                      }`}
-                      aria-label={`صورة ${idx + 1}`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt={`${car.title} - صورة ${idx + 1}`}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
+                    <div key={url} className="relative flex-shrink-0">
+                      <button
+                        onClick={() => setActiveImageIdx(idx)}
+                        className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors striped-bg block ${
+                          activeImageIdx === idx
+                            ? 'border-accent-yellow'
+                            : 'border-border-soft hover:border-accent-yellow/50'
+                        }`}
+                        aria-label={`صورة ${idx + 1}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`${car.title} - صورة ${idx + 1}`}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDownloadOne(idx);
+                        }}
+                        disabled={downloadingOne !== null || downloading}
+                        className="absolute bottom-1 left-1 z-10 w-7 h-7 rounded-lg bg-black/70 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-sm disabled:opacity-50"
+                        aria-label={`تحميل صورة ${idx + 1}`}
+                        title="تحميل هذه الصورة"
+                      >
+                        {downloadingOne === idx ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Download size={12} />
+                        )}
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -284,7 +370,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               >
                 {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
                 {downloading
-                  ? 'جاري تحميل الصور...'
+                  ? 'جاري تجهيز الصور...'
                   : allImages.length === 1
                     ? 'تحميل الصورة'
                     : `تحميل كل الصور (${allImages.length})`}
@@ -370,22 +456,29 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               </div>
             )}
 
-            {(isAdmin || isInspector) && car.owner_phone && (
+            {(isAdmin || isInspector) && (car.owner_name || car.owner_phone) && (
               <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <h3 className="text-sm font-bold text-text-secondary">رقم المالك</h3>
-                  <CopyButton
-                    text={car.owner_phone}
-                    label="نسخ رقم المالك"
-                    size="sm"
-                    variant="inline"
-                    trackPhone
-                    carId={car.id}
-                  />
+                  <h3 className="text-sm font-bold text-text-secondary">المالك</h3>
+                  {car.owner_phone && (
+                    <CopyButton
+                      text={car.owner_phone}
+                      label="نسخ رقم المالك"
+                      size="sm"
+                      variant="inline"
+                      trackPhone
+                      carId={car.id}
+                    />
+                  )}
                 </div>
-                <div className="text-sm font-bold text-text-primary" dir="ltr">
-                  {car.owner_phone}
-                </div>
+                {car.owner_name && (
+                  <div className="text-sm font-bold text-text-primary">{car.owner_name}</div>
+                )}
+                {car.owner_phone && (
+                  <div className="text-sm text-text-secondary mt-1" dir="ltr">
+                    {car.owner_phone}
+                  </div>
+                )}
               </div>
             )}
 
@@ -420,8 +513,54 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
           images={allImages}
           startIndex={activeImageIdx}
           alt={car.title}
+          downloadBaseName={car.title}
           onClose={() => setLightboxOpen(false)}
+          onToast={showToast}
         />
+      )}
+
+      {/* iOS: ضغطة تأكيد بعد التجهيز عشان Share Sheet يشتغل ويحفظ صور مش ZIP */}
+      {iosShare && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4 shadow-medium">
+            <div>
+              <h3 className="text-lg font-bold text-text-primary">حفظ الصور في جهازك</h3>
+              <p className="text-sm text-text-secondary mt-1 leading-relaxed">
+                اتجهزت{' '}
+                <span className="font-bold text-text-primary">
+                  {iosShare.batches.reduce((n, b) => n + b.length, 0)}
+                </span>{' '}
+                صورة. اضغط الزر وهتظهر شاشة الآيفون — اختار{' '}
+                <span className="font-bold">حفظ الصور</span> / Save Images.
+              </p>
+              {iosShare.batches.length > 1 && (
+                <p className="text-xs text-text-muted mt-2">
+                  المجموعة {iosShare.batchIndex + 1} من {iosShare.batches.length} (
+                  {iosShare.batches[iosShare.batchIndex]?.length || 0} صورة)
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleIosShareBatch()}
+              disabled={iosSharing}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-sm disabled:opacity-60"
+            >
+              {iosSharing ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              {iosShare.batches.length > 1
+                ? `حفظ المجموعة ${iosShare.batchIndex + 1}`
+                : 'حفظ كل الصور'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIosShare(null)}
+              disabled={iosSharing}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-bg-card-hover"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

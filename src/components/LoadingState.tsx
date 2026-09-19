@@ -73,7 +73,7 @@ export function LoadingState({ count = 6, variant = 'card' }: LoadingStateProps)
 
   return (
     <div
-      className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4"
+      className="w-full grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4"
       role="status"
       aria-label="جاري التحميل"
     >

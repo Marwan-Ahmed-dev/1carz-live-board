@@ -231,7 +231,9 @@ export default function AdminDashboardPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-admin-text-muted mt-0.5">
-                      {c.inspector_name && <span className="badge-number">{c.inspector_name}</span>}
+                      {c.owner_name || c.inspector_name ? (
+                        <span className="badge-number">{c.owner_name || c.inspector_name}</span>
+                      ) : null}
                       <StatusBadge status={c.status} tone="admin" />
                     </div>
                   </div>

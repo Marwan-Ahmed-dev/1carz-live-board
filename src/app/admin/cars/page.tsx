@@ -93,6 +93,8 @@ export default function AdminCarsPage() {
         (c) =>
           c.title.toLowerCase().includes(s) ||
           (c.inspector_name || '').toLowerCase().includes(s) ||
+          (c.owner_name || '').toLowerCase().includes(s) ||
+          (c.owner_phone || '').includes(s) ||
           (c.inspector_phone || '').includes(s) ||
           c.description.toLowerCase().includes(s)
       );
@@ -223,9 +225,9 @@ export default function AdminCarsPage() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
-                        {c.inspector_name && (
+                        {(c.owner_name || c.inspector_name) && (
                           <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
-                            {c.inspector_name}
+                            {c.owner_name || c.inspector_name}
                           </span>
                         )}
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}>

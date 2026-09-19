@@ -16,84 +16,91 @@ interface CarCardProps {
 export function CarCard({ car }: CarCardProps) {
   const router = useRouter();
   const { isAdmin, isInspector } = useAuth();
+  const isStaff = isAdmin || isInspector;
   const isFeatured = car.is_featured;
   const additionalCount = car.additional_images?.length || 0;
-  const copyPhone = isAdmin || isInspector ? car.owner_phone : car.inspector_phone;
-  const copyLabel = isAdmin || isInspector ? 'نسخ رقم المالك' : 'نسخ رقم المعاين';
+  const contactName = isStaff ? car.owner_name : car.inspector_name;
+  const contactPhone = isStaff ? car.owner_phone : car.inspector_phone;
+  const contactRole = isStaff ? 'المالك' : 'المعاين';
+  const copyLabel = isStaff ? 'نسخ رقم المالك' : 'نسخ رقم المعاين';
 
   return (
-    <div className="relative bg-bg-card rounded-2xl overflow-hidden shadow-soft border border-border-soft">
+    <div className="relative flex flex-col h-full bg-bg-card rounded-xl sm:rounded-2xl overflow-hidden shadow-soft border border-border-soft">
       {isFeatured && (
-        <div className="absolute z-10 m-2">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-yellow text-text-primary text-xs font-bold shadow-soft">
-            <Star size={12} fill="currentColor" />
+        <div className="absolute z-10 top-1.5 right-1.5 sm:top-2 sm:right-2">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-accent-yellow text-text-primary text-[10px] sm:text-xs font-bold shadow-soft">
+            <Star size={10} fill="currentColor" className="sm:w-3 sm:h-3" />
             مميز
           </span>
         </div>
       )}
 
-      <div className="relative w-full aspect-[16/10] striped-bg overflow-hidden">
+      <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] striped-bg overflow-hidden flex-shrink-0">
         {car.image_url ? (
           <Image
             src={car.image_url}
             alt={car.title}
             fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1200px) 33vw, 25vw"
             className="object-cover"
           />
         ) : (
           <div className="flex items-center justify-center w-full h-full">
-            <CarIcon size={56} className="text-text-muted opacity-40" strokeWidth={1.5} />
+            <CarIcon size={36} className="text-text-muted opacity-40 sm:w-14 sm:h-14" strokeWidth={1.5} />
           </div>
         )}
         {additionalCount > 0 && (
-          <div className="absolute bottom-2 left-2 z-10">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/70 text-white text-xs font-bold backdrop-blur-sm">
+          <div className="absolute bottom-1.5 left-1.5 z-10">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-black/70 text-white text-[10px] sm:text-xs font-bold backdrop-blur-sm">
               +{additionalCount}
             </span>
           </div>
         )}
       </div>
 
-      <div className="p-3 sm:p-4">
-        <h3 className="text-base sm:text-lg font-bold text-text-primary line-clamp-2 mb-2">
+      <div className="flex flex-col flex-1 p-2 sm:p-3.5 gap-1.5 sm:gap-2 min-w-0">
+        <h3 className="text-[13px] sm:text-base font-bold text-text-primary leading-snug line-clamp-2 min-h-[2.4em]">
           {car.title}
         </h3>
-        <p
-          className="price-display text-xl text-accent-yellow-hover mb-2 sm:hidden"
-          dir="ltr"
-        >
-          {formatPrice(car.price)}{' '}
-          <span className="text-sm font-medium text-text-secondary">ج.م</span>
+
+        <p className="price-display text-sm sm:text-xl text-accent-yellow-hover font-bold leading-none" dir="ltr">
+          {formatPrice(car.price)}
+          <span className="text-[10px] sm:text-sm font-medium text-text-secondary mr-0.5"> ج.م</span>
         </p>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <span className="inline-flex items-center gap-1 badge-number bg-bg-primary px-2 py-0.5 rounded text-xs sm:text-sm">
-            <span className="truncate" dir="ltr">
-              {copyPhone || '—'}
+
+        <div className="min-w-0 rounded-lg bg-bg-primary/80 px-1.5 py-1 sm:px-2 sm:py-1.5 space-y-0.5">
+          <div className="text-[10px] sm:text-xs text-text-muted font-medium">{contactRole}</div>
+          <div className="text-[11px] sm:text-sm font-bold text-text-primary truncate">
+            {contactName || '—'}
+          </div>
+          <div className="flex items-center gap-0.5 min-w-0">
+            <span className="badge-number text-[11px] sm:text-sm text-text-secondary truncate flex-1" dir="ltr">
+              {contactPhone || '—'}
             </span>
             <CopyButton
-              text={copyPhone || ''}
+              text={contactPhone || ''}
               label={copyLabel}
               size="sm"
               trackPhone
               carId={car.id}
+              className="flex-shrink-0 !w-6 !h-6 sm:!w-7 sm:!h-7"
             />
-          </span>
-          <StatusBadge status={car.status} size="md" />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="mt-auto flex items-center gap-1.5 pt-0.5">
+          <StatusBadge status={car.status} size="sm" className="!text-[10px] sm:!text-xs !px-1.5 !py-0.5" />
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               if (car.id) router.push(`/car/${car.id}`);
             }}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors cursor-pointer"
+            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 sm:py-2 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-[11px] sm:text-sm font-bold transition-colors"
             aria-label="عرض التفاصيل"
           >
-            <Eye size={16} />
-            <span>عرض التفاصيل</span>
+            <Eye size={13} className="sm:w-4 sm:h-4" />
+            <span>عرض</span>
           </button>
         </div>
       </div>

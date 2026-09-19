@@ -50,6 +50,7 @@ export interface Car {
   is_featured: boolean; // مميزة (تعرض badge "مميز")
   inspector_name: string;
   inspector_phone: string;
+  owner_name: string;
   owner_phone: string;
   // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل
   // حتى لو المستخدم ما عملش onboarding لسه.

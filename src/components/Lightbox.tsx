@@ -1,34 +1,33 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Loader2, X } from 'lucide-react';
+import { downloadSingleCarImage } from '@/lib/downloadCarImages';
 
 interface LightboxProps {
-  /** URLs الصور */
   images: string[];
-  /** الصورة اللي يبدأ منها (index) */
   startIndex?: number;
-  /** دالة الإغلاق */
   onClose: () => void;
-  /** عنوان الـ alt */
   alt?: string;
+  downloadBaseName?: string;
+  onToast?: (message: string, type: 'success' | 'error') => void;
 }
 
-/**
- * Lightbox full-screen لعرض الصور
- * - يفتح بـ overlay أسود
- * - سهم يمين/يسار + أزرار + ESC للتجول
- * - click outside للصورة يقفل
- * - يمنع scroll الـ body وهو مفتوح
- */
-export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: LightboxProps) {
+export function Lightbox({
+  images,
+  startIndex = 0,
+  onClose,
+  alt = 'صورة',
+  downloadBaseName = 'car',
+  onToast,
+}: LightboxProps) {
   const [idx, setIdx] = useState(startIndex);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setIdx(startIndex);
   }, [startIndex]);
 
-  // منع الـ body scroll
   useEffect(() => {
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -37,12 +36,11 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
     };
   }, []);
 
-  // ESC للتجول / الإغلاق
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowLeft') setIdx((i) => (i + 1) % images.length); // RTL: left = next
-      else if (e.key === 'ArrowRight') setIdx((i) => (i - 1 + images.length) % images.length); // RTL: right = prev
+      else if (e.key === 'ArrowLeft') setIdx((i) => (i + 1) % images.length);
+      else if (e.key === 'ArrowRight') setIdx((i) => (i - 1 + images.length) % images.length);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -51,12 +49,27 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
   if (images.length === 0) return null;
   const currentImage = images[idx];
 
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (downloading || !currentImage) return;
+    setDownloading(true);
+    try {
+      const result = await downloadSingleCarImage(currentImage, downloadBaseName, idx + 1);
+      if (result === 'cancelled') return;
+      onToast?.(result === 'shared' ? 'تم مشاركة الصورة' : 'تم تحميل الصورة', 'success');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'فشل تحميل الصورة';
+      onToast?.(message, 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
       onClick={onClose}
     >
-      {/* زر الإغلاق */}
       <button
         onClick={onClose}
         className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
@@ -65,12 +78,21 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
         <X size={20} />
       </button>
 
-      {/* عداد الصور */}
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={downloading}
+        className="absolute top-4 right-16 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors disabled:opacity-50"
+        aria-label="تحميل هذه الصورة"
+        title="تحميل هذه الصورة"
+      >
+        {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+      </button>
+
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-white/10 text-white text-sm font-bold backdrop-blur-sm">
         {idx + 1} / {images.length}
       </div>
 
-      {/* زر السابق (في الـ RTL: على اليمين = previous) */}
       {images.length > 1 && (
         <button
           onClick={(e) => {
@@ -84,7 +106,6 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
         </button>
       )}
 
-      {/* زر التالي (في الـ RTL: على اليسار = next) */}
       {images.length > 1 && (
         <button
           onClick={(e) => {
@@ -98,7 +119,6 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
         </button>
       )}
 
-      {/* الصورة الحالية فقط — تحميل كل الصور مرة واحدة كان يثقل iOS */}
       <div
         className="relative w-full h-full max-w-[95vw] max-h-[90vh] mx-4"
         onClick={(e) => e.stopPropagation()}
@@ -114,7 +134,6 @@ export function Lightbox({ images, startIndex = 0, onClose, alt = 'صورة' }: 
         />
       </div>
 
-      {/* thumbnails strip تحت الصورة */}
       {images.length > 1 && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 max-w-[90vw] overflow-x-auto no-scrollbar">
           <div className="flex gap-2 px-4">
