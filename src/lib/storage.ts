@@ -15,34 +15,44 @@ export const MAX_CAR_IMAGES = 30;
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 /**
- * أطول ضلع بعد الضغط — كفاية لشاشات الموبايل والبوستات،
- * وده اللي بيقلّل المساحة جامد (مش إعادة ترميز بنفس الـ megapixels).
+ * نفس منطق ضغط صور العربيات في تطبيق Flutter (admin_car_form_page):
+ * أبعاد حسب حجم الملف الأصلي + JPEG بجودة ثابتة.
  */
-const MAX_OUTPUT_EDGE = 1600;
-
-/** هدف الحجم النهائي */
-const TARGET_BYTES = 280 * 1024;
-
-/** سقف صارم — لو عدّيناه ننزل الجودة أكتر */
-const HARD_MAX_BYTES = 400 * 1024;
-
-const WEBP_QUALITIES = [0.72, 0.6, 0.5, 0.4, 0.32] as const;
-const JPEG_QUALITIES = [0.72, 0.6, 0.5, 0.4, 0.32] as const;
-
-let webpEncodeSupported: boolean | null = null;
-
-function canEncodeWebp(): boolean {
-  if (typeof document === 'undefined') return false;
-  if (webpEncodeSupported != null) return webpEncodeSupported;
-  try {
-    const c = document.createElement('canvas');
-    c.width = 2;
-    c.height = 2;
-    webpEncodeSupported = c.toDataURL('image/webp').startsWith('data:image/webp');
-  } catch {
-    webpEncodeSupported = false;
+function getFlutterCompressParams(originalSize: number): {
+  maxWidth: number;
+  maxHeight: number;
+  quality: number;
+} {
+  if (originalSize > 2 * 1024 * 1024) {
+    return { maxWidth: 600, maxHeight: 450, quality: 0.6 };
   }
-  return webpEncodeSupported;
+  if (originalSize > 1024 * 1024) {
+    return { maxWidth: 700, maxHeight: 525, quality: 0.65 };
+  }
+  if (originalSize > 500 * 1024) {
+    return { maxWidth: 800, maxHeight: 600, quality: 0.75 };
+  }
+  return { maxWidth: 800, maxHeight: 600, quality: 0.7 };
+}
+
+/** زي copyResize في Flutter: landscape → maxWidth، portrait → maxHeight */
+function flutterResizeSize(
+  srcW: number,
+  srcH: number,
+  maxWidth: number,
+  maxHeight: number
+): { width: number; height: number } {
+  if (srcW <= maxWidth && srcH <= maxHeight) {
+    return { width: srcW, height: srcH };
+  }
+  if (srcW >= srcH) {
+    const width = Math.min(srcW, maxWidth);
+    const height = Math.max(1, Math.round((srcH / srcW) * width));
+    return { width, height };
+  }
+  const height = Math.min(srcH, maxHeight);
+  const width = Math.max(1, Math.round((srcW / srcH) * height));
+  return { width, height };
 }
 
 function isImageFile(file: File): boolean {
@@ -66,44 +76,23 @@ async function loadImageElement(file: File): Promise<HTMLImageElement> {
   }
 }
 
-function canvasToBlob(
-  canvas: HTMLCanvasElement,
-  mime: 'image/webp' | 'image/jpeg',
-  quality: number
-): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), mime, quality);
+function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob || blob.size === 0) reject(new Error('تعذر ضغط الصورة'));
+        else resolve(blob);
+      },
+      'image/jpeg',
+      quality
+    );
   });
 }
 
-async function encodeSmallest(
-  canvas: HTMLCanvasElement,
-  mime: 'image/webp' | 'image/jpeg',
-  qualities: readonly number[],
-  originalSize: number
-): Promise<{ blob: Blob; quality: number } | null> {
-  let best: { blob: Blob; quality: number } | null = null;
-
-  for (const quality of qualities) {
-    const blob = await canvasToBlob(canvas, mime, quality);
-    if (!blob || blob.size <= 0) continue;
-    // ممنوع نكبّر عن الأصلية
-    if (blob.size >= originalSize) continue;
-    if (!best || blob.size < best.blob.size) {
-      best = { blob, quality };
-    }
-    if (blob.size <= TARGET_BYTES) break;
-  }
-
-  return best;
-}
-
 /**
- * يضغط الصورة قبل الرفع بأفضل طريقة عملية للمتصفح:
- * 1) صغّر لأطول ضلع 1600 (ده اللي بيوفّر المساحة بجد)
- * 2) WebP لو المتصفح يدعمه، وإلا JPEG
- * 3) انزل بالجودة لحد هدف ~280KB
- * 4) لو الناتج أكبر من الأصلية → رجّع الأصلية (عمرها ما تزيد)
+ * ضغط صور العربيات — مطابق لتطبيق 1CARZ Flutter:
+ * resize حسب الحجم + encodeJpg بجودة 60–75.
+ * دايماً بيرجع JPEG مضغوط (مش بيرجع الأصلية لو الضغط "مش عاجبه").
  */
 export async function compressCarImage(file: File): Promise<File> {
   if (!isImageFile(file)) {
@@ -111,14 +100,6 @@ export async function compressCarImage(file: File): Promise<File> {
   }
   if (file.size > MAX_IMAGE_SIZE) {
     throw new Error('حجم الصورة يجب أن يكون أقل من 10 ميجابايت');
-  }
-
-  // صورة جاهزة وصغيرة — متضغطهاش تاني
-  if (
-    (file.type === 'image/webp' || file.type === 'image/jpeg') &&
-    file.size <= HARD_MAX_BYTES
-  ) {
-    return file;
   }
 
   let source: ImageBitmap | HTMLImageElement;
@@ -134,9 +115,8 @@ export async function compressCarImage(file: File): Promise<File> {
     throw new Error('تعذر قراءة أبعاد الصورة');
   }
 
-  const scale = Math.min(1, MAX_OUTPUT_EDGE / Math.max(srcW, srcH));
-  const width = Math.max(1, Math.round(srcW * scale));
-  const height = Math.max(1, Math.round(srcH * scale));
+  const { maxWidth, maxHeight, quality } = getFlutterCompressParams(file.size);
+  const { width, height } = flutterResizeSize(srcW, srcH, maxWidth, maxHeight);
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -154,45 +134,27 @@ export async function compressCarImage(file: File): Promise<File> {
     source.close();
   }
 
-  const candidates: Array<{ blob: Blob; mime: string; ext: string }> = [];
+  let blob = await canvasToJpegBlob(canvas, quality);
 
-  if (canEncodeWebp()) {
-    const webp = await encodeSmallest(canvas, 'image/webp', WEBP_QUALITIES, file.size);
-    if (webp) candidates.push({ blob: webp.blob, mime: 'image/webp', ext: 'webp' });
-  }
-
-  const jpeg = await encodeSmallest(canvas, 'image/jpeg', JPEG_QUALITIES, file.size);
-  if (jpeg) candidates.push({ blob: jpeg.blob, mime: 'image/jpeg', ext: 'jpg' });
-
-  // لو مفيش مرشح أصغر من الأصلية — رجّع الأصلية زي ما هي
-  if (candidates.length === 0) {
-    return file;
-  }
-
-  candidates.sort((a, b) => a.blob.size - b.blob.size);
-  let chosen = candidates[0];
-
-  // لو لسه كبيرة، جرّب جودة أوطى أكتر على نفس الفورمات الفائز
-  if (chosen.blob.size > HARD_MAX_BYTES) {
-    const mime = chosen.mime as 'image/webp' | 'image/jpeg';
-    for (const q of [0.28, 0.22, 0.18]) {
-      const blob = await canvasToBlob(canvas, mime, q);
-      if (blob && blob.size < chosen.blob.size && blob.size < file.size) {
-        chosen = { blob, mime, ext: chosen.ext };
-      }
-      if (chosen.blob.size <= TARGET_BYTES) break;
-    }
-  }
-
-  if (chosen.blob.size >= file.size) {
-    return file;
+  // لو لسه كبيرة أوي زي Flutter الـ aggressive pass
+  if (blob.size > 500 * 1024) {
+    const tighter = await canvasToJpegBlob(canvas, Math.max(0.45, quality - 0.15));
+    if (tighter.size < blob.size) blob = tighter;
   }
 
   const base = file.name.replace(/\.[^.]+$/, '') || 'car';
-  return new File([chosen.blob], `${base}.${chosen.ext}`, {
-    type: chosen.mime,
+  const out = new File([blob], `${base}.jpg`, {
+    type: 'image/jpeg',
     lastModified: Date.now(),
   });
+
+  if (typeof console !== 'undefined') {
+    console.info(
+      `[compressCarImage] ${Math.round(file.size / 1024)}KB → ${Math.round(out.size / 1024)}KB (${width}x${height}, q=${quality})`
+    );
+  }
+
+  return out;
 }
 
 /**
@@ -202,20 +164,23 @@ export async function compressCarImage(file: File): Promise<File> {
  * @returns URL الصورة على Storage
  */
 export async function uploadCarImage(file: File, carId: string): Promise<string> {
-  // لو الفورم ضغط خلاص، متضغطش تاني
-  const alreadyOptimized =
-    (file.type === 'image/webp' || file.type === 'image/jpeg') && file.size <= HARD_MAX_BYTES;
-  const compressed = alreadyOptimized ? file : await compressCarImage(file);
+  // لو الفورم ضغط بالفعل لـ JPEG صغير، متضغطش تاني
+  const alreadyCompressed =
+    file.type === 'image/jpeg' &&
+    file.name.endsWith('.jpg') &&
+    file.size <= 500 * 1024;
+  const compressed = alreadyCompressed ? file : await compressCarImage(file);
 
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);
-  const ext = compressed.type === 'image/webp' ? 'webp' : 'jpg';
-  const contentType = compressed.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
-  const filename = `${timestamp}-${random}.${ext}`;
+  const filename = `${timestamp}-${random}.jpg`;
   const path = `cars/${carId}/${filename}`;
 
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, compressed, { contentType });
+  await uploadBytes(storageRef, compressed, {
+    contentType: 'image/jpeg',
+    cacheControl: 'public, max-age=2592000',
+  });
   const url = await getDownloadURL(storageRef);
   return url;
 }
