@@ -1,7 +1,5 @@
 const FETCH_TIMEOUT_MS = 25000;
 const DOWNLOAD_GAP_MS = 550;
-/** iOS بيسمح بعدد محدود في شيت المشاركة الواحد */
-const IOS_SHARE_BATCH = 12;
 
 export type DownloadImagesResult = 'shared' | 'downloaded' | 'cancelled';
 
@@ -254,6 +252,23 @@ function chunkFiles(files: File[], size: number): File[][] {
   return batches;
 }
 
+/** جرّب كل الصور دفعة واحدة؛ قسّم بس لو iOS رفض المجموعة الكاملة. */
+function buildIosShareBatches(files: File[]): File[][] {
+  if (files.length === 0) return [];
+  if (canShareFiles(files)) return [files];
+
+  // Fallback نادر: لو الجهاز رفض الكل، نلاقي أكبر حجم مجموعة يشتغل
+  for (const size of [24, 18, 15, 12, 8, 5, 1]) {
+    if (size >= files.length) continue;
+    const batches = chunkFiles(files, size);
+    if (batches.every((batch) => canShareFiles(batch))) {
+      return batches;
+    }
+  }
+
+  return files.filter((f) => canShareFiles([f])).map((f) => [f]);
+}
+
 function canShareFiles(files: File[]): boolean {
   try {
     return (
@@ -337,12 +352,12 @@ export async function downloadAllCarImages(
       return { status: 'downloaded' };
     }
 
-    const batches = chunkFiles(files, IOS_SHARE_BATCH).filter((batch) => canShareFiles(batch));
+    const batches = buildIosShareBatches(files);
     if (batches.length === 0) {
       throw new Error('الجهاز لا يدعم حفظ الصور. استخدم زر التحميل على كل صورة.');
     }
 
-    // محاولة سريعة لو الـ gesture لسه شغال (صور قليلة/متکشة)
+    // محاولة سريعة لو الـ gesture لسه شغال
     if (batches.length === 1) {
       const shared = await shareFiles(batches[0], base);
       if (shared === 'shared' || shared === 'cancelled') {
