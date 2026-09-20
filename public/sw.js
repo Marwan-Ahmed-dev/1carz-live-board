@@ -2,12 +2,13 @@
  * Service Worker for 1CARZ LIVE BOARD PWA
  *
  * Strategy:
- * - Network-first for navigation requests (HTML pages)
+ * - Network-first for navigation requests (HTML pages), falling back to
+ *   the offline page if the network is unavailable.
  * - Cache-first for static assets (JS, CSS, images)
  * - Network-only for manifest.json
  *
- * Caching version: v7 — Medium batch (README/formatShortDate/Lightbox adj priority/
- * BuyersPanel EmptyState/buyer phone toEnglishDigits/admin sort).
+ * Caching version: v8 — Low-priority batch (offline.html fallback, security
+ * headers don't affect caching).
  *
  * ⚠️ Bump STATIC_CACHE + RUNTIME_CACHE on every deploy that changes:
  *   - the pre-cached asset list (STATIC_ASSETS)
@@ -18,8 +19,9 @@
  * is enough to force a clean slate on clients.
  */
 
-const STATIC_CACHE = '1carz-static-v7';
-const RUNTIME_CACHE = '1carz-runtime-v7';
+const STATIC_CACHE = '1carz-static-v8';
+const RUNTIME_CACHE = '1carz-runtime-v8';
+const OFFLINE_URL = '/offline.html';
 
 const STATIC_ASSETS = [
   '/icons/icon-192.png',
@@ -27,6 +29,7 @@ const STATIC_ASSETS = [
   '/icons/apple-touch-icon.png',
   '/favicon.png',
   '/favicon.ico',
+  OFFLINE_URL,
 ];
 
 // install: pre-cache static assets
@@ -74,7 +77,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch(async () => {
+        // Network is down or the server is unreachable → serve the offline page.
+        // Try the static cache first (preferred), fall back to a network-try of the offline URL.
+        const cached = await caches.match(OFFLINE_URL);
+        if (cached) return cached;
+        return fetch(OFFLINE_URL);
+      })
+    );
     return;
   }
 

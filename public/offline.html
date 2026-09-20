@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#FCD34D" />
+    <title>1CARZ — غير متصل</title>
+    <style>
+      :root {
+        --bg: #faf7f0;
+        --card: #f2efe5;
+        --text: #1a1a1a;
+        --text-muted: #6b7280;
+        --accent: #fcd34d;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Cairo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        direction: rtl;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 24px;
+        padding: 32px 24px;
+        max-width: 380px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      }
+      .icon {
+        width: 96px;
+        height: 96px;
+        margin: 0 auto 20px;
+        border-radius: 24px;
+        background: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        line-height: 1;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 12px;
+      }
+      p {
+        color: var(--text-muted);
+        font-size: 15px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-direction: column;
+      }
+      button {
+        width: 100%;
+        padding: 14px 18px;
+        border-radius: 14px;
+        border: none;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 48px;
+      }
+      .retry {
+        background: var(--accent);
+        color: var(--text);
+      }
+      .retry:hover {
+        background: #fbbf24;
+      }
+      .ghost {
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid #d1d5db;
+      }
+      .ghost:hover {
+        background: rgba(0, 0, 0, 0.04);
+      }
+      .hint {
+        margin-top: 16px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" role="main">
+      <div class="icon" aria-hidden="true">📡</div>
+      <h1>غير متصل بالإنترنت</h1>
+      <p>
+        ما قدرناش نوصل لسيرفر 1CARZ دلوقتي. تأكد إن الواي فاي أو البيانات شغّالة، أو جرّب تاني بعد شوية.
+      </p>
+      <div class="actions">
+        <button type="button" class="retry" onclick="window.location.reload()">
+          إعادة المحاولة
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          onclick="(async()=>{try{const c=await caches.open('1carz-static-v8');const r=await c.match('/offline.html');if(r)history.back();else history.back();}catch(e){history.back();}})()"
+        >
+          رجوع
+        </button>
+      </div>
+      <p class="hint">العربيات اللي فتحتها قبل كده ممكن تفضل متاحة من الكاش.</p>
+    </main>
+  </body>
+</html>
