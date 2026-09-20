@@ -12,14 +12,25 @@ export interface UseCarsOptions {
   uid?: string | null;
   minPrice?: number;
   maxPrice?: number;
-  /** فقط العربيات المعيّنة لـ UID (من غير 'all') */
+  /** فقط العربيات المعيّنة لـ UID (من غير 'all') — fallback في الـ memory لو Firestore رجّع أكتر */
   assignedOnly?: boolean;
-  /** تصفح بدون login — عربيات الكل النشطة */
+  /** تصفح بدون login — كل العربيات */
   publicOnly?: boolean;
+  /**
+   * Marketer filter: لما يكون الـ user مسوّق، يفلتر العربيات على حسب assigned_to
+   * (UID الـ user نفسه + UIDs المجموعات + 'all'). بيترجم لـ array-contains-any في Firestore.
+   * null/undefined = مفيش فلتر assignment (كل العربيات ظاهرة).
+   */
+  marketerFilter?: { uid: string; groupUids: string[] } | null;
 }
 
 /**
  * Returns قائمة العربيات المُفلترة + realtime updates
+ *
+ * الـ visibility model:
+ * - لو marketerFilter متعيّن → يفلتر بـ assigned_to عبر Firestore
+ * - لو مفيش فلتر (ضيف, user عادي, admin) → كل العربيات (status مش visibility gate)
+ * - assignedOnly = client-side filter احتياطي (لو Firestore رجّع أكتر مما متوقع)
  */
 export function useCars(opts: UseCarsOptions = {}) {
   const [allCars, setAllCars] = useState<Car[]>([]);
@@ -27,12 +38,9 @@ export function useCars(opts: UseCarsOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!opts.uid && !opts.publicOnly) {
-      setAllCars([]);
-      setLoading(true);
-      setError(null);
-      return;
-    }
+    // الشرط القديم كان بيمنع الـ load لو مفيش uid ولا publicOnly
+    // دلوقتي: حتى الأدمن (بدون uid وبـ publicOnly=false) ممكن يستدعي useCars.
+    // marketerFilter بيتجاوز الـ guard ده لأنه بيمثّل authenticated context.
 
     setLoading(true);
     setError(null);
@@ -45,6 +53,7 @@ export function useCars(opts: UseCarsOptions = {}) {
       {
         uid: opts.publicOnly ? null : opts.uid,
         publicOnly: opts.publicOnly,
+        marketerFilter: opts.marketerFilter,
         onError: (err) => {
           setError(err.message || 'فشل تحميل العربيات');
           setLoading(false);
@@ -54,7 +63,7 @@ export function useCars(opts: UseCarsOptions = {}) {
     return () => {
       unsub();
     };
-  }, [opts.uid, opts.publicOnly]);
+  }, [opts.uid, opts.publicOnly, opts.marketerFilter?.uid, opts.marketerFilter?.groupUids.join('|')]);
 
   const cars = useMemo(() => {
     let filtered = allCars;
