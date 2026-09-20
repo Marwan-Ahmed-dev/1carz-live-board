@@ -20,7 +20,9 @@ service cloud.firestore {
     }
 
     function isViewableCar() {
-      return resource.data.status in ['active', 'reserved', 'sold'];
+      // Deprecated — الـ status لم يعد visibility gate (تحوّل لـ label بس).
+      // الفانكشن دي موجودة بس للتوافق مع النداءات القديمة في الكود المحلي.
+      return true;
     }
 
     // ============== Users Collection ==============
@@ -70,15 +72,29 @@ service cloud.firestore {
     }
 
     match /groups/{groupId} {
-      allow read: if isStaff();
+      // الأدمن/المعاين يشوفوا كل المجموعات.
+      // اليوزر المسجّل يشوف بس المجموعات اللي هو عضو فيها (memberUids فيها UID بتاعه).
+      // ده بيسمح لـ marketer filter في /cars يجيب الـ UIDs من غير ما يعمل admin escalation.
+      // الضيف ما يشوفش حاجة (request.auth = null).
+      allow read: if isStaff()
+                  || (isSignedIn() && request.auth.uid in resource.data.memberUids);
       allow write: if isAdmin();
     }
 
     // ============== Cars Collection ==============
+    // الـ visibility model الحالي:
+    // - list/get: public للجميع (ضيف، user، marketer، admin، inspector)
+    //   ← ده متعمد لأن العربيات معروض للبيع والـ PWA هو live board.
+    // - create/update: الأدمن + المعاين فقط (isStaff)
+    // - delete: الأدمن فقط
+    //
+    // ⚠️ الـ marketer filter (assigned_to) متطبّق client-side فقط.
+    // السبب: بيانات العربيات public anyway، والـ filter ده UX personalization
+    // مش security boundary. Firestore rules مش بتقرأ مجموعات المسوّق (groups collection)
+    // وبتتطلب join على groups لـ enforce server-side — مش practical.
+    // الـ Firestore rules الحالية بترفض أي محاولة write من غير الأدمن/المعاين.
     match /cars/{carId} {
-      // المشاهدون (ضيف أو مسجّل) يشوفوا كل العربيات المعروضة
-      // بغض النظر عن assigned_to — التعيين للتنظيم الداخلي فقط.
-      allow list, get: if isStaff() || isViewableCar();
+      allow list, get: if true;
 
       allow create, update: if isStaff();
       allow delete: if isAdmin();
