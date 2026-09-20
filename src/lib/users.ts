@@ -25,6 +25,7 @@ interface UserDocData {
   username?: unknown;
   phone?: unknown;
   role?: unknown;
+  is_marketer?: unknown;
   daily_buyer_limit?: unknown;
   onboarded_at?: unknown;
   created_at?: unknown;
@@ -42,12 +43,16 @@ function normalizeUser(snap: { id: string; data: () => UserDocData }): AppUser {
         : data.role === 'user'
           ? 'user'
           : undefined;
+  // is_marketer: explicit boolean only. لو مش متعيّن = undefined
+  // (الـ caller بيستخدم fallback على daily_buyer_limit > 0 لو الـ user role = 'user')
+  const isMarketer = data.is_marketer === true;
   return {
     uid: typeof data.uid === 'string' && data.uid ? data.uid : snap.id,
     email: typeof data.email === 'string' ? data.email : '',
     username: typeof data.username === 'string' ? data.username : null,
     phone: typeof data.phone === 'string' ? data.phone : '',
     role,
+    is_marketer: isMarketer ? true : undefined,
     daily_buyer_limit:
       typeof limitRaw === 'number' && Number.isFinite(limitRaw) && limitRaw > 0
         ? Math.floor(limitRaw)

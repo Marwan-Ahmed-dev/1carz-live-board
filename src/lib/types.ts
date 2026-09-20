@@ -82,6 +82,13 @@ export interface AppUser {
   username: string | null; // null حتى يكتمل الـ onboarding
   phone?: string;
   role?: AccountRole;
+  /**
+   * Explicit marketer flag — true لو الحساب ده مسوّق.
+   * Distinguishes مسوّق عن باقي الـ user roles (regular users, etc).
+   * الـ app/src/app/cars يفلتر العربيات بـ assigned_to بناءً على الـ flag ده
+   * (مع fallback على daily_buyer_limit > 0 لو مش متعيّن).
+   */
+  is_marketer?: boolean;
   /** حد تسجيل المشترين اليومي للمسوّق — افتراضي 5 */
   daily_buyer_limit?: number;
   onboarded_at: FirestoreTs;
