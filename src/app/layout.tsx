@@ -56,6 +56,12 @@ export default function RootLayout({
       <head>
         {/* PWA: ربط manifest */}
         <link rel="manifest" href="/manifest.json?v=8" />
+        {/* ✅ L16 — preconnect to Firebase Auth + Storage origins to shave
+            connection setup time off the first Firestore / Auth / Storage call. */}
+        <link rel="preconnect" href="https://carz-live-board.firebaseapp.com" />
+        <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
+        <link rel="preconnect" href="https://firestore.googleapis.com" />
+        <link rel="dns-prefetch" href="https://*.googleapis.com" />
         <script
           dangerouslySetInnerHTML={{
             __html:

@@ -41,10 +41,9 @@ Both `POST`/`PATCH`/`DELETE` go through `lib/adminAuthServer.ts`, which uses the
 - **Next.js 14** (App Router) + **TypeScript** (strict mode)
 - **Tailwind CSS** with custom theme (light public + dark admin)
 - **Firebase** v10 modular SDK — Auth + Firestore + Storage (browser) + Admin SDK (server-only)
-- **react-firebase-hooks** for listeners where convenient, but most live updates go through `onSnapshot` directly so we control error / loading states
 - **lucide-react** for icons (no emojis in UI)
 - **next/font** for Cairo (Arabic) + Inter (numbers, tabular)
-- **react-firebase-hooks** is intentionally avoided in hot paths (admin dashboard, live board) — we wire `onSnapshot` directly so we can attach logger + fallback paths
+- All Firestore listeners wire `onSnapshot` directly (no `react-firebase-hooks`) so we control error / loading states and attach logger + fallback paths
 - **Vercel** for hosting (fra1 region)
 
 ---
