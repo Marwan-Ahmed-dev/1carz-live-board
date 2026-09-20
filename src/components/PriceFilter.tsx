@@ -57,8 +57,9 @@ export function PriceFilter({ onApply, initialMin, initialMax }: PriceFilterProp
         <div className="p-4 pt-2 border-t border-border-soft space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">أقل سعر</label>
+              <label htmlFor="price-filter-min" className="block text-xs font-medium text-text-secondary mb-1">أقل سعر</label>
               <input
+                id="price-filter-min"
                 type="text"
                 inputMode="numeric"
                 value={minVal}
@@ -69,8 +70,9 @@ export function PriceFilter({ onApply, initialMin, initialMax }: PriceFilterProp
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">أعلى سعر</label>
+              <label htmlFor="price-filter-max" className="block text-xs font-medium text-text-secondary mb-1">أعلى سعر</label>
               <input
+                id="price-filter-max"
                 type="text"
                 inputMode="numeric"
                 value={maxVal}

@@ -665,8 +665,9 @@ export default function AdminUsersPage() {
             </div>
             <form onSubmit={handleCreateUser} className="space-y-2.5">
               <div>
-                <label className="block text-xs font-bold text-admin-text-muted mb-1">الاسم</label>
+                <label htmlFor="new-user-name" className="block text-xs font-bold text-admin-text-muted mb-1">الاسم</label>
                 <input
+                  id="new-user-name"
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -677,10 +678,11 @@ export default function AdminUsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-admin-text-muted mb-1">
+                <label htmlFor="new-user-email" className="block text-xs font-bold text-admin-text-muted mb-1">
                   البريد الإلكتروني
                 </label>
                 <input
+                  id="new-user-email"
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
@@ -691,10 +693,11 @@ export default function AdminUsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-admin-text-muted mb-1">
+                <label htmlFor="new-user-phone" className="block text-xs font-bold text-admin-text-muted mb-1">
                   رقم التليفون
                 </label>
                 <input
+                  id="new-user-phone"
                   type="tel"
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
@@ -705,10 +708,11 @@ export default function AdminUsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-admin-text-muted mb-1">
+                <label htmlFor="new-user-group" className="block text-xs font-bold text-admin-text-muted mb-1">
                   المجموعة
                 </label>
                 <select
+                  id="new-user-group"
                   value={newGroupId}
                   onChange={(e) => setNewGroupId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
@@ -722,8 +726,8 @@ export default function AdminUsersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-admin-text-muted mb-1.5">نوع الحساب</label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <span id="new-user-role-label" className="block text-xs font-bold text-admin-text-muted mb-1.5">نوع الحساب</span>
+                <div role="radiogroup" aria-labelledby="new-user-role-label" className="grid grid-cols-3 gap-1.5">
                   {(
                     [
                       { value: 'user', label: 'مسوق' },
@@ -753,10 +757,11 @@ export default function AdminUsersPage() {
               </div>
               {newRole === 'user' && (
                 <div>
-                  <label className="block text-xs font-bold text-admin-text-muted mb-1">
+                  <label htmlFor="new-user-daily-limit" className="block text-xs font-bold text-admin-text-muted mb-1">
                     حد المشترين اليومي
                   </label>
                   <input
+                    id="new-user-daily-limit"
                     type="number"
                     min={1}
                     max={500}
@@ -772,10 +777,11 @@ export default function AdminUsersPage() {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold text-admin-text-muted mb-1">
+                <label htmlFor="new-user-password" className="block text-xs font-bold text-admin-text-muted mb-1">
                   كلمة المرور
                 </label>
                 <input
+                  id="new-user-password"
                   type="text"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}

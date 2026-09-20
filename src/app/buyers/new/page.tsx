@@ -125,13 +125,14 @@ export default function NewBuyerPage() {
           className="bg-bg-card border border-border-soft rounded-2xl p-4 sm:p-5 space-y-4 shadow-soft"
         >
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1.5">اسم المشتري</label>
+            <label htmlFor="buyer-name" className="block text-sm font-medium text-text-secondary mb-1.5">اسم المشتري</label>
             <div className="relative">
               <UserRound
                 size={18}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
               />
               <input
+                id="buyer-name"
                 type="text"
                 required
                 value={name}
@@ -143,7 +144,7 @@ export default function NewBuyerPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1.5">
+            <label htmlFor="buyer-phone" className="block text-sm font-medium text-text-secondary mb-1.5">
               رقم المشتري (11 رقم)
             </label>
             <div className="relative">
@@ -152,6 +153,7 @@ export default function NewBuyerPage() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
               />
               <input
+                id="buyer-phone"
                 type="tel"
                 required
                 inputMode="numeric"
@@ -166,10 +168,11 @@ export default function NewBuyerPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1.5">الوصف</label>
+            <label htmlFor="buyer-description" className="block text-sm font-medium text-text-secondary mb-1.5">الوصف</label>
             <div className="relative">
               <FileText size={18} className="absolute right-3 top-3 text-text-muted pointer-events-none" />
               <textarea
+                id="buyer-description"
                 required
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

@@ -68,6 +68,19 @@ button,
   scroll-behavior: smooth;
 }
 
+/* ✅ L8 — respect prefers-reduced-motion: kill all animations + transitions
+   for users who've opted out at the OS level (vestibular disorders, focus, etc.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* إصلاح scroll bar */
 ::-webkit-scrollbar {
   width: 8px;
