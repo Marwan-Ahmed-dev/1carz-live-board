@@ -172,3 +172,21 @@ export function formatFullDate(input: DateLike | null | undefined): string {
     day: 'numeric',
   }).format(date);
 }
+
+/**
+ * تنسيق تاريخ قصير ثابت بالعربية لتوقيت القاهرة — زي "15‏/9‏/2026"
+ * مفيد للـ lists / car card timestamps / copy event rows اللي مينفعش تستخدم
+ * فيها النسبية ("النهاردة" / "أمس") لأن العمود الزمني مهم.
+ *
+ * Always Africa/Cairo — زي formatRelativeDate — عشان كل اللوحة تشوف نفس اليوم.
+ */
+export function formatShortDate(input: DateLike | null | undefined): string {
+  const date = toJsDateSafe(input);
+  if (!date) return '-';
+  return new Intl.DateTimeFormat('ar-EG', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date);
+}

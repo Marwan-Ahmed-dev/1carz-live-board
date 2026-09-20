@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Search, Users } from 'lucide-react';
+import { ChevronDown, Search, Users, UserSearch } from 'lucide-react';
 import { BuyerLead } from '@/lib/types';
 import {
   subscribeToLast30DaysBuyerLeads,
@@ -10,6 +10,7 @@ import {
 import { digitsOnly } from '@/lib/phone';
 import { toJsDate } from '@/lib/cairoDay';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { EmptyState } from '@/components/EmptyState';
 
 const PAGE_SIZE = 10;
 
@@ -160,13 +161,21 @@ export function BuyersPanel() {
       </div>
 
       {shown.length === 0 ? (
-        <p className="text-sm text-admin-text-muted py-2">
-          {search
-            ? 'مفيش نتائج للبحث ده'
-            : tab === 'today'
-              ? 'لسه مفيش مشترين النهاردة'
-              : 'مفيش تسجيلات في آخر 30 يوم'}
-        </p>
+        <EmptyState
+          icon={search ? <UserSearch size={40} /> : <Users size={40} />}
+          title={
+            search
+              ? 'مفيش نتائج للبحث ده'
+              : tab === 'today'
+                ? 'لسه مفيش مشترين النهاردة'
+                : 'مفيش تسجيلات في آخر 30 يوم'
+          }
+          description={
+            search
+              ? 'جرب تغيير كلمة البحث أو امسحها'
+              : 'لما المسوّقين يسجّلوا مشترين جدد هيظهروا هنا'
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {shown.map((group) => {

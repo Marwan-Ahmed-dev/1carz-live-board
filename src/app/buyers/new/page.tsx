@@ -9,6 +9,7 @@ import { DEFAULT_DAILY_BUYER_LIMIT } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
 import { useToast } from '@/hooks/useToast';
+import { toEnglishDigits } from '@/lib/format';
 
 export default function NewBuyerPage() {
   const router = useRouter();
@@ -155,7 +156,7 @@ export default function NewBuyerPage() {
                 required
                 inputMode="numeric"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
                 placeholder="01xxxxxxxxx"
                 maxLength={15}
                 dir="ltr"

@@ -6,11 +6,20 @@
  * - Cache-first for static assets (JS, CSS, images)
  * - Network-only for manifest.json
  *
- * Caching version: v6 — shortcut (not WebAPK/app install).
+ * Caching version: v7 — Medium batch (README/formatShortDate/Lightbox adj priority/
+ * BuyersPanel EmptyState/buyer phone toEnglishDigits/admin sort).
+ *
+ * ⚠️ Bump STATIC_CACHE + RUNTIME_CACHE on every deploy that changes:
+ *   - the pre-cached asset list (STATIC_ASSETS)
+ *   - the runtime fetch strategy
+ *   - which paths are intercepted
+ *
+ * Old caches are deleted on `activate` by name, so renaming the constants
+ * is enough to force a clean slate on clients.
  */
 
-const STATIC_CACHE = '1carz-static-v6';
-const RUNTIME_CACHE = '1carz-runtime-v6';
+const STATIC_CACHE = '1carz-static-v7';
+const RUNTIME_CACHE = '1carz-runtime-v7';
 
 const STATIC_ASSETS = [
   '/icons/icon-192.png',

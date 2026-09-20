@@ -124,8 +124,10 @@ export function Lightbox({
         className="relative w-full h-full max-w-[95vw] max-h-[90vh] mx-4"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* M17: active + prev/next marked priority so navigation feels instant;
+            next/image still lazy-loads anything outside this window. */}
         <Image
-          key={currentImage}
+          key={`main-${currentImage}`}
           src={currentImage}
           alt={`${alt} ${idx + 1}`}
           fill
@@ -135,6 +137,33 @@ export function Lightbox({
           draggable={false}
           priority
         />
+        {/* Hidden adjacent preload — keeps prev/next ready for arrow navigation */}
+        {images[(idx - 1 + images.length) % images.length] && (
+          <Image
+            key={`prev-${currentImage}`}
+            src={images[(idx - 1 + images.length) % images.length]}
+            alt=""
+            aria-hidden
+            fill
+            sizes="95vw"
+            unoptimized
+            className="opacity-0 pointer-events-none"
+            priority
+          />
+        )}
+        {images[(idx + 1) % images.length] && (
+          <Image
+            key={`next-${currentImage}`}
+            src={images[(idx + 1) % images.length]}
+            alt=""
+            aria-hidden
+            fill
+            sizes="95vw"
+            unoptimized
+            className="opacity-0 pointer-events-none"
+            priority
+          />
+        )}
       </div>
 
       {images.length > 1 && (
