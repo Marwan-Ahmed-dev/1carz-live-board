@@ -442,21 +442,33 @@ export interface SubscribeToCarsFilters {
   priority?: Priority;
   minPrice?: number;
   maxPrice?: number;
-  /** User UID — retained for callers; no longer filters by assignment */
+  /** User UID — للـ caller الأقدم في الكود، لم نعد نستخدمه كفلتر أساسي */
   uid?: string | null;
-  /** ضيف بدون login: نفس ظهور المسوّق — كل العربيات المعروضة */
+  /** ضيف بدون login: كل العربيات */
   publicOnly?: boolean;
+  /**
+   * Marketer filter: لما المستخدم مسوّق نفلتر على العربيات المعيّنة ليه
+   * (assigned_to contains.uid) أو لأي مجموعة من مجموعاته (assigned_to contains any groupUids)
+   * أو 'all'. نضيف 'all' ضمن الـ array عشان العربيات العامة تفضل ظاهرة للمسوّق.
+   * Firestore 'array-contains-any' محدود 30 قيمة فبنعمل dedup + truncate.
+   * لو الـ marketer مش موجود (marketerFilter = null/undefined) → مفيش فلتر assignment
+   * (الـ status لم يعد visibility gate — كل العربيات ظاهرة).
+   */
+  marketerFilter?: { uid: string; groupUids: string[] } | null;
   onError?: (err: Error) => void;
 }
-
-/** حالات تظهر للمشاهدين (ضيف / مسوّق) — inactive تبقى للأدمن فقط */
-export const VIEWABLE_CAR_STATUSES: CarStatus[] = ['active', 'reserved', 'sold'];
 
 /**
  * Real-time listener على مجموعة العربيات.
  *
- * المشاهدون (uid أو publicOnly): كل العربيات active/reserved/sold بغض النظر عن assigned_to.
- * الأدمن (من غير uid/publicOnly): كل الحالات بما فيها inactive.
+ * الـ visibility model الحالي:
+ * - **ضيف / user عادي / admin / inspector**: كل العربيات (كل الـ statuses بما فيها inactive).
+ *   الحالة (status) بقت مجرد تصنيف (متاحة/محجوزة/مباعة/موقوفة) مش visibility gate.
+ * - **مسوّق (marketerFilter)**: العربيات المعيّنة ليه أو لأي مجموعة من مجموعاته
+ *   أو 'all' — بصرف النظر عن الحالة.
+ *
+ * ملاحظة: مفيش فلتر status بعد كده. لو الأدمن عايز يخفي عربية، يقدر يغير الحالة
+ * لـ 'inactive' (بس اللوحة نفسها مش مخفية).
  */
 export function subscribeToCars(
   callback: (cars: Car[]) => void,
@@ -464,10 +476,12 @@ export function subscribeToCars(
 ): () => void {
   const ref = collection(db, CARS_COLLECTION);
   const constraints: QueryConstraint[] = [];
-  const viewerMode = !!(filters.uid || filters.publicOnly);
 
-  if (viewerMode) {
-    constraints.push(where('status', 'in', VIEWABLE_CAR_STATUSES));
+  // Marketer filter: مسوّق يشوف العربيات المعيّنة ليه أو لمجموعته أو الـ 'all' العامة.
+  if (filters.marketerFilter && filters.marketerFilter.uid) {
+    const { uid, groupUids } = filters.marketerFilter;
+    const filterIds = Array.from(new Set([uid, ...groupUids, 'all'])).slice(0, 30);
+    constraints.push(where('assigned_to', 'array-contains-any', filterIds));
   }
 
   if (filters.priority) {
@@ -491,9 +505,7 @@ export function subscribeToCars(
   return onSnapshot(
     q,
     (snap) => {
-      const cars = snap.docs.map(normalizeCar).filter((c) =>
-        viewerMode ? isCarListedForViewers(c) : true
-      );
+      const cars = snap.docs.map(normalizeCar);
       callback(cars);
     },
     (err) => {
@@ -504,18 +516,19 @@ export function subscribeToCars(
 }
 
 /**
- * عربية ظاهرة للمشاهد: متاحة / محجوزة / مباعة.
- * التعيين (assigned_to) مش بيخفي العربية عن المسوّق أو الضيف.
+ * عربية ظاهرة للمشاهد: مفيش فلتر status بعد كده — الـ visibility بقت Assignment-only
+ * (للمسوّقين) أو Public (لـ everyone else). الحالة مجرد تصنيف.
  */
 export function isCarListedForViewers(car: Car): boolean {
-  return VIEWABLE_CAR_STATUSES.includes(car.status);
+  return true;
 }
 
 /**
- * عربية ظاهرة للمستخدم العادي — التعيين لم يعد يقيّد الظهور.
+ * عربية ظاهرة للمستخدم العادي — بقت always true الآن.
+ * التوقيع محتفظ بيه للتوافق مع الكود القديم (يستدعي بـ car, uid).
  */
-export function isCarVisibleToUser(car: Car, _uid?: string): boolean {
-  return isCarListedForViewers(car);
+export function isCarVisibleToUser(_car: Car, _uid?: string): boolean {
+  return true;
 }
 
 /**
