@@ -12,15 +12,45 @@ import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { PriorityFilter } from '@/lib/types';
 import { PRIORITY_ACCENTS, PRIORITY_LABELS, PRIORITY_ORDER, PRIORITY_SECTION_LABELS } from '@/lib/priority';
+import { subscribeToGroups } from '@/lib/groups';
+
+/**
+ * تحديد هل المستخدم مسوّق (بيشوف عربيات مخصوصة بس).
+ * الترتيب:
+ *   1. الـ flag الصريح is_marketer === true (يفوز حتى لو daily_buyer_limit = 0)
+ *   2. fallback: daily_buyer_limit > 0 مع role = 'user' (أي حد غير الأدمن والمعاين)
+ *
+ * ⚠️ السيرفر (Firestore rules) مش بيطبّق الفلتر ده — ده UX personalization بس
+ * لأن البيانات نفسها (cars) public للقراءة. مرجع: commit الذي أعاد الـ model.
+ */
+function detectIsMarketer(
+  userData: { is_marketer?: boolean; daily_buyer_limit?: number; role?: 'admin' | 'user' | 'inspector' } | null,
+  isStaff: boolean
+): boolean {
+  if (!userData) return false;
+  if (userData.is_marketer === true) return true;
+  if (isStaff) return false; // admin/inspector مش مسوّقين حتى لو عندهم daily_limit
+  // fallback: user عادي عنده daily_buyer_limit > 0 → اعتبره مسوّق
+  return (
+    userData.role === 'user' &&
+    typeof userData.daily_buyer_limit === 'number' &&
+    userData.daily_buyer_limit > 0
+  );
+}
 
 export default function CarsBoardPage() {
   const router = useRouter();
-  const { user, userData, loading: authLoading, needsOnboarding, error: authError } = useAuth();
+  const { user, userData, isAdmin, isInspector, loading: authLoading, needsOnboarding, error: authError } = useAuth();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
 
+  // المجموعات اللي اليوزر عضو فيها (للمسوّق فقط)
+  const [marketerGroupUids, setMarketerGroupUids] = useState<string[]>([]);
+
+  const isStaff = isAdmin || isInspector;
   const isGuest = !authLoading && !user;
+  const isMarketer = !isGuest && !isStaff && detectIsMarketer(userData, isStaff);
 
   useEffect(() => {
     if (authLoading) return;
@@ -36,10 +66,34 @@ export default function CarsBoardPage() {
     }
   }, [isGuest, priorityFilter]);
 
+  // لو مسوّق: اسحب المجموعات اللي هو عضو فيها وحدّد UIDs بتاعتها
+  useEffect(() => {
+    if (!isMarketer || !user) {
+      setMarketerGroupUids([]);
+      return;
+    }
+    const unsub = subscribeToGroups((groups) => {
+      const uids: string[] = [];
+      for (const g of groups) {
+        if (g.memberUids && g.memberUids.includes(user.uid)) {
+          uids.push(g.id);
+        }
+      }
+      setMarketerGroupUids(uids);
+    });
+    return () => unsub();
+  }, [isMarketer, user]);
+
+  const marketerFilter = useMemo(() => {
+    if (!isMarketer || !user) return null;
+    return { uid: user.uid, groupUids: marketerGroupUids };
+  }, [isMarketer, user, marketerGroupUids]);
+
   const { cars, loading, error } = useCars({
     priority: priorityFilter,
     uid: user?.uid,
     publicOnly: isGuest,
+    marketerFilter,
     minPrice,
     maxPrice,
   });
@@ -87,7 +141,7 @@ export default function CarsBoardPage() {
         <PriorityButtons
           current={priorityFilter}
           onChange={setPriorityFilter}
-          guestMode={isGuest}
+          guestMode={isGuest || isMarketer}
         />
 
         <PriceFilter
@@ -112,9 +166,11 @@ export default function CarsBoardPage() {
           <EmptyState
             title="لا توجد عربيات حالياً"
             description={
-              priorityFilter === 'all'
-                ? 'سيتم إضافة عربيات جديدة قريباً. تابعنا!'
-                : `لا توجد عربيات بمستوى ${PRIORITY_LABELS[priorityFilter]} حالياً`
+              isMarketer
+                ? 'لا توجد عربيات مخصصة لك أو لمجموعتك بعد. تواصل مع الأدمن.'
+                : priorityFilter === 'all'
+                  ? 'سيتم إضافة عربيات جديدة قريباً. تابعنا!'
+                  : `لا توجد عربيات بمستوى ${PRIORITY_LABELS[priorityFilter]} حالياً`
             }
           />
         )}
