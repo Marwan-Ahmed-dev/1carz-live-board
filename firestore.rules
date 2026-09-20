@@ -19,12 +19,6 @@ service cloud.firestore {
       return isAdmin() || isInspector();
     }
 
-    function isViewableCar() {
-      // Deprecated — الـ status لم يعد visibility gate (تحوّل لـ label بس).
-      // الفانكشن دي موجودة بس للتوافق مع النداءات القديمة في الكود المحلي.
-      return true;
-    }
-
     // ============== Users Collection ==============
     match /users/{uid} {
       allow get: if isSignedIn() && (request.auth.uid == uid || isStaff());
