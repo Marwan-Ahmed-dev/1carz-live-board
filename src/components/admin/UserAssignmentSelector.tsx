@@ -5,6 +5,7 @@ import { Search, X, Users as UsersIcon, UserCheck, ChevronDown, ChevronLeft } fr
 import { subscribeToUsers } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { AppUser, UserGroup } from '@/lib/types';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface UserAssignmentSelectorProps {
   value: string[];

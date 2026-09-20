@@ -36,8 +36,8 @@ export default function LoginPage() {
     try {
       await signIn(email, password, rememberMe);
       // الـ useEffect هيعمل redirect تلقائياً لما تتحدث حالة الـ auth
-    } catch (err: any) {
-      setError(err.message || 'فشل تسجيل الدخول');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول');
     } finally {
       setSubmitting(false);
     }

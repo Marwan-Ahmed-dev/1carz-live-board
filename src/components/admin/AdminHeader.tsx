@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
+import { logger } from '@/lib/logger';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -41,7 +42,7 @@ export function AdminHeader() {
       await signOut();
       router.replace('/login');
     } catch (err) {
-      console.error(err);
+      logger.error('Admin logout failed:', err);
       setLoggingOut(false);
     }
   };

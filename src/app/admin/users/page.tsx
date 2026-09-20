@@ -30,6 +30,8 @@ import { subscribeToCars } from '@/lib/cars';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
+import { logger } from '@/lib/logger';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 function formatDate(ts: unknown): string {
   if (!ts) return '-';
@@ -147,10 +149,13 @@ export default function AdminUsersPage() {
   const groupsForUser = (uid: string): string[] =>
     groups.filter((g) => g.memberUids.includes(uid)).map((g) => g.name);
 
+  // M28: debounce search input so الـ filter ما يعملش على كل keystroke
+  const debouncedSearch = useDebouncedValue(search, 250);
+
   const filteredUsers = useMemo(() => {
     let list = users;
-    if (search.trim()) {
-      const s = search.trim().toLowerCase();
+    if (debouncedSearch.trim()) {
+      const s = debouncedSearch.trim().toLowerCase();
       list = list.filter(
         (u) =>
           u.username?.toLowerCase().includes(s) ||
@@ -159,7 +164,7 @@ export default function AdminUsersPage() {
       );
     }
     return list;
-  }, [users, search]);
+  }, [users, debouncedSearch]);
 
   const SelectedUserCars = ({ uid }: { uid: string }) => {
     const [cars, setCars] = useState<Array<{ id?: string; title: string; image_url: string }>>([]);
@@ -641,38 +646,38 @@ export default function AdminUsersPage() {
 
       {createOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4"
           onClick={() => !creating && setCreateOpen(false)}
         >
           <div
-            className="bg-admin-card border border-admin-border rounded-2xl w-full max-w-md p-5 modal-in"
+            className="bg-admin-card border border-admin-border rounded-2xl w-full max-w-sm p-4 modal-in max-h-[88vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-admin-text">إنشاء حساب</h3>
+            <div className="flex items-center justify-between mb-3 sticky top-0 bg-admin-card z-10 pb-1">
+              <h3 className="text-base font-bold text-admin-text">إنشاء حساب</h3>
               <button
                 onClick={() => !creating && setCreateOpen(false)}
-                className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
+                className="w-9 h-9 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center"
                 aria-label="إغلاق"
               >
-                <X size={16} className="text-admin-text-muted" />
+                <X size={15} className="text-admin-text-muted" />
               </button>
             </div>
-            <form onSubmit={handleCreateUser} className="space-y-3">
+            <form onSubmit={handleCreateUser} className="space-y-2.5">
               <div>
-                <label className="block text-sm font-bold text-admin-text-muted mb-1">الاسم</label>
+                <label className="block text-xs font-bold text-admin-text-muted mb-1">الاسم</label>
                 <input
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="اسم المستخدم"
                   maxLength={20}
-                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                  className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                <label className="block text-xs font-bold text-admin-text-muted mb-1">
                   البريد الإلكتروني
                 </label>
                 <input
@@ -680,13 +685,13 @@ export default function AdminUsersPage() {
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="email@example.com"
-                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                  className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
                   required
                   dir="ltr"
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                <label className="block text-xs font-bold text-admin-text-muted mb-1">
                   رقم التليفون
                 </label>
                 <input
@@ -694,19 +699,19 @@ export default function AdminUsersPage() {
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
                   placeholder="01xxxxxxxxx"
-                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                  className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
                   required
                   dir="ltr"
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                <label className="block text-xs font-bold text-admin-text-muted mb-1">
                   المجموعة
                 </label>
                 <select
                   value={newGroupId}
                   onChange={(e) => setNewGroupId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                  className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
                 >
                   <option value="">بدون مجموعة</option>
                   {groups.map((g) => (
@@ -717,8 +722,8 @@ export default function AdminUsersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-admin-text-muted mb-2">نوع الحساب</label>
-                <div className="space-y-3">
+                <label className="block text-xs font-bold text-admin-text-muted mb-1.5">نوع الحساب</label>
+                <div className="grid grid-cols-3 gap-1.5">
                   {(
                     [
                       { value: 'user', label: 'مسوق' },
@@ -728,23 +733,27 @@ export default function AdminUsersPage() {
                   ).map((opt) => (
                     <label
                       key={opt.value}
-                      className="flex items-center gap-3 min-h-11 px-2 py-2 rounded-xl cursor-pointer hover:bg-admin-bg"
+                      className={`flex items-center justify-center gap-1.5 min-h-10 px-1 rounded-lg cursor-pointer border text-xs font-bold transition-colors ${
+                        newRole === opt.value
+                          ? 'bg-admin-accent/15 border-admin-accent text-admin-accent'
+                          : 'bg-admin-bg border-admin-border text-admin-text-muted'
+                      }`}
                     >
                       <input
                         type="radio"
                         name="account-role"
                         checked={newRole === opt.value}
                         onChange={() => setNewRole(opt.value)}
-                        className="w-5 h-5 border-admin-border text-admin-accent"
+                        className="sr-only"
                       />
-                      <span className="text-sm font-bold text-admin-text">{opt.label}</span>
+                      {opt.label}
                     </label>
                   ))}
                 </div>
               </div>
               {newRole === 'user' && (
                 <div>
-                  <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                  <label className="block text-xs font-bold text-admin-text-muted mb-1">
                     حد المشترين اليومي
                   </label>
                   <input
@@ -753,15 +762,17 @@ export default function AdminUsersPage() {
                     max={500}
                     value={newDailyLimit}
                     onChange={(e) => setNewDailyLimit(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                    className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
                     required
                     dir="ltr"
                   />
-                  <p className="text-xs text-admin-text-muted mt-1">افتراضي {DEFAULT_DAILY_BUYER_LIMIT}</p>
+                  <p className="text-[11px] text-admin-text-muted mt-0.5">
+                    افتراضي {DEFAULT_DAILY_BUYER_LIMIT}
+                  </p>
                 </div>
               )}
               <div>
-                <label className="block text-sm font-bold text-admin-text-muted mb-1">
+                <label className="block text-xs font-bold text-admin-text-muted mb-1">
                   كلمة المرور
                 </label>
                 <input
@@ -770,20 +781,20 @@ export default function AdminUsersPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="6 أحرف على الأقل"
                   minLength={6}
-                  className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text"
+                  className="w-full px-3 py-2 rounded-lg bg-admin-bg border border-admin-border text-admin-text text-sm"
                   required
                   dir="ltr"
                 />
               </div>
               {createError && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400">
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-xs text-red-400">
                   {createError}
                 </div>
               )}
               <button
                 type="submit"
                 disabled={creating}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm disabled:opacity-60"
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm disabled:opacity-60 mt-1"
               >
                 {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                 إنشاء الحساب

@@ -21,6 +21,34 @@ import { auth, db } from './firebase';
 import { AppUser } from './types';
 import { normalizeUsernameKey, validateUsername } from './users';
 import { validatePhone } from './phone';
+import { logger } from './logger';
+import type { FieldValue, Timestamp } from 'firebase/firestore';
+
+/**
+ * Cast serverTimestamp() sentinel to the stored Timestamp | null type.
+ * Firestore resolves the sentinel on commit — the cast is only for type
+ * compatibility with AppUser's stricter Timestamp | null shape.
+ */
+function asStoredTs(sentinel: FieldValue): Timestamp | null {
+  return sentinel as unknown as Timestamp | null;
+}
+
+/**
+ * Narrow Firebase AuthError into a string code (e.g. "auth/wrong-password").
+ * Falls back to empty string for unknown error shapes.
+ */
+function authErrorCode(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+  }
+  return '';
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 
 /**
  * H9: throttled last_seen writer.
@@ -66,7 +94,7 @@ function scheduleLastSeenUpdate(uid: string): void {
   writeLastSeenTimestamp(uid, now);
   // fire-and-forget — ما نكتررش الـ promise في الـ caller
   updateDoc(doc(db, 'users', uid), { last_seen: serverTimestamp() }).catch((err) => {
-    console.warn('[scheduleLastSeenUpdate] failed (non-fatal):', err);
+    logger.warn('[scheduleLastSeenUpdate] failed (non-fatal):', err);
     // rollback the throttle so we can retry next time
     writeLastSeenTimestamp(uid, last);
   });
@@ -94,8 +122,8 @@ export async function signIn(
     );
     const cred = await signInWithEmailAndPassword(auth, email, password);
     return cred.user;
-  } catch (err: any) {
-    const code = err?.code || '';
+  } catch (err: unknown) {
+    const code = authErrorCode(err);
     if (
       code === 'auth/user-not-found' ||
       code === 'auth/wrong-password' ||
@@ -109,7 +137,7 @@ export async function signIn(
     if (code === 'auth/network-request-failed') {
       throw new Error('خطأ في الاتصال بالإنترنت');
     }
-    throw new Error(err?.message || 'فشل تسجيل الدخول');
+    throw new Error(errorMessage(err, 'فشل تسجيل الدخول'));
   }
 }
 
@@ -134,14 +162,14 @@ export async function ensureUserDoc(user: User): Promise<AppUser> {
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    const newUser: AppUser = {
+    const newUser = {
       uid: user.uid,
       email: user.email || '',
       username: null,
       onboarded_at: null,
-      created_at: serverTimestamp() as any,
-      last_seen: serverTimestamp() as any,
-    };
+      created_at: asStoredTs(serverTimestamp()),
+      last_seen: asStoredTs(serverTimestamp()),
+    } satisfies Omit<AppUser, 'phone' | 'role' | 'daily_buyer_limit'>;
     await setDoc(ref, newUser);
     // أول ظهور — ثبّت الـ timestamp في localStorage عشان أول refresh بعد كده يـ throttle
     writeLastSeenTimestamp(user.uid, Date.now());
@@ -170,7 +198,7 @@ async function claimExistingUsername(uid: string, username: string): Promise<voi
       });
     }
   } catch (err) {
-    console.error('Failed to claim existing username', err);
+    logger.error('Failed to claim existing username', err);
   }
 }
 

@@ -57,8 +57,8 @@ export default function OnboardingPage() {
       setTimeout(() => {
         router.replace('/cars');
       }, 1500);
-    } catch (err: any) {
-      setError(err.message || 'حدث خطأ، حاول مرة أخرى');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'حدث خطأ، حاول مرة أخرى');
     } finally {
       setSubmitting(false);
     }

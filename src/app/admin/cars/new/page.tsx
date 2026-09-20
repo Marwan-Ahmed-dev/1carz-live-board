@@ -8,6 +8,7 @@ import { NewCarInput } from '@/lib/types';
 import { useToast } from '@/hooks/useToast';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { logger } from '@/lib/logger';
 
 export default function NewCarPage() {
   const router = useRouter();
@@ -31,7 +32,8 @@ export default function NewCarPage() {
         additional_images: additional,
         updated_at: serverTimestamp(),
       });
-    } catch (imgErr: any) {
+    } catch (imgErr: unknown) {
+      logger.error('[NewCarPage] image upload failed', imgErr);
       showToast(
         'تم إنشاء العربية لكن فشل رفع الصور. افتح التعديل وأضف الصور مرة أخرى.',
         'error'

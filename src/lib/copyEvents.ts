@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { startOfCairoDay } from './cairoDay';
+import { logger } from './logger';
 
 const COPY_EVENTS = 'copy_events';
 const recent = new Map<string, number>();
@@ -45,7 +46,7 @@ export async function logPhoneCopy(options?: {
       created_at: serverTimestamp(),
     });
   } catch (err) {
-    console.warn('[logPhoneCopy] skipped', err);
+    logger.warn('[logPhoneCopy] skipped', err);
   }
 }
 
@@ -75,7 +76,7 @@ export function subscribeToTodaysCopyEvents(
       );
     },
     (err) => {
-      console.error('copy_events subscription error:', err);
+      logger.error('copy_events subscription error:', err);
       callback([]);
     }
   );

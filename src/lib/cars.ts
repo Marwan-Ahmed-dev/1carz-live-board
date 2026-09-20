@@ -27,6 +27,7 @@ import { db } from './firebase';
 import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
 import { deleteCarImages } from './storage';
 import { PRIORITY_ORDER } from './priority';
+import { logger } from './logger';
 
 const CARS_COLLECTION = 'cars';
 
@@ -128,12 +129,12 @@ export async function addCar(input: NewCarInput): Promise<string> {
     }
     assignedTo = input.assigned_to;
   } else if (Array.isArray(input.assigned_to) && input.assigned_to.length === 0) {
-    console.warn('[addCar] assigned_to is empty, defaulting to [\'all\']');
+    logger.warn('[addCar] assigned_to is empty, defaulting to [\'all\']');
     assignedTo = ['all'];
   } else if (typeof input.assigned_to === 'string') {
     assignedTo = [input.assigned_to];
   } else {
-    console.warn('[addCar] assigned_to missing/invalid, defaulting to [\'all\']');
+    logger.warn('[addCar] assigned_to missing/invalid, defaulting to [\'all\']');
     assignedTo = ['all'];
   }
 
@@ -240,7 +241,7 @@ export async function deleteCar(id: string): Promise<void> {
   try {
     await deleteCarImages(id);
   } catch (err) {
-    console.warn('[deleteCar] storage cleanup failed (non-fatal):', err);
+    logger.warn('[deleteCar] storage cleanup failed (non-fatal):', err);
   }
 
   // 2) حذف الـ doc نفسه
@@ -424,7 +425,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
       await batch.commit();
       report.fixedCount += slice.length;
     } catch (err) {
-      console.error('[fixAllCarsAssignment] batch commit failed:', err);
+      logger.error('[fixAllCarsAssignment] batch commit failed:', err);
       // Mark the affected cars as failed so the UI can show the reason.
       const message = (err as Error).message;
       for (const u of slice) {
@@ -437,7 +438,7 @@ export async function fixAllCarsAssignment(): Promise<CarFixReport> {
     }
   }
 
-  console.log('[fixAllCarsAssignment] report:', report);
+  logger.debug('[fixAllCarsAssignment] report:', report);
   return report;
 }
 
@@ -516,7 +517,7 @@ export function subscribeToCars(
       callback(cars);
     },
     (err) => {
-      console.error('[subscribeToCars] error:', err);
+      logger.error('[subscribeToCars] error:', err);
       filters.onError?.(err);
     }
   );
@@ -546,7 +547,7 @@ export function subscribeToCar(
       callback(snap.exists() ? normalizeCar(snap) : null);
     },
     (err) => {
-      console.error('Car subscription error:', err);
+      logger.error('Car subscription error:', err);
       onError?.(err);
     }
   );
@@ -594,7 +595,7 @@ export function subscribeToPriorityCounts(callback: (counts: PriorityCounts) => 
       const counts = await fetchPriorityCounts();
       if (!cancelled) callback(counts);
     } catch (err) {
-      console.error('[subscribeToPriorityCounts] error:', err);
+      logger.error('[subscribeToPriorityCounts] error:', err);
       if (!cancelled) {
         callback({ arabyatna: 0, top: 0, high: 0, medium: 0, low: 0, total: 0 });
       }

@@ -4,6 +4,12 @@
 import { Timestamp } from 'firebase/firestore';
 
 /**
+ * Timestamp من Firestore أو null.
+ * الـ write-time `serverTimestamp()` sentinel بيتعمل cast محلي في lib/cars.ts و lib/auth.ts.
+ */
+export type FirestoreTs = Timestamp | null;
+
+/**
  * أولويات عرض العربيات
  * - arabyatna: عربياتنا
  * - top: قصوى (أعلى مستوى)
@@ -56,10 +62,10 @@ export interface Car {
   // حتى لو المستخدم ما عملش onboarding لسه.
   // ['all'] = لكل المستخدمين، ['uid1', 'uid2'] = لهؤلاء بس
   assigned_to: string[];
-  created_at: Timestamp | null;
-  updated_at: Timestamp | null;
-  reserved_at?: Timestamp | null;
-  sold_at?: Timestamp | null;
+  created_at: FirestoreTs;
+  updated_at: FirestoreTs;
+  reserved_at?: FirestoreTs;
+  sold_at?: FirestoreTs;
 }
 
 /**
@@ -78,9 +84,9 @@ export interface AppUser {
   role?: AccountRole;
   /** حد تسجيل المشترين اليومي للمسوّق — افتراضي 5 */
   daily_buyer_limit?: number;
-  onboarded_at: Timestamp | null;
-  created_at: Timestamp | null;
-  last_seen: Timestamp | null;
+  onboarded_at: FirestoreTs;
+  created_at: FirestoreTs;
+  last_seen: FirestoreTs;
 }
 
 /** تسجيل مشتري من المسوّق */
@@ -92,7 +98,7 @@ export interface BuyerLead {
   marketer_uid: string;
   marketer_name: string | null;
   marketer_phone: string | null;
-  created_at: Timestamp | null;
+  created_at: FirestoreTs;
 }
 
 export const DEFAULT_DAILY_BUYER_LIMIT = 5;
@@ -104,8 +110,8 @@ export interface UserGroup {
   id: string;
   name: string;
   memberUids: string[];
-  created_at: Timestamp | null;
-  updated_at: Timestamp | null;
+  created_at: FirestoreTs;
+  updated_at: FirestoreTs;
 }
 
 /**

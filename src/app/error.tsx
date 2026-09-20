@@ -6,6 +6,7 @@
 
 import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 export default function GlobalError({
   error,
@@ -17,7 +18,7 @@ export default function GlobalError({
   useEffect(() => {
     // Log for ops debugging — Next.js provides `digest` on the server side
     // that pairs with the server log.
-    console.error('[GlobalError]', error);
+    logger.error('[GlobalError]', error);
   }, [error]);
 
   return (

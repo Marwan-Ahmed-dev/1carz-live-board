@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { logger } from '@/lib/logger';
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
@@ -30,7 +31,7 @@ export function ServiceWorkerRegister() {
           void reg.update();
         })
         .catch((err) => {
-          console.error('Service worker registration failed:', err);
+          logger.error('Service worker registration failed:', err);
         });
 
       return () => {

@@ -16,6 +16,7 @@ import { AppUser, UserGroup } from '@/lib/types';
 import { createGroup, updateGroup, deleteGroup } from '@/lib/groups';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface GroupManagerProps {
   users: AppUser[];
@@ -45,19 +46,23 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
     return map;
   }, [users]);
 
+  // M28: debounce both search inputs
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const debouncedUserSearch = useDebouncedValue(userSearch, 250);
+
   const filteredGroups = useMemo(() => {
-    if (!search.trim()) return groups;
-    const s = search.trim().toLowerCase();
+    if (!debouncedSearch.trim()) return groups;
+    const s = debouncedSearch.trim().toLowerCase();
     return groups.filter((g) => g.name.toLowerCase().includes(s));
-  }, [groups, search]);
+  }, [groups, debouncedSearch]);
 
   const modalUsers = useMemo(() => {
-    if (!userSearch.trim()) return users;
-    const s = userSearch.trim().toLowerCase();
+    if (!debouncedUserSearch.trim()) return users;
+    const s = debouncedUserSearch.trim().toLowerCase();
     return users.filter(
       (u) => u.username?.toLowerCase().includes(s) || u.email.toLowerCase().includes(s)
     );
-  }, [users, userSearch]);
+  }, [users, debouncedUserSearch]);
 
   const openCreate = () => {
     setEditing(null);

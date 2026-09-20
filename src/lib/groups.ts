@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { UserGroup } from './types';
+import { logger } from './logger';
 
 const GROUPS_COLLECTION = 'groups';
 
@@ -37,7 +38,7 @@ export function subscribeToGroups(callback: (groups: UserGroup[]) => void): () =
       callback(groups);
     },
     (err) => {
-      console.error('Groups subscription error:', err);
+      logger.error('Groups subscription error:', err);
       callback([]);
     }
   );

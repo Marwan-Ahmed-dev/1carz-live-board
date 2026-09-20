@@ -2,6 +2,18 @@
 // الأسعار تُعرض دائماً بأرقام إنجليزية مع فاصلة كل 3 أرقام
 
 /**
+ * أي قيمة زمنية مقبولة:
+ * - Firestore Timestamp (has toDate())
+ * - Date
+ * - string ISO أو رقم ms
+ *
+ * NOTE: `FieldValue` (serverTimestamp sentinel) مش مقبول هنا — بنتوقع قيم
+ * مخزّنة فعلاً (قراءة من Firestore). الـ writes بتكتب FieldValue والـ reads
+ * بترجع Timestamp.
+ */
+export type DateLike = { toDate: () => Date } | Date | string | number;
+
+/**
  * تحويل الأرقام العربية/الفارسية إلى إنجليزية
  */
 export function toEnglishDigits(value: string): string {
@@ -13,6 +25,11 @@ export function toEnglishDigits(value: string): string {
 /**
  * تنسيق السعر للعرض بأرقام إنجليزية
  * مثال: 1980000 → "1,980,000"
+ *
+ * يتعامل بأمان مع:
+ * - 0 (يرجع "0")
+ * - NaN / Infinity (يرجع "0")
+ * - أرقام كبيرة جداً (Intl.NumberFormat يضيف فاصلة كل 3 أرقام)
  */
 export function formatPrice(price: number): string {
   if (!Number.isFinite(price)) return '0';
@@ -43,27 +60,39 @@ export function parsePriceInput(value: string): number {
 }
 
 /**
+ * يحوّل أي DateLike إلى Date أو null.
+ * يرجع null لو الـ input فاضي / نوع غير معروف / ناتج غير صالح.
+ */
+function toJsDateSafe(input: DateLike | null | undefined): Date | null {
+  if (!input) return null;
+  try {
+    if (input instanceof Date) {
+      return Number.isNaN(input.getTime()) ? null : input;
+    }
+    if (typeof input === 'object' && typeof input.toDate === 'function') {
+      const d = input.toDate();
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof input === 'string' || typeof input === 'number') {
+      const d = new Date(input);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * تنسيق التاريخ بشكل نسبي بالعربية
  * - "اليوم" / "أمس" / "قبل X أيام" / "قبل X أسابيع" / "قبل X شهور"
  * - لو أكتر من سنة، يرجع التاريخ الكامل
  *
  * يقبل: Timestamp من Firestore أو Date أو string ISO أو number (ms)
  */
-export function formatRelativeDate(input: any): string {
-  if (!input) return '-';
-  let date: Date;
-  try {
-    if (typeof input === 'object' && input.toDate) {
-      date = input.toDate();
-    } else if (input instanceof Date) {
-      date = input;
-    } else {
-      date = new Date(input);
-    }
-    if (isNaN(date.getTime())) return '-';
-  } catch {
-    return '-';
-  }
+export function formatRelativeDate(input: DateLike | null | undefined): string {
+  const date = toJsDateSafe(input);
+  if (!date) return '-';
 
   const now = Date.now();
   const diffMs = now - date.getTime();
@@ -134,21 +163,9 @@ export function formatRelativeDate(input: any): string {
 /**
  * تنسيق التاريخ الكامل بالعربية (للـ tooltip / fallback)
  */
-export function formatFullDate(input: any): string {
-  if (!input) return '-';
-  let date: Date;
-  try {
-    if (typeof input === 'object' && input.toDate) {
-      date = input.toDate();
-    } else if (input instanceof Date) {
-      date = input;
-    } else {
-      date = new Date(input);
-    }
-    if (isNaN(date.getTime())) return '-';
-  } catch {
-    return '-';
-  }
+export function formatFullDate(input: DateLike | null | undefined): string {
+  const date = toJsDateSafe(input);
+  if (!date) return '-';
   return new Intl.DateTimeFormat('ar-EG', {
     year: 'numeric',
     month: 'long',

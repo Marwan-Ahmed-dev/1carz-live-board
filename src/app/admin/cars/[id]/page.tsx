@@ -8,6 +8,7 @@ import { resolveCarImages, deleteCarImage, extractStoragePath, CarImageSlot } fr
 import { CarForm } from '@/components/admin/CarForm';
 import { NewCarInput, Car } from '@/lib/types';
 import { useToast } from '@/hooks/useToast';
+import { logger } from '@/lib/logger';
 
 export default function EditCarPage({ params }: { params: { id: string } }) {
   // ✅ FIX: Next.js 14 (App Router) بيبعت params كـ plain object — مش Promise.
@@ -34,9 +35,9 @@ export default function EditCarPage({ params }: { params: { id: string } }) {
         } else {
           setCar(c);
         }
-      } catch (err: any) {
-        console.error('[EditCarPage] failed to load car:', err);
-        setError(err.message || 'فشل تحميل العربية');
+      } catch (err: unknown) {
+        logger.error('[EditCarPage] failed to load car:', err);
+        setError(err instanceof Error ? err.message : 'فشل تحميل العربية');
       } finally {
         setLoading(false);
       }
@@ -56,8 +57,9 @@ export default function EditCarPage({ params }: { params: { id: string } }) {
       const resolved = await resolveCarImages(car.id!, imageSlots);
       main = resolved.main;
       additional = resolved.additional;
-    } catch (imgErr: any) {
-      showToast('فشل رفع بعض الصور: ' + (imgErr.message || ''), 'error');
+    } catch (imgErr: unknown) {
+      const msg = imgErr instanceof Error ? imgErr.message : '';
+      showToast('فشل رفع بعض الصور: ' + msg, 'error');
       throw imgErr;
     }
 
@@ -69,11 +71,11 @@ export default function EditCarPage({ params }: { params: { id: string } }) {
             try {
               await deleteCarImage(path);
             } catch (e) {
-              console.error('Failed to delete removed image:', e);
+              logger.error('Failed to delete removed image:', e);
             }
           }
         })
-      ).catch((e) => console.error('Error deleting removed images:', e));
+      ).catch((e) => logger.error('Error deleting removed images:', e));
     }
 
     await updateCar(car.id!, {

@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { jsonError, requireAdmin } from '@/lib/adminAuthServer';
+import { logger } from '@/lib/logger';
+
+function statusFromError(err: unknown): number | undefined {
+  if (err && typeof err === 'object' && 'status' in err) {
+    const s = (err as { status?: unknown }).status;
+    if (typeof s === 'number') return s;
+  }
+  return undefined;
+}
+
+function codeFromError(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const c = (err as { code?: unknown }).code;
+    if (typeof c === 'string') return c;
+  }
+  return '';
+}
+
+function messageFromError(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,10 +64,10 @@ export async function GET(req: NextRequest) {
     const roles = await listRoleUids();
     return NextResponse.json(roles);
   } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
-    if (status) return jsonError(status, (err as Error).message);
-    console.error('List admin users failed:', err);
-    return jsonError(500, (err as Error)?.message || 'فشل تحميل حسابات الأدمن');
+    const status = statusFromError(err);
+    if (status) return jsonError(status, messageFromError(err, 'فشل تحميل حسابات الأدمن'));
+    logger.error('List admin users failed:', err);
+    return jsonError(500, messageFromError(err, 'فشل تحميل حسابات الأدمن'));
   }
 }
 
@@ -157,7 +179,7 @@ export async function POST(req: NextRequest) {
           /* rollback best-effort */
         }
       }
-      const code = (err as { code?: string })?.code || '';
+      const code = codeFromError(err);
       if (code === 'auth/email-already-exists') {
         return jsonError(400, 'هذا البريد الإلكتروني مستخدم بالفعل');
       }
@@ -179,11 +201,11 @@ export async function POST(req: NextRequest) {
       ...(role === 'user' ? { daily_buyer_limit: dailyBuyerLimit } : {}),
     });
   } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
-    if (status) return jsonError(status, (err as Error).message);
-    console.error('Admin create user failed:', err);
-    const code = (err as { code?: string })?.code || '';
-    const msg = (err as Error)?.message || '';
+    const status = statusFromError(err);
+    if (status) return jsonError(status, messageFromError(err, 'فشل إنشاء الحساب'));
+    logger.error('Admin create user failed:', err);
+    const code = codeFromError(err);
+    const msg = messageFromError(err, '');
     if (
       code === 'app/invalid-credential' ||
       msg.includes('invalid_grant') ||

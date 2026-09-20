@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Star, Car as CarIcon, Eye } from 'lucide-react';
@@ -47,7 +48,7 @@ function ContactBlock({
   );
 }
 
-export function CarCard({ car }: CarCardProps) {
+function CarCardInner({ car }: CarCardProps) {
   const router = useRouter();
   const { isAdmin, isInspector } = useAuth();
   const isFeatured = car.is_featured;
@@ -151,3 +152,14 @@ export function CarCard({ car }: CarCardProps) {
     </div>
   );
 }
+
+/**
+ * M26: memoized export — CarCard ما بيعملش re-render لما عربية تانية تتحدث
+ * في الـ live listener (Firestore onSnapshot بيبعت array جديد كل تغيير).
+ *
+ * المقارنة الافتراضية shallow على الـ props كافية لأن الـ car object بيتم
+ * normalize مرة واحدة في `cars.ts` وبيكون reference-stable طالما الـ Firestore
+ * doc ما اتغيرش.
+ */
+export const CarCard = memo(CarCardInner);
+CarCard.displayName = 'CarCard';

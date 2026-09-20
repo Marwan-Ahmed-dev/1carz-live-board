@@ -14,6 +14,7 @@ import { auth, db } from './firebase';
 import { BuyerLead, DEFAULT_DAILY_BUYER_LIMIT } from './types';
 import { digitsOnly, validateBuyerPhone } from './phone';
 import { cairoDateKey, startOfCairoDay } from './cairoDay';
+import { logger } from './logger';
 
 const BUYER_LEADS = 'buyer_leads';
 // Path: daily_buyer_counts/{uid}/days/{cairoDate} — server-side enforced cap
@@ -147,7 +148,7 @@ export function subscribeToBuyerLeadsSince(
       callback(snap.docs.map((d) => normalizeLead(d.id, d.data() as Record<string, unknown>)));
     },
     (err) => {
-      console.error('buyer_leads subscription error:', err);
+      logger.error('buyer_leads subscription error:', err);
       callback([]);
     }
   );

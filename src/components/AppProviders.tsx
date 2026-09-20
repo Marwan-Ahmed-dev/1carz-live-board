@@ -8,6 +8,7 @@ import { AuthContext, type UseAuthResult } from '@/hooks/useAuth';
 import { ToastProvider } from '@/hooks/useToast';
 import { ShortcutPromptHost } from '@/components/ShortcutPromptHost';
 import { initAppCheck } from '@/lib/firebase';
+import { logger } from '@/lib/logger';
 
 // H22: فعّل App Check على أول mount (client-only).
 // الـ init جوّاه SSR-safe + key-missing guard — لو الـ env var مش موجود
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAdmin(adminFlag);
         setIsInspector(inspectorFlag || data?.role === 'inspector');
       } catch (err) {
-        console.error('AuthProvider: failed to load user data', err);
+        logger.error('AuthProvider: failed to load user data', err);
         if (cancelled || thisGen !== generation) return;
         setUser(fbUser);
         setUserData(null);

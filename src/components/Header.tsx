@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
+import { logger } from '@/lib/logger';
 
 interface HeaderProps {
   showUsername?: boolean;
@@ -38,7 +39,7 @@ export function Header({ showUsername = true }: HeaderProps) {
       await signOut();
       router.replace('/');
     } catch (err) {
-      console.error('Logout failed:', err);
+      logger.error('Logout failed:', err);
       setLoggingOut(false);
     }
   };

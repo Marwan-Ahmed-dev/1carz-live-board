@@ -3,6 +3,7 @@
 
 import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import { storage } from './firebase';
+import { logger } from './logger';
 
 /**
  * الحد الأقصى لعدد الصور الإجمالية (رئيسية + إضافية)
@@ -44,6 +45,11 @@ function fitWithinBox(
   const width = Math.max(1, Math.round((srcW / srcH) * height));
   return { width, height };
 }
+
+/** أصغر بُعد مسموح — أقل من كده الصورة غالباً أيقونة / غير مفيدة */
+const MIN_IMAGE_DIMENSION = 200;
+/** أكبر بُعد مسموح — أكبر من كده يستهلك Storage و bandwidth بدون فايدة فعلية */
+const MAX_IMAGE_DIMENSION = 8000;
 
 function isImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true;
@@ -147,6 +153,19 @@ export async function compressCarImage(file: File): Promise<File> {
   const srcH = source.height;
   if (!srcW || !srcH) {
     throw new Error('تعذر قراءة أبعاد الصورة');
+  }
+
+  // M19: ارفض الصور اللي أبعادها صغيرة جداً (مش هتظهر بشكل مفيد) أو
+  // كبيرة جداً (تستهلك Storage + bandwidth بدون فايدة فعلية).
+  if (srcW < MIN_IMAGE_DIMENSION || srcH < MIN_IMAGE_DIMENSION) {
+    throw new Error(
+      `الصورة صغيرة جداً (${srcW}×${srcH}). الحد الأدنى ${MIN_IMAGE_DIMENSION}px على الأقل بُعد واحد.`
+    );
+  }
+  if (srcW > MAX_IMAGE_DIMENSION || srcH > MAX_IMAGE_DIMENSION) {
+    throw new Error(
+      `الصورة كبيرة جداً (${srcW}×${srcH}). الحد الأقصى ${MAX_IMAGE_DIMENSION}px على أي بُعد.`
+    );
   }
 
   let { width, height } = fitWithinBox(srcW, srcH, MAX_WIDTH, MAX_HEIGHT);
@@ -264,7 +283,7 @@ export async function deleteCarImage(imageUrlOrPath: string): Promise<void> {
     const storageRef = ref(storage, path);
     await deleteObject(storageRef);
   } catch (err) {
-    console.error('Failed to delete image:', err);
+    logger.error('Failed to delete image:', err);
   }
 }
 
@@ -278,7 +297,7 @@ export async function deleteCarImages(carId: string): Promise<void> {
     const result = await listAll(folderRef);
     await Promise.all(result.items.map((item) => deleteObject(item)));
   } catch (err) {
-    console.error('Failed to delete car images:', err);
+    logger.error('Failed to delete car images:', err);
   }
 }
 
@@ -350,7 +369,7 @@ export async function resolveCarImages(
   } catch (err) {
     // H16: فشل النص — ننضّف الصور اللي اترفعت قبل الـ throw
     if (uploadedUrls.length > 0) {
-      console.warn(
+      logger.warn(
         `[resolveCarImages] mid-upload failure; cleaning ${uploadedUrls.length} orphans for car ${carId}`
       );
       await Promise.allSettled(

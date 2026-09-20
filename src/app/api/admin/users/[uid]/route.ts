@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, WriteBatch } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { jsonError, requireAdmin } from '@/lib/adminAuthServer';
+import { logger } from '@/lib/logger';
+
+function statusFromError(err: unknown): number | undefined {
+  if (err && typeof err === 'object' && 'status' in err) {
+    const s = (err as { status?: unknown }).status;
+    if (typeof s === 'number') return s;
+  }
+  return undefined;
+}
+
+function codeFromError(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const c = (err as { code?: unknown }).code;
+    if (typeof c === 'string') return c;
+  }
+  return '';
+}
+
+function messageFromError(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -110,20 +132,20 @@ export async function DELETE(
       }
       await auth.deleteUser(uid);
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code || '';
+      const code = codeFromError(err);
       if (code !== 'auth/user-not-found') throw err;
     }
 
     await cleanupFirestore(uid);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
+    const status = statusFromError(err);
     if (status) {
-      return jsonError(status, (err as Error).message);
+      return jsonError(status, messageFromError(err, 'فشل حذف الحساب'));
     }
-    console.error('Admin delete user failed:', err);
-    const code = (err as { code?: string })?.code || '';
-    const msg = (err as Error)?.message || '';
+    logger.error('Admin delete user failed:', err);
+    const code = codeFromError(err);
+    const msg = messageFromError(err, '');
     if (
       code === 'app/invalid-credential' ||
       msg.includes('invalid_grant') ||

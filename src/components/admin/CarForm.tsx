@@ -232,9 +232,10 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         assigned_to: assignedTo,
       };
       await onSave(data, imageSlots, removedExistingImages);
-    } catch (err: any) {
-      setError(err.message || 'حدث خطأ أثناء الحفظ');
-      showToast(err.message || 'فشل الحفظ', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setSubmitting(false);
     }

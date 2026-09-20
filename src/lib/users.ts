@@ -14,34 +14,48 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { AppUser } from './types';
+import { logger } from './logger';
 
 const USERS_COLLECTION = 'users';
 const USERNAMES_COLLECTION = 'usernames';
 
-function normalizeUser(snap: any): AppUser {
+interface UserDocData {
+  uid?: unknown;
+  email?: unknown;
+  username?: unknown;
+  phone?: unknown;
+  role?: unknown;
+  daily_buyer_limit?: unknown;
+  onboarded_at?: unknown;
+  created_at?: unknown;
+  last_seen?: unknown;
+}
+
+function normalizeUser(snap: { id: string; data: () => UserDocData }): AppUser {
   const data = snap.data();
   const limitRaw = data.daily_buyer_limit;
+  const role: AppUser['role'] =
+    data.role === 'admin'
+      ? 'admin'
+      : data.role === 'inspector'
+        ? 'inspector'
+        : data.role === 'user'
+          ? 'user'
+          : undefined;
   return {
-    uid: data.uid || snap.id,
-    email: data.email || '',
-    username: data.username || null,
+    uid: typeof data.uid === 'string' && data.uid ? data.uid : snap.id,
+    email: typeof data.email === 'string' ? data.email : '',
+    username: typeof data.username === 'string' ? data.username : null,
     phone: typeof data.phone === 'string' ? data.phone : '',
-    role:
-      data.role === 'admin'
-        ? 'admin'
-        : data.role === 'inspector'
-          ? 'inspector'
-          : data.role === 'user'
-            ? 'user'
-            : undefined,
+    role,
     daily_buyer_limit:
       typeof limitRaw === 'number' && Number.isFinite(limitRaw) && limitRaw > 0
         ? Math.floor(limitRaw)
         : undefined,
-    onboarded_at: data.onboarded_at || null,
-    created_at: data.created_at || null,
-    last_seen: data.last_seen || null,
-  } as AppUser;
+    onboarded_at: (data.onboarded_at as AppUser['onboarded_at']) || null,
+    created_at: (data.created_at as AppUser['created_at']) || null,
+    last_seen: (data.last_seen as AppUser['last_seen']) || null,
+  };
 }
 
 /** مفتاح فريد غير حساس لحالة الأحرف، المسافات المتعددة تتحول لشرطة سفلية */
@@ -94,7 +108,7 @@ export function subscribeToUsers(callback: (users: AppUser[]) => void): () => vo
       callback(snap.docs.map(normalizeUser));
     },
     (err) => {
-      console.error('Users subscription error:', err);
+      logger.error('Users subscription error:', err);
       callback([]);
     }
   );

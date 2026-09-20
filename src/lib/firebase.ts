@@ -11,6 +11,7 @@ import type {
   AppCheck as AppCheckType,
   ReCaptchaEnterpriseProvider as ReCaptchaEnterpriseProviderType,
 } from 'firebase/app-check';
+import { logger } from './logger';
 
 const requiredEnvVars = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -76,7 +77,7 @@ export function initAppCheck(): void {
 
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   if (!siteKey) {
-    console.info(
+    logger.info(
       '[firebase] NEXT_PUBLIC_RECAPTCHA_SITE_KEY not set — App Check disabled. ' +
         'See firestore.rules / H22 docs to enable on prod.'
     );
@@ -92,9 +93,9 @@ export function initAppCheck(): void {
         // auto-refresh in background — tokens last ~1h, refresh every ~50min.
         isTokenAutoRefreshEnabled: true,
       });
-      console.info('[firebase] App Check initialized (reCAPTCHA Enterprise)');
+      logger.info('[firebase] App Check initialized (reCAPTCHA Enterprise)');
     } catch (err) {
-      console.warn('[firebase] App Check init failed (non-fatal):', err);
+      logger.warn('[firebase] App Check init failed (non-fatal):', err);
       appCheckInstance = null;
     }
   });

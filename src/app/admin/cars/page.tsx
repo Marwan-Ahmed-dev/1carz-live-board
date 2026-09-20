@@ -27,8 +27,10 @@ import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
+import { logger } from '@/lib/logger';
+import type { LucideIcon } from 'lucide-react';
 
-const PRIORITY_META: Record<Priority, { label: string; icon: any; color: string }> = {
+const PRIORITY_META: Record<Priority, { label: string; icon: LucideIcon; color: string }> = {
   arabyatna: { label: PRIORITY_LABELS.arabyatna, icon: Heart, color: 'text-rose-400 bg-rose-500/15' },
   top: { label: PRIORITY_LABELS.top, icon: Flame, color: 'text-orange-400 bg-orange-500/15' },
   high: { label: PRIORITY_LABELS.high, icon: Star, color: 'text-amber-400 bg-amber-500/15' },
@@ -83,8 +85,9 @@ export default function AdminCarsPage() {
       } else {
         showToast('كل العربيات سليمة بالفعل', 'success');
       }
-    } catch (err: any) {
-      showToast(err.message || 'فشل الفحص', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل الفحص';
+      showToast(msg, 'error');
     } finally {
       setFixing(false);
     }
@@ -124,8 +127,9 @@ export default function AdminCarsPage() {
     try {
       await deleteCar(id);
       showToast('تم حذف العربية بنجاح', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'فشل الحذف', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل الحذف';
+      showToast(msg, 'error');
     } finally {
       setDeletingId(null);
     }
