@@ -332,6 +332,9 @@ export async function createUserByAdmin(params: {
     username: data.username || params.name.trim(),
     phone: data.phone || params.phone,
     role: data.role,
+    ...((data as { is_marketer?: boolean }).is_marketer !== undefined
+      ? { is_marketer: (data as { is_marketer?: boolean }).is_marketer }
+      : {}),
     daily_buyer_limit: data.daily_buyer_limit,
     onboarded_at: null,
     created_at: null,

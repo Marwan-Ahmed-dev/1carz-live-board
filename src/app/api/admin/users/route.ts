@@ -148,13 +148,17 @@ export async function POST(req: NextRequest) {
         username: trimmed,
         created_at: FieldValue.serverTimestamp(),
       });
+      // user.role='user' ↔ مسوّق (الـ fallback التاريخي كان daily_buyer_limit > 0).
+      // is_marketer بنكتبه explicit عشان الـ visibility model الجديد يعتمد عليه أولاً.
       batch.set(userRef, {
         uid,
         email,
         username: trimmed,
         phone,
         role,
-        ...(role === 'user' ? { daily_buyer_limit: dailyBuyerLimit } : {}),
+        ...(role === 'user'
+          ? { is_marketer: true, daily_buyer_limit: dailyBuyerLimit }
+          : {}),
         onboarded_at: FieldValue.serverTimestamp(),
         created_at: FieldValue.serverTimestamp(),
         last_seen: null,

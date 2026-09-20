@@ -191,3 +191,15 @@ export async function updateDailyBuyerLimit(uid: string, limit: number): Promise
     updated_at: serverTimestamp(),
   });
 }
+
+/**
+ * تحديث علامة المسوّق على يوزر (أدمن فقط عبر قواعد Firestore).
+ * الـ explicit flag يفوز على الـ daily_buyer_limit proxy، فلما يلغيه الأدمن
+ * بيشوف only assigned_to اللي لسه معيّن ليه (لو فيه groups، يشوف كمان).
+ */
+export async function updateIsMarketer(uid: string, value: boolean): Promise<void> {
+  await updateDoc(doc(db, USERS_COLLECTION, uid), {
+    is_marketer: value,
+    updated_at: serverTimestamp(),
+  });
+}

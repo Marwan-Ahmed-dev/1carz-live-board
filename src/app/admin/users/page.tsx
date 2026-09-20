@@ -19,7 +19,7 @@ import {
   Phone,
   SlidersHorizontal,
 } from 'lucide-react';
-import { subscribeToUsers, validateUsername, deleteUserByAdmin, updateDailyBuyerLimit } from '@/lib/users';
+import { subscribeToUsers, validateUsername, deleteUserByAdmin, updateDailyBuyerLimit, updateIsMarketer } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { createUserByAdmin } from '@/lib/auth';
 import { AppUser, DEFAULT_DAILY_BUYER_LIMIT, UserGroup } from '@/lib/types';
@@ -57,7 +57,11 @@ function isMarketerAccount(
 ): boolean {
   if (adminUids.has(u.uid) || u.role === 'admin') return false;
   if (inspectorUids.has(u.uid) || u.role === 'inspector') return false;
-  return true;
+  // الـ flag الصريح يفوز — لو الأدمن شال is_marketer لازم نصدّق الرغبة دي
+  if (u.is_marketer === true) return true;
+  if (u.is_marketer === false) return false;
+  // Legacy: افترض مسوّق لو role='user' وعنده daily_buyer_limit > 0
+  return u.role === 'user';
 }
 
 export default function AdminUsersPage() {
@@ -89,6 +93,7 @@ export default function AdminUsersPage() {
   const [adminUids, setAdminUids] = useState<Set<string>>(new Set());
   const [inspectorUids, setInspectorUids] = useState<Set<string>>(new Set());
   const [editLimit, setEditLimit] = useState('');
+  const [editIsMarketer, setEditIsMarketer] = useState(false);
   const [savingLimit, setSavingLimit] = useState(false);
   const [limitEditUser, setLimitEditUser] = useState<AppUser | null>(null);
 
@@ -459,6 +464,13 @@ export default function AdminUsersPage() {
                             onClick={() => {
                               setLimitEditUser(u);
                               setEditLimit(String(dailyLimit));
+                              // أولوية للـ flag الصريح، fallback على الـ legacy heuristic
+                              const explicit = u.is_marketer === true
+                                ? true
+                                : u.is_marketer === false
+                                  ? false
+                                  : isMarketerAccount(u, adminUids, inspectorUids);
+                              setEditIsMarketer(explicit);
                             }}
                             className="flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
                             aria-label="تعديل حد المشترين"
@@ -619,6 +631,22 @@ export default function AdminUsersPage() {
               className="w-full px-3 py-3 rounded-xl bg-admin-bg border border-admin-border text-admin-text text-base font-bold mb-4"
               dir="ltr"
             />
+            {/* Marketer toggle — يفصل بين 'user' و 'marketer' علناً */}
+            <label className="flex items-start gap-2 mb-4 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={editIsMarketer}
+                onChange={(e) => setEditIsMarketer(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-admin-border accent-emerald-500"
+              />
+              <span className="text-sm text-admin-text">
+                <span className="font-bold block">هذا الحساب مسوّق</span>
+                <span className="text-xs text-admin-text-muted block mt-0.5">
+                  المسوّق يشوف بس العربيات المعيّنة له أو لمجموعته (assigned_to).
+                  باقي المستخدمين يشوفوا كل العربيات.
+                </span>
+              </span>
+            </label>
             <button
               type="button"
               disabled={savingLimit}
@@ -626,8 +654,12 @@ export default function AdminUsersPage() {
                 setSavingLimit(true);
                 try {
                   const value = Math.floor(Number(editLimit));
-                  await updateDailyBuyerLimit(limitEditUser.uid, value);
-                  showToast(`تم تحديث الحد إلى ${value}`, 'success');
+                  // حفظ الـ limit + الـ is_marketer معاً — لو بينهم fail، الـ partial update هيفشل
+                  await Promise.all([
+                    updateDailyBuyerLimit(limitEditUser.uid, value),
+                    updateIsMarketer(limitEditUser.uid, editIsMarketer),
+                  ]);
+                  showToast('تم تحديث إعدادات المسوّق', 'success');
                   setLimitEditUser(null);
                 } catch (err: unknown) {
                   showToast((err as Error)?.message || 'فشل التحديث', 'error');
@@ -638,7 +670,7 @@ export default function AdminUsersPage() {
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm disabled:opacity-60"
             >
               {savingLimit ? <Loader2 size={16} className="animate-spin" /> : null}
-              حفظ الحد
+              حفظ الإعدادات
             </button>
           </div>
         </div>
