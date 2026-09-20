@@ -5,7 +5,6 @@ import { Search, X, Users as UsersIcon, UserCheck, ChevronDown, ChevronLeft } fr
 import { subscribeToUsers } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { AppUser, UserGroup } from '@/lib/types';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface UserAssignmentSelectorProps {
   value: string[];
@@ -17,9 +16,12 @@ function displayName(u: AppUser): string {
 }
 
 /**
- * اختيار التعيين حسب المجموعات:
- * - الكل
- * - مجموعات قابلة للطي لاختيار المجموعة كلها أو مستخدمين منها
+ * اختيار التعيين:
+ * - الكل → ['all']
+ * - مجموعة → يتخزّن group.id في assigned_to (من غير ما يوسّع الأعضاء)
+ * - مستخدم → يتخزّن uid
+ *
+ * العربية تظهر بس للي متعلم selected: عضو في مجموعة متعلّمة، أو UID متعلم، أو الكل.
  */
 export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelectorProps) {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -43,6 +45,8 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
   const isAll = value.length === 1 && value[0] === 'all';
   const selected = isAll ? [] : value;
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  const groupIdSet = useMemo(() => new Set(groups.map((g) => g.id)), [groups]);
 
   const query = search.trim().toLowerCase();
 
@@ -84,6 +88,15 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     [filteredUsers, groupedUids]
   );
 
+  const selectedGroupCount = useMemo(
+    () => selected.filter((id) => groupIdSet.has(id)).length,
+    [selected, groupIdSet]
+  );
+  const selectedUserCount = useMemo(
+    () => selected.filter((id) => !groupIdSet.has(id)).length,
+    [selected, groupIdSet]
+  );
+
   const toggleUser = (uid: string) => {
     if (isAll) return;
     const next = selectedSet.has(uid)
@@ -92,26 +105,24 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     onChange(next);
   };
 
-  const toggleGroupMembers = (group: UserGroup) => {
-    if (isAll || group.memberUids.length === 0) return;
-    const allSelected = group.memberUids.every((uid) => selectedSet.has(uid));
-    if (allSelected) {
-      const remove = new Set(group.memberUids);
-      onChange(selected.filter((uid) => !remove.has(uid)));
+  /** اختيار المجموعة نفسها (group.id) — مش توسيع لكل الأعضاء */
+  const toggleGroup = (group: UserGroup) => {
+    if (isAll) return;
+    if (selectedSet.has(group.id)) {
+      onChange(selected.filter((id) => id !== group.id));
       return;
     }
-    onChange(Array.from(new Set([...selected, ...group.memberUids])));
+    onChange([...selected, group.id]);
   };
 
   const setAllMode = () => onChange(['all']);
   const setSpecificMode = () => onChange([]);
 
-  const groupState = (group: UserGroup): 'all' | 'some' | 'none' => {
-    if (group.memberUids.length === 0) return 'none';
-    const count = group.memberUids.filter((uid) => selectedSet.has(uid)).length;
-    if (count === 0) return 'none';
-    if (count === group.memberUids.length) return 'all';
-    return 'some';
+  const groupState = (group: UserGroup): 'group' | 'some' | 'none' => {
+    if (selectedSet.has(group.id)) return 'group';
+    const memberSelected = group.memberUids.some((uid) => selectedSet.has(uid));
+    if (memberSelected) return 'some';
+    return 'none';
   };
 
   const renderUserRow = (u: AppUser) => {
@@ -196,6 +207,9 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
                 </button>
               )}
             </div>
+            <p className="mt-2 text-[11px] text-admin-text-muted leading-relaxed">
+              علّم المجموعة لوحدها عشان كل أعضائها يشوفوا العربية، أو علّم أفراد معيّنين بس.
+            </p>
           </div>
 
           <div className="max-h-80 overflow-y-auto">
@@ -227,12 +241,11 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
                       <div className="flex items-center gap-2 px-3 py-2.5">
                         <input
                           type="checkbox"
-                          checked={state === 'all'}
+                          checked={state === 'group'}
                           ref={(el) => {
                             if (el) el.indeterminate = state === 'some';
                           }}
-                          disabled={group.memberUids.length === 0}
-                          onChange={() => toggleGroupMembers(group)}
+                          onChange={() => toggleGroup(group)}
                           className="w-4 h-4 rounded border-admin-border text-admin-accent focus:ring-admin-accent cursor-pointer"
                           aria-label={`اختيار مجموعة ${group.name}`}
                         />
@@ -249,7 +262,11 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
                             </div>
                             <div className="text-[11px] text-admin-text-muted">
                               {group.memberUids.length} مستخدم
-                              {state === 'some' ? ' · بعض الأعضاء محددون' : ''}
+                              {state === 'group'
+                                ? ' · المجموعة كلها'
+                                : state === 'some'
+                                  ? ' · بعض الأعضاء محددون'
+                                  : ''}
                             </div>
                           </div>
                           {isOpen ? (
@@ -287,10 +304,13 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
           </div>
 
           {selected.length > 0 && (
-            <div className="px-3 py-2 border-t border-admin-border bg-admin-card/50">
-              <span className="badge-number text-xs text-admin-accent font-bold">
-                {selected.length} مستخدم محدد
-              </span>
+            <div className="px-3 py-2 border-t border-admin-border bg-admin-card/50 text-xs text-admin-accent font-bold">
+              {selectedGroupCount > 0 && (
+                <span className="ml-2">{selectedGroupCount} مجموعة</span>
+              )}
+              {selectedUserCount > 0 && (
+                <span>{selectedUserCount} مستخدم</span>
+              )}
             </div>
           )}
         </div>

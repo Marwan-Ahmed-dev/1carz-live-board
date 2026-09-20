@@ -67,6 +67,17 @@ export function useCars(opts: UseCarsOptions = {}) {
 
   const cars = useMemo(() => {
     let filtered = allCars;
+    // حزام أمان: لو المسوّق وصلتله عربيات زيادة من الاستعلام، نفلتر على assigned_to
+    if (opts.marketerFilter?.uid) {
+      const allowed = new Set([
+        opts.marketerFilter.uid,
+        'all',
+        ...(opts.marketerFilter.groupUids || []),
+      ]);
+      filtered = filtered.filter(
+        (c) => Array.isArray(c.assigned_to) && c.assigned_to.some((id) => allowed.has(id))
+      );
+    }
     if (opts.priority && opts.priority !== 'all') {
       filtered = filtered.filter((c) => c.priority === opts.priority);
     }
@@ -80,7 +91,16 @@ export function useCars(opts: UseCarsOptions = {}) {
       filtered = filtered.filter((c) => c.price <= opts.maxPrice!);
     }
     return filtered;
-  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice, opts.assignedOnly]);
+  }, [
+    allCars,
+    opts.priority,
+    opts.uid,
+    opts.minPrice,
+    opts.maxPrice,
+    opts.assignedOnly,
+    opts.marketerFilter?.uid,
+    opts.marketerFilter?.groupUids,
+  ]);
 
   return { cars, allCars, loading, error };
 }

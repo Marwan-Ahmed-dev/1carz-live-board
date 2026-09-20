@@ -478,6 +478,7 @@ export function subscribeToCars(
   const constraints: QueryConstraint[] = [];
 
   // Marketer filter: مسوّق يشوف العربيات المعيّنة ليه أو لمجموعته أو الـ 'all' العامة.
+  // كمان نفلتر client-side عشان لو الـ query رجّع أكتر من اللازم.
   if (filters.marketerFilter && filters.marketerFilter.uid) {
     const { uid, groupUids } = filters.marketerFilter;
     const filterIds = Array.from(new Set([uid, ...groupUids, 'all'])).slice(0, 30);
@@ -494,7 +495,12 @@ export function subscribeToCars(
     constraints.push(where('price', '<=', filters.maxPrice));
   }
 
-  constraints.push(orderBy('created_at', 'desc'));
+  // OrderBy مع array-contains-any محتاج composite index — لو مفيش،
+  // بنرتّب client-side بعد ما نجيب النتائج.
+  const hasAssignmentFilter = !!(filters.marketerFilter && filters.marketerFilter.uid);
+  if (!hasAssignmentFilter) {
+    constraints.push(orderBy('created_at', 'desc'));
+  }
 
   // Performance guard: cap any admin/owner query to 200 cars.
   // لو عندك أكتر من 200 عربية، الإحصائيات في الـ dashboard هتستخدم
@@ -502,10 +508,24 @@ export function subscribeToCars(
   constraints.push(limit(200));
 
   const q = query(ref, ...constraints);
+  const marketerAllowed = hasAssignmentFilter
+    ? new Set([
+        filters.marketerFilter!.uid,
+        'all',
+        ...(filters.marketerFilter!.groupUids || []),
+      ])
+    : null;
+
   return onSnapshot(
     q,
     (snap) => {
-      const cars = snap.docs.map(normalizeCar);
+      let cars = snap.docs.map(normalizeCar);
+      if (marketerAllowed) {
+        cars = cars.filter(
+          (c) => Array.isArray(c.assigned_to) && c.assigned_to.some((id) => marketerAllowed.has(id))
+        );
+        cars.sort((a, b) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
+      }
       callback(cars);
     },
     (err) => {

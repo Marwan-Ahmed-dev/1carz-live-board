@@ -15,27 +15,12 @@ import { PRIORITY_ACCENTS, PRIORITY_LABELS, PRIORITY_ORDER, PRIORITY_SECTION_LAB
 import { subscribeToGroups } from '@/lib/groups';
 
 /**
- * تحديد هل المستخدم مسوّق (بيشوف عربيات مخصوصة بس).
- * الترتيب:
- *   1. الـ flag الصريح is_marketer === true (يفوز حتى لو daily_buyer_limit = 0)
- *   2. fallback: daily_buyer_limit > 0 مع role = 'user' (أي حد غير الأدمن والمعاين)
- *
- * ⚠️ السيرفر (Firestore rules) مش بيطبّق الفلتر ده — ده UX personalization بس
- * لأن البيانات نفسها (cars) public للقراءة. مرجع: commit الذي أعاد الـ model.
+ * المسوّق = أي حساب مسجّل مش أدمن ومش معاين.
+ * الفلتر على assigned_to لازم يشتغل لكل المسوّقين، حتى لو is_marketer
+ * أو daily_buyer_limit مش متعيّنين في الـ doc (حسابات قديمة).
  */
-function detectIsMarketer(
-  userData: { is_marketer?: boolean; daily_buyer_limit?: number; role?: 'admin' | 'user' | 'inspector' } | null,
-  isStaff: boolean
-): boolean {
-  if (!userData) return false;
-  if (userData.is_marketer === true) return true;
-  if (isStaff) return false; // admin/inspector مش مسوّقين حتى لو عندهم daily_limit
-  // fallback: user عادي عنده daily_buyer_limit > 0 → اعتبره مسوّق
-  return (
-    userData.role === 'user' &&
-    typeof userData.daily_buyer_limit === 'number' &&
-    userData.daily_buyer_limit > 0
-  );
+function isMarketerAccount(isStaff: boolean, hasUser: boolean): boolean {
+  return hasUser && !isStaff;
 }
 
 export default function CarsBoardPage() {
@@ -50,7 +35,7 @@ export default function CarsBoardPage() {
 
   const isStaff = isAdmin || isInspector;
   const isGuest = !authLoading && !user;
-  const isMarketer = !isGuest && !isStaff && detectIsMarketer(userData, isStaff);
+  const isMarketer = isMarketerAccount(isStaff, !!user);
 
   useEffect(() => {
     if (authLoading) return;
