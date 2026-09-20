@@ -24,7 +24,7 @@ import {
   runTransaction,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Car, NewCarInput, CarUpdateInput, Priority } from './types';
+import { Car, NewCarInput, CarUpdateInput, Priority, CarStatus } from './types';
 import { deleteCarImages } from './storage';
 import { PRIORITY_ORDER } from './priority';
 import { logger } from './logger';
@@ -123,10 +123,6 @@ export async function addCar(input: NewCarInput): Promise<string> {
   // (لو ضاع من مكان تاني أو اتبعت بشكل غلط، نمنع العربية من تتكتب بـ assigned_to = [])
   let assignedTo: string[];
   if (Array.isArray(input.assigned_to) && input.assigned_to.length > 0) {
-    // H11: cap assigned_to to ≤30 entries — Firestore array-contains-any hard limit.
-    if (input.assigned_to.length > 30) {
-      throw new Error('عدد المعيّنين تجاوز الحد المسموح (30). قلل القائمة وأعد المحاولة.');
-    }
     assignedTo = input.assigned_to;
   } else if (Array.isArray(input.assigned_to) && input.assigned_to.length === 0) {
     logger.warn('[addCar] assigned_to is empty, defaulting to [\'all\']');
@@ -446,24 +442,21 @@ export interface SubscribeToCarsFilters {
   priority?: Priority;
   minPrice?: number;
   maxPrice?: number;
-  /** User UID — adds assignment query required by Firestore list rules */
+  /** User UID — retained for callers; no longer filters by assignment */
   uid?: string | null;
-  /** ضيف بدون login: عربيات الكل النشطة فقط */
+  /** ضيف بدون login: نفس ظهور المسوّق — كل العربيات المعروضة */
   publicOnly?: boolean;
   onError?: (err: Error) => void;
 }
 
+/** حالات تظهر للمشاهدين (ضيف / مسوّق) — inactive تبقى للأدمن فقط */
+export const VIEWABLE_CAR_STATUSES: CarStatus[] = ['active', 'reserved', 'sold'];
+
 /**
  * Real-time listener على مجموعة العربيات.
  *
- * لما uid موجود (مسوّق / مستخدم):
- *   query = assigned_to array-contains-any [uid, 'all']
- *
- * لما publicOnly (ضيف):
- *   query = assigned_to array-contains 'all' + status active
- *
- * لما uid مش موجود ومش public (أدمن):
- *   query = orderBy created_at
+ * المشاهدون (uid أو publicOnly): كل العربيات active/reserved/sold بغض النظر عن assigned_to.
+ * الأدمن (من غير uid/publicOnly): كل الحالات بما فيها inactive.
  */
 export function subscribeToCars(
   callback: (cars: Car[]) => void,
@@ -471,12 +464,10 @@ export function subscribeToCars(
 ): () => void {
   const ref = collection(db, CARS_COLLECTION);
   const constraints: QueryConstraint[] = [];
+  const viewerMode = !!(filters.uid || filters.publicOnly);
 
-  if (filters.publicOnly) {
-    constraints.push(where('assigned_to', 'array-contains', 'all'));
-    constraints.push(where('status', '==', 'active'));
-  } else if (filters.uid) {
-    constraints.push(where('assigned_to', 'array-contains-any', [filters.uid, 'all']));
+  if (viewerMode) {
+    constraints.push(where('status', 'in', VIEWABLE_CAR_STATUSES));
   }
 
   if (filters.priority) {
@@ -489,10 +480,7 @@ export function subscribeToCars(
     constraints.push(where('price', '<=', filters.maxPrice));
   }
 
-  // OrderBy يتعارض مع array-contains من غير composite index.
-  if (!filters.uid && !filters.publicOnly) {
-    constraints.push(orderBy('created_at', 'desc'));
-  }
+  constraints.push(orderBy('created_at', 'desc'));
 
   // Performance guard: cap any admin/owner query to 200 cars.
   // لو عندك أكتر من 200 عربية، الإحصائيات في الـ dashboard هتستخدم
@@ -500,20 +488,12 @@ export function subscribeToCars(
   constraints.push(limit(200));
 
   const q = query(ref, ...constraints);
-  const uid = filters.uid;
-  const publicOnly = !!filters.publicOnly;
   return onSnapshot(
     q,
     (snap) => {
-      const rawCars = snap.docs.map(normalizeCar);
-      let cars = rawCars;
-      if (uid) {
-        cars = rawCars.filter((c) => isCarVisibleToUser(c, uid));
-      } else if (publicOnly) {
-        cars = rawCars.filter(
-          (c) => c.status === 'active' && Array.isArray(c.assigned_to) && c.assigned_to.includes('all')
-        );
-      }
+      const cars = snap.docs.map(normalizeCar).filter((c) =>
+        viewerMode ? isCarListedForViewers(c) : true
+      );
       callback(cars);
     },
     (err) => {
@@ -524,12 +504,18 @@ export function subscribeToCars(
 }
 
 /**
- * عربية ظاهرة للمستخدم العادي: متاحة + معيّنة له أو للكل.
+ * عربية ظاهرة للمشاهد: متاحة / محجوزة / مباعة.
+ * التعيين (assigned_to) مش بيخفي العربية عن المسوّق أو الضيف.
  */
-export function isCarVisibleToUser(car: Car, uid: string): boolean {
-  if (car.status !== 'active') return false;
-  if (!Array.isArray(car.assigned_to)) return false;
-  return car.assigned_to.includes(uid) || car.assigned_to.includes('all');
+export function isCarListedForViewers(car: Car): boolean {
+  return VIEWABLE_CAR_STATUSES.includes(car.status);
+}
+
+/**
+ * عربية ظاهرة للمستخدم العادي — التعيين لم يعد يقيّد الظهور.
+ */
+export function isCarVisibleToUser(car: Car, _uid?: string): boolean {
+  return isCarListedForViewers(car);
 }
 
 /**

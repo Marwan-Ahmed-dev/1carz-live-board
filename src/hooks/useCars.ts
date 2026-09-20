@@ -3,7 +3,7 @@
 // hook لإدارة قائمة العربيات مع real-time sync + فلترة client-side
 
 import { useEffect, useMemo, useState } from 'react';
-import { isCarVisibleToUser, subscribeToCars } from '@/lib/cars';
+import { subscribeToCars } from '@/lib/cars';
 import { Car, Priority, PriorityFilter } from '@/lib/types';
 import { PRIORITY_ORDER } from '@/lib/priority';
 
@@ -58,9 +58,6 @@ export function useCars(opts: UseCarsOptions = {}) {
 
   const cars = useMemo(() => {
     let filtered = allCars;
-    if (opts.uid && !opts.publicOnly) {
-      filtered = filtered.filter((c) => isCarVisibleToUser(c, opts.uid!));
-    }
     if (opts.priority && opts.priority !== 'all') {
       filtered = filtered.filter((c) => c.priority === opts.priority);
     }
@@ -74,7 +71,7 @@ export function useCars(opts: UseCarsOptions = {}) {
       filtered = filtered.filter((c) => c.price <= opts.maxPrice!);
     }
     return filtered;
-  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice, opts.assignedOnly, opts.publicOnly]);
+  }, [allCars, opts.priority, opts.uid, opts.minPrice, opts.maxPrice, opts.assignedOnly]);
 
   return { cars, allCars, loading, error };
 }

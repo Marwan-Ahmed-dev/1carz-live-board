@@ -45,8 +45,12 @@ function authErrorCode(err: unknown): string {
   return '';
 }
 
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error && err.message) return err.message;
+/**
+ * M16: للمستخدم بنرجع الـ fallback فقط (عربي) بدل ما نسرّب رسالة
+ * Firebase الإنجليزية الأصلية. الـ developer-facing logger لسه بياخد
+ * الـ err الأصلي في الـ catch block في الأعلى.
+ */
+function errorMessage(_err: unknown, fallback: string): string {
   return fallback;
 }
 

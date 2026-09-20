@@ -353,21 +353,23 @@ export async function resolveCarImages(
   carId: string,
   slots: CarImageSlot[]
 ): Promise<ResolveCarImagesResult> {
-  const urls: string[] = [];
-  const uploadedUrls: string[] = [];
+  const results: Array<{ url: string; uploaded: boolean } | undefined> = new Array(slots.length);
 
   try {
-    for (const slot of slots) {
-      if (slot.kind === 'existing') {
-        urls.push(slot.url);
-      } else {
+    await Promise.all(
+      slots.map(async (slot, index) => {
+        if (slot.kind === 'existing') {
+          results[index] = { url: slot.url, uploaded: false };
+          return;
+        }
         const url = await uploadCarImage(slot.file, carId);
-        urls.push(url);
-        uploadedUrls.push(url);
-      }
-    }
+        results[index] = { url, uploaded: true };
+      })
+    );
   } catch (err) {
-    // H16: فشل النص — ننضّف الصور اللي اترفعت قبل الـ throw
+    const uploadedUrls = results
+      .filter((r): r is { url: string; uploaded: boolean } => !!r && r.uploaded)
+      .map((r) => r.url);
     if (uploadedUrls.length > 0) {
       logger.warn(
         `[resolveCarImages] mid-upload failure; cleaning ${uploadedUrls.length} orphans for car ${carId}`
@@ -378,6 +380,9 @@ export async function resolveCarImages(
     }
     throw err;
   }
+
+  const urls = results.map((r) => r!.url);
+  const uploadedUrls = results.filter((r) => r!.uploaded).map((r) => r!.url);
 
   return {
     main: urls[0] || '',
