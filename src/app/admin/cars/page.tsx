@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   Heart,
   X,
+  ArrowDownNarrowWide,
+  ArrowUpNarrowWide,
+  ListOrdered,
 } from 'lucide-react';
 import { subscribeToCars, deleteCar, fixAllCarsAssignment, CarFixReport } from '@/lib/cars';
 import { Car, Priority } from '@/lib/types';
@@ -38,6 +41,47 @@ const PRIORITY_META: Record<Priority, { label: string; icon: LucideIcon; color: 
   low: { label: PRIORITY_LABELS.low, icon: ChevronDown, color: 'text-slate-500 bg-slate-700/30' },
 };
 
+/**
+ * M25: ترتيب قائمة العربيات.
+ * - newest / oldest: بالـ created_at
+ * - priority: ترتيب الـ tiers (arabyatna أولاً) + created_at desc داخل نفس المستوى
+ *
+ * الافتراضي "newest" لأن ده نفس ترتيب الـ subscription من Firestore —
+ * يعني ما بنغيرش حاجة لو الـ user ما اختارش ترتيب.
+ */
+type SortMode = 'newest' | 'oldest' | 'priority';
+const SORT_META: Record<SortMode, { label: string; icon: LucideIcon }> = {
+  newest: { label: 'الأحدث أولاً', icon: ArrowDownNarrowWide },
+  oldest: { label: 'الأقدم أولاً', icon: ArrowUpNarrowWide },
+  priority: { label: 'حسب الأولوية', icon: ListOrdered },
+};
+const PRIORITY_RANK: Record<Priority, number> = {
+  arabyatna: 0,
+  top: 1,
+  high: 2,
+  medium: 3,
+  low: 4,
+};
+
+function getCreatedAtMs(c: Car): number {
+  const ts = c.created_at;
+  if (!ts) return 0;
+  if (ts instanceof Date) return ts.getTime();
+  if (typeof ts === 'object' && ts && 'toDate' in ts && typeof (ts as { toDate: () => Date }).toDate === 'function') {
+    try {
+      return (ts as { toDate: () => Date }).toDate().getTime();
+    } catch {
+      return 0;
+    }
+  }
+  if (typeof ts === 'number') return ts;
+  if (typeof ts === 'string') {
+    const parsed = Date.parse(ts);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
 export default function AdminCarsPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -46,6 +90,7 @@ export default function AdminCarsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('newest');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [fixing, setFixing] = useState(false);
   const [fixReport, setFixReport] = useState<CarFixReport | null>(null);
@@ -93,7 +138,7 @@ export default function AdminCarsPage() {
     }
   };
 
-  // فلترة + بحث
+  // فلترة + بحث + ترتيب
   const filtered = useMemo(() => {
     let list = cars;
     if (priorityFilter !== 'all') {
@@ -111,8 +156,24 @@ export default function AdminCarsPage() {
           c.description.toLowerCase().includes(s)
       );
     }
-    return list;
-  }, [cars, priorityFilter, search]);
+
+    // M25: ترتيب حسب اختيار الـ user.
+    // بنعمل نسخة قبل sort عشان ما نغيّرش ترتيب الـ Firestore source.
+    const sorted = [...list];
+    if (sortMode === 'newest') {
+      sorted.sort((a, b) => getCreatedAtMs(b) - getCreatedAtMs(a));
+    } else if (sortMode === 'oldest') {
+      sorted.sort((a, b) => getCreatedAtMs(a) - getCreatedAtMs(b));
+    } else {
+      // priority: حسب الـ tier، وداخل نفس الـ tier الأحدث أولاً
+      sorted.sort((a, b) => {
+        const rank = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+        if (rank !== 0) return rank;
+        return getCreatedAtMs(b) - getCreatedAtMs(a);
+      });
+    }
+    return sorted;
+  }, [cars, priorityFilter, search, sortMode]);
 
   const handleDelete = async (id: string, title: string) => {
     const ok = await confirm({
@@ -196,6 +257,31 @@ export default function AdminCarsPage() {
                 }`}
               >
                 {p === 'all' ? 'الكل' : PRIORITY_META[p as Priority].label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* M25: ترتيب — newest / oldest / by priority */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-admin-text-muted">ترتيب:</span>
+          {(Object.keys(SORT_META) as SortMode[]).map((mode) => {
+            const meta = SORT_META[mode];
+            const Icon = meta.icon;
+            const active = sortMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => setSortMode(mode)}
+                aria-pressed={active}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  active
+                    ? 'bg-admin-card border border-admin-accent text-admin-accent'
+                    : 'bg-admin-bg text-admin-text-muted border border-admin-border hover:text-admin-text'
+                }`}
+              >
+                <Icon size={12} />
+                {meta.label}
               </button>
             );
           })}
