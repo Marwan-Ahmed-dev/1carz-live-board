@@ -122,22 +122,39 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     [selected, groupIdSet]
   );
 
-  const toggleUser = (uid: string) => {
+  const toggleUser = (uid: string, viaGroup?: UserGroup) => {
     if (isAll) return;
-    const next = selectedSet.has(uid)
-      ? selected.filter((u) => u !== uid)
-      : [...selected, uid];
-    onChange(next);
+
+    // لو العضو متعلم عبر المجموعة: حوّل اختيار المجموعة لأعضاء فرديين بدون العضو ده
+    if (viaGroup && selectedSet.has(viaGroup.id)) {
+      const deduped = Array.from(
+        new Set([
+          ...selected.filter((id) => id !== viaGroup.id),
+          ...viaGroup.memberUids.filter((m) => m !== uid),
+        ])
+      );
+      onChange(deduped);
+      return;
+    }
+
+    if (selectedSet.has(uid)) {
+      onChange(selected.filter((u) => u !== uid));
+      return;
+    }
+    onChange([...selected, uid]);
   };
 
-  /** اختيار المجموعة نفسها (group.id) — مش توسيع لكل الأعضاء */
+  /** اختيار المجموعة نفسها (group.id) — الأعضاء يتعلموا بصريًا من غير ما يتخزّنوا كـ UIDs */
   const toggleGroup = (group: UserGroup) => {
     if (isAll) return;
     if (selectedSet.has(group.id)) {
       onChange(selected.filter((id) => id !== group.id));
       return;
     }
-    onChange([...selected, group.id]);
+    // شيل أي اختيار فردي لأعضاء المجموعة عشان ميتعارضش مع اختيار المجموعة كلها
+    const memberSet = new Set(group.memberUids);
+    const withoutMembers = selected.filter((id) => !memberSet.has(id));
+    onChange([...withoutMembers, group.id]);
   };
 
   const setAllMode = () => onChange(['all']);
@@ -150,8 +167,9 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     return 'none';
   };
 
-  const renderUserRow = (u: AppUser) => {
-    const isSelected = selectedSet.has(u.uid);
+  const renderUserRow = (u: AppUser, viaGroup?: UserGroup) => {
+    const groupSelected = Boolean(viaGroup && selectedSet.has(viaGroup.id));
+    const isSelected = groupSelected || selectedSet.has(u.uid);
     const isOnboarded = u.username !== null;
     return (
       <li key={u.uid}>
@@ -159,7 +177,7 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
           <input
             type="checkbox"
             checked={isSelected}
-            onChange={() => toggleUser(u.uid)}
+            onChange={() => toggleUser(u.uid, viaGroup)}
             className="w-4 h-4 rounded border-admin-border text-admin-accent focus:ring-admin-accent cursor-pointer"
           />
           <div className="flex-1 min-w-0">
@@ -308,7 +326,7 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
                               لا يوجد مستخدمون في هذه المجموعة
                             </li>
                           ) : (
-                            members.map(renderUserRow)
+                            members.map((u) => renderUserRow(u, group))
                           )}
                         </ul>
                       )}
@@ -321,7 +339,7 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
                     <div className="px-3 py-2 text-xs font-bold text-admin-text-muted bg-admin-card/40">
                       بدون مجموعة
                     </div>
-                    <ul>{ungroupedUsers.map(renderUserRow)}</ul>
+                    <ul>{ungroupedUsers.map((u) => renderUserRow(u))}</ul>
                   </li>
                 )}
               </ul>
