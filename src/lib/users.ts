@@ -11,6 +11,7 @@ import {
   updateDoc,
   serverTimestamp,
   limit,
+  runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { AppUser } from './types';
@@ -201,5 +202,73 @@ export async function updateIsMarketer(uid: string, value: boolean): Promise<voi
   await updateDoc(doc(db, USERS_COLLECTION, uid), {
     is_marketer: value,
     updated_at: serverTimestamp(),
+  });
+}
+
+export interface MarketerProfileUpdate {
+  name: string;
+  phone: string;
+  daily_buyer_limit: number;
+  is_marketer?: boolean;
+}
+
+/**
+ * تعديل بيانات المسوّق من لوحة الأدمن: الاسم + الرقم + الحد اليومي.
+ * بيحدّث users + خريطة usernames لو الاسم اتغيّر.
+ */
+export async function updateMarketerByAdmin(
+  uid: string,
+  data: MarketerProfileUpdate
+): Promise<void> {
+  const nameErr = validateUsername(data.name);
+  if (nameErr) throw new Error(nameErr);
+
+  const phone = (data.phone || '').trim();
+  if (!phone) throw new Error('رقم التليفون مطلوب');
+
+  const limitValue = Math.floor(Number(data.daily_buyer_limit));
+  if (!Number.isFinite(limitValue) || limitValue < 1 || limitValue > 500) {
+    throw new Error('الحد اليومي لازم يكون بين 1 و 500');
+  }
+
+  const trimmedName = data.name.trim();
+  const newKey = normalizeUsernameKey(trimmedName);
+  const userRef = doc(db, USERS_COLLECTION, uid);
+  const newUnameRef = doc(db, USERNAMES_COLLECTION, newKey);
+
+  await runTransaction(db, async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists()) throw new Error('الحساب غير موجود');
+
+    const prev = userSnap.data();
+    const prevName = typeof prev.username === 'string' ? prev.username : '';
+    const prevKey = prevName ? normalizeUsernameKey(prevName) : '';
+
+    if (newKey !== prevKey) {
+      const reserved = await tx.get(newUnameRef);
+      if (reserved.exists() && reserved.data()?.uid !== uid) {
+        throw new Error('اسم المستخدم مستخدم بالفعل، جرب اسماً آخر');
+      }
+    }
+
+    if (prevKey && prevKey !== newKey) {
+      tx.delete(doc(db, USERNAMES_COLLECTION, prevKey));
+    }
+    tx.set(newUnameRef, {
+      uid,
+      username: trimmedName,
+      created_at: serverTimestamp(),
+    });
+
+    const payload: Record<string, unknown> = {
+      username: trimmedName,
+      phone,
+      daily_buyer_limit: limitValue,
+      updated_at: serverTimestamp(),
+    };
+    if (typeof data.is_marketer === 'boolean') {
+      payload.is_marketer = data.is_marketer;
+    }
+    tx.update(userRef, payload);
   });
 }

@@ -70,6 +70,9 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const [inspectorPhone, setInspectorPhone] = useState(initial?.inspector_phone || '');
   const [ownerName, setOwnerName] = useState(initial?.owner_name || '');
   const [ownerPhone, setOwnerPhone] = useState(initial?.owner_phone || '');
+  const [inspectionLocation, setInspectionLocation] = useState(
+    initial?.inspection_location || ''
+  );
   const [price, setPrice] = useState<string>(
     initial?.price ? formatPriceInput(initial.price.toString()) : ''
   );
@@ -229,6 +232,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         inspector_phone: inspectorPhone.trim(),
         owner_name: ownerName.trim(),
         owner_phone: ownerPhone.trim(),
+        inspection_location: inspectionLocation.trim(),
         assigned_to: assignedTo,
       };
       await onSave(data, imageSlots, removedExistingImages);
@@ -406,6 +410,18 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
           className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-left"
           required
         />
+        <div>
+          <label className="block text-xs font-bold text-admin-text-muted mb-1.5">
+            مكان المعاينة
+          </label>
+          <input
+            type="text"
+            value={inspectionLocation}
+            onChange={(e) => setInspectionLocation(e.target.value)}
+            placeholder="مثال: التجمع الخامس — أمام مول ..."
+            className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
+          />
+        </div>
       </div>
 
       <div className="bg-admin-card border border-admin-border rounded-2xl p-4 space-y-3">

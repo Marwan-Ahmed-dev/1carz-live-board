@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Star, Car as CarIcon, Eye } from 'lucide-react';
+import { Star, Car as CarIcon, Eye, MapPin } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
 import { formatPrice } from '@/lib/format';
 import { CopyButton } from '@/components/CopyButton';
@@ -97,6 +97,13 @@ function CarCardInner({ car }: CarCardProps) {
           {formatPrice(car.price)}
           <span className="text-[10px] sm:text-sm font-medium text-text-secondary mr-0.5"> ج.م</span>
         </p>
+
+        {car.inspection_location?.trim() ? (
+          <p className="flex items-start gap-1 text-[11px] sm:text-xs text-text-secondary leading-snug">
+            <MapPin size={12} className="flex-shrink-0 mt-0.5 text-accent-yellow-hover" />
+            <span className="line-clamp-2">{car.inspection_location.trim()}</span>
+          </p>
+        ) : null}
 
         {isAdmin ? (
           <div className="space-y-1">

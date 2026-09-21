@@ -19,7 +19,7 @@ import {
   Phone,
   SlidersHorizontal,
 } from 'lucide-react';
-import { subscribeToUsers, validateUsername, deleteUserByAdmin, updateDailyBuyerLimit, updateIsMarketer } from '@/lib/users';
+import { subscribeToUsers, validateUsername, deleteUserByAdmin, updateDailyBuyerLimit, updateMarketerByAdmin } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { createUserByAdmin } from '@/lib/auth';
 import { AppUser, DEFAULT_DAILY_BUYER_LIMIT, UserGroup } from '@/lib/types';
@@ -93,6 +93,8 @@ export default function AdminUsersPage() {
   const [adminUids, setAdminUids] = useState<Set<string>>(new Set());
   const [inspectorUids, setInspectorUids] = useState<Set<string>>(new Set());
   const [editLimit, setEditLimit] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [editIsMarketer, setEditIsMarketer] = useState(false);
   const [savingLimit, setSavingLimit] = useState(false);
   const [limitEditUser, setLimitEditUser] = useState<AppUser | null>(null);
@@ -170,6 +172,160 @@ export default function AdminUsersPage() {
     }
     return list;
   }, [users, debouncedSearch]);
+
+  /** المستخدمين مجمّعين حسب المجموعة (كل يوزر يظهر تحت أول مجموعة ليه) */
+  const usersByGroup = useMemo(() => {
+    const placed = new Set<string>();
+    const sections: { id: string; name: string; users: AppUser[] }[] = [];
+
+    for (const g of groups) {
+      const members = filteredUsers.filter(
+        (u) => g.memberUids.includes(u.uid) && !placed.has(u.uid)
+      );
+      if (members.length === 0) continue;
+      members.forEach((u) => placed.add(u.uid));
+      sections.push({ id: g.id, name: g.name, users: members });
+    }
+
+    const ungrouped = filteredUsers.filter((u) => !placed.has(u.uid));
+    if (ungrouped.length > 0) {
+      sections.push({ id: '_none', name: 'بدون مجموعة', users: ungrouped });
+    }
+    return sections;
+  }, [filteredUsers, groups]);
+
+  const renderUserRow = (u: AppUser) => {
+    const userGroups = groupsForUser(u.uid);
+    const marketer = isMarketerAccount(u, adminUids, inspectorUids);
+    const dailyLimit = u.daily_buyer_limit ?? DEFAULT_DAILY_BUYER_LIMIT;
+    return (
+      <li
+        key={u.uid}
+        className="p-3 hover:bg-admin-bg transition-colors flex items-center gap-3"
+      >
+        <div className="w-12 h-12 rounded-full bg-admin-accent/15 flex items-center justify-center flex-shrink-0">
+          <UserIcon size={22} className="text-admin-accent" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-admin-text truncate flex items-center gap-1.5 flex-wrap">
+            {u.username || u.email.split('@')[0]}
+            {(adminUids.has(u.uid) || u.role === 'admin') && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-admin-accent/15 text-admin-accent text-[10px] font-bold">
+                <Shield size={10} />
+                أدمن
+              </span>
+            )}
+            {(inspectorUids.has(u.uid) || u.role === 'inspector') && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold">
+                <Eye size={10} />
+                معاين
+              </span>
+            )}
+            {marketer && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
+                مسوق
+              </span>
+            )}
+          </h3>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-admin-text-muted mt-0.5">
+            <span className="flex items-center gap-1">
+              <Mail size={11} />
+              {u.email}
+            </span>
+            {u.phone && (
+              <span className="flex items-center gap-1" dir="ltr">
+                <Phone size={11} />
+                {u.phone}
+              </span>
+            )}
+            {marketer && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-admin-bg text-admin-accent font-bold">
+                حد يومي: {dailyLimit}
+              </span>
+            )}
+          </div>
+          {userGroups.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {userGroups.map((g) => (
+                <span
+                  key={g}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-admin-accent/15 text-admin-accent text-[10px] font-bold"
+                >
+                  <UsersIcon size={10} />
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-admin-text-muted mt-1">
+            <span className="flex items-center gap-1">
+              <Calendar size={11} />
+              انضم: {formatDate(u.created_at)}
+            </span>
+            <span className="flex items-center gap-1">
+              <Calendar size={11} />
+              آخر ظهور: {formatDate(u.last_seen)}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {marketer && (
+            <button
+              type="button"
+              onClick={() => {
+                setLimitEditUser(u);
+                setEditName(u.username || u.email.split('@')[0] || '');
+                setEditPhone(u.phone || '');
+                setEditLimit(String(dailyLimit));
+                const explicit =
+                  u.is_marketer === true
+                    ? true
+                    : u.is_marketer === false
+                      ? false
+                      : isMarketerAccount(u, adminUids, inspectorUids);
+                setEditIsMarketer(explicit);
+              }}
+              className="flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+              aria-label="تعديل بيانات المسوّق"
+            >
+              <SlidersHorizontal size={16} className="text-emerald-400" />
+              <span className="badge-number text-sm font-bold text-emerald-400">
+                {dailyLimit}
+              </span>
+              <span className="text-[10px] text-emerald-400/80">تعديل</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setSelectedUser(u);
+              setEditLimit(String(dailyLimit));
+            }}
+            className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-admin-bg hover:bg-admin-border transition-colors"
+          >
+            <CarIcon size={16} className="text-admin-accent" />
+            <span className="badge-number text-base font-bold text-admin-accent">
+              {countForUser(u.uid)}
+            </span>
+            <span className="text-[10px] text-admin-text-muted">عربية</span>
+          </button>
+          {u.uid !== currentUid && (
+            <button
+              onClick={() => handleDeleteUser(u)}
+              disabled={deletingId === u.uid}
+              className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
+              aria-label="حذف الحساب"
+            >
+              {deletingId === u.uid ? (
+                <Loader2 size={16} className="text-red-400 animate-spin" />
+              ) : (
+                <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
+              )}
+            </button>
+          )}
+        </div>
+      </li>
+    );
+  };
 
   const SelectedUserCars = ({ uid }: { uid: string }) => {
     const [cars, setCars] = useState<Array<{ id?: string; title: string; image_url: string }>>([]);
@@ -381,139 +537,24 @@ export default function AdminUsersPage() {
           )}
 
           {!loading && filteredUsers.length > 0 && (
-            <div className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden">
-              <ul className="divide-y divide-admin-border">
-                {filteredUsers.map((u) => {
-                  const userGroups = groupsForUser(u.uid);
-                  const marketer = isMarketerAccount(u, adminUids, inspectorUids);
-                  const dailyLimit = u.daily_buyer_limit ?? DEFAULT_DAILY_BUYER_LIMIT;
-                  return (
-                    <li
-                      key={u.uid}
-                      className="p-3 hover:bg-admin-bg transition-colors flex items-center gap-3"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-admin-accent/15 flex items-center justify-center flex-shrink-0">
-                        <UserIcon size={22} className="text-admin-accent" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-admin-text truncate flex items-center gap-1.5 flex-wrap">
-                          {u.username || u.email.split('@')[0]}
-                          {(adminUids.has(u.uid) || u.role === 'admin') && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-admin-accent/15 text-admin-accent text-[10px] font-bold">
-                              <Shield size={10} />
-                              أدمن
-                            </span>
-                          )}
-                          {(inspectorUids.has(u.uid) || u.role === 'inspector') && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold">
-                              <Eye size={10} />
-                              معاين
-                            </span>
-                          )}
-                          {marketer && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
-                              مسوق
-                            </span>
-                          )}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-admin-text-muted mt-0.5">
-                          <span className="flex items-center gap-1">
-                            <Mail size={11} />
-                            {u.email}
-                          </span>
-                          {u.phone && (
-                            <span className="flex items-center gap-1" dir="ltr">
-                              <Phone size={11} />
-                              {u.phone}
-                            </span>
-                          )}
-                          {marketer && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-admin-bg text-admin-accent font-bold">
-                              حد يومي: {dailyLimit}
-                            </span>
-                          )}
-                        </div>
-                        {userGroups.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {userGroups.map((g) => (
-                              <span
-                                key={g}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-admin-accent/15 text-admin-accent text-[10px] font-bold"
-                              >
-                                <UsersIcon size={10} />
-                                {g}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-admin-text-muted mt-1">
-                          <span className="flex items-center gap-1">
-                            <Calendar size={11} />
-                            انضم: {formatDate(u.created_at)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar size={11} />
-                            آخر ظهور: {formatDate(u.last_seen)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {marketer && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setLimitEditUser(u);
-                              setEditLimit(String(dailyLimit));
-                              // أولوية للـ flag الصريح، fallback على الـ legacy heuristic
-                              const explicit = u.is_marketer === true
-                                ? true
-                                : u.is_marketer === false
-                                  ? false
-                                  : isMarketerAccount(u, adminUids, inspectorUids);
-                              setEditIsMarketer(explicit);
-                            }}
-                            className="flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-                            aria-label="تعديل حد المشترين"
-                          >
-                            <SlidersHorizontal size={16} className="text-emerald-400" />
-                            <span className="badge-number text-sm font-bold text-emerald-400">
-                              {dailyLimit}
-                            </span>
-                            <span className="text-[10px] text-emerald-400/80">الحد</span>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setSelectedUser(u);
-                            setEditLimit(String(dailyLimit));
-                          }}
-                          className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-admin-bg hover:bg-admin-border transition-colors"
-                        >
-                          <CarIcon size={16} className="text-admin-accent" />
-                          <span className="badge-number text-base font-bold text-admin-accent">
-                            {countForUser(u.uid)}
-                          </span>
-                          <span className="text-[10px] text-admin-text-muted">عربية</span>
-                        </button>
-                        {u.uid !== currentUid && (
-                          <button
-                            onClick={() => handleDeleteUser(u)}
-                            disabled={deletingId === u.uid}
-                            className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
-                            aria-label="حذف الحساب"
-                          >
-                            {deletingId === u.uid ? (
-                              <Loader2 size={16} className="text-red-400 animate-spin" />
-                            ) : (
-                              <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+            <div className="space-y-4">
+              {usersByGroup.map((section) => (
+                <div
+                  key={section.id}
+                  className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden"
+                >
+                  <div className="px-3 py-2.5 border-b border-admin-border bg-admin-bg/60 flex items-center gap-2">
+                    <UsersIcon size={14} className="text-admin-accent" />
+                    <h3 className="text-sm font-bold text-admin-text">{section.name}</h3>
+                    <span className="text-xs text-admin-text-muted badge-number">
+                      {section.users.length}
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-admin-border">
+                    {section.users.map((u) => renderUserRow(u))}
+                  </ul>
+                </div>
+              ))}
             </div>
           )}
         </>
@@ -597,15 +638,13 @@ export default function AdminUsersPage() {
           onClick={() => !savingLimit && setLimitEditUser(null)}
         >
           <div
-            className="bg-admin-card border border-admin-border rounded-2xl w-full max-w-sm p-5 modal-in"
+            className="bg-admin-card border border-admin-border rounded-2xl w-full max-w-sm p-5 modal-in max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-bold text-admin-text">تعديل حد المشترين</h3>
-                <p className="text-xs text-admin-text-muted mt-0.5">
-                  {limitEditUser.username || limitEditUser.email}
-                </p>
+                <h3 className="text-lg font-bold text-admin-text">تعديل بيانات المسوّق</h3>
+                <p className="text-xs text-admin-text-muted mt-0.5">{limitEditUser.email}</p>
               </div>
               <button
                 type="button"
@@ -616,11 +655,29 @@ export default function AdminUsersPage() {
                 <X size={16} className="text-admin-text-muted" />
               </button>
             </div>
-            <p className="text-sm text-admin-text-muted mb-3">
-              كام مشتري يقدر المسوّق يسجّلهم في اليوم الواحد؟
-            </p>
+
+            <label className="block text-xs font-bold text-admin-text-muted mb-1.5">الاسم</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              maxLength={20}
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text text-sm mb-3"
+              placeholder="اسم المستخدم"
+            />
+
+            <label className="block text-xs font-bold text-admin-text-muted mb-1.5">رقم التليفون</label>
+            <input
+              type="tel"
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text text-sm mb-3"
+              placeholder="01xxxxxxxxx"
+              dir="ltr"
+            />
+
             <label className="block text-xs font-bold text-admin-text-muted mb-1.5">
-              الحد اليومي
+              عدد المشترين في اليوم
             </label>
             <input
               type="number"
@@ -628,10 +685,10 @@ export default function AdminUsersPage() {
               max={500}
               value={editLimit}
               onChange={(e) => setEditLimit(e.target.value)}
-              className="w-full px-3 py-3 rounded-xl bg-admin-bg border border-admin-border text-admin-text text-base font-bold mb-4"
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text text-base font-bold mb-3"
               dir="ltr"
             />
-            {/* Marketer toggle — يفصل بين 'user' و 'marketer' علناً */}
+
             <label className="flex items-start gap-2 mb-4 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -642,24 +699,24 @@ export default function AdminUsersPage() {
               <span className="text-sm text-admin-text">
                 <span className="font-bold block">هذا الحساب مسوّق</span>
                 <span className="text-xs text-admin-text-muted block mt-0.5">
-                  المسوّق يشوف بس العربيات المعيّنة له أو لمجموعته (assigned_to).
-                  باقي المستخدمين يشوفوا كل العربيات.
+                  المسوّق يشوف بس العربيات المعيّنة له أو لمجموعته.
                 </span>
               </span>
             </label>
+
             <button
               type="button"
               disabled={savingLimit}
               onClick={async () => {
                 setSavingLimit(true);
                 try {
-                  const value = Math.floor(Number(editLimit));
-                  // حفظ الـ limit + الـ is_marketer معاً — لو بينهم fail، الـ partial update هيفشل
-                  await Promise.all([
-                    updateDailyBuyerLimit(limitEditUser.uid, value),
-                    updateIsMarketer(limitEditUser.uid, editIsMarketer),
-                  ]);
-                  showToast('تم تحديث إعدادات المسوّق', 'success');
+                  await updateMarketerByAdmin(limitEditUser.uid, {
+                    name: editName,
+                    phone: editPhone,
+                    daily_buyer_limit: Number(editLimit),
+                    is_marketer: editIsMarketer,
+                  });
+                  showToast('تم تحديث بيانات المسوّق', 'success');
                   setLimitEditUser(null);
                 } catch (err: unknown) {
                   showToast((err as Error)?.message || 'فشل التحديث', 'error');
@@ -670,7 +727,7 @@ export default function AdminUsersPage() {
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-admin-accent hover:bg-yellow-400 text-admin-bg font-bold text-sm disabled:opacity-60"
             >
               {savingLimit ? <Loader2 size={16} className="animate-spin" /> : null}
-              حفظ الإعدادات
+              حفظ البيانات
             </button>
           </div>
         </div>

@@ -62,6 +62,8 @@ function normalizeCar(snap: DocumentData): Car {
     inspector_phone: typeof data.inspector_phone === 'string' ? data.inspector_phone : '',
     owner_name: typeof data.owner_name === 'string' ? data.owner_name : '',
     owner_phone: typeof data.owner_phone === 'string' ? data.owner_phone : '',
+    inspection_location:
+      typeof data.inspection_location === 'string' ? data.inspection_location : '',
     assigned_to: assignedTo,
     created_at: data.created_at || null,
     updated_at: data.updated_at || null,
@@ -145,6 +147,7 @@ export async function addCar(input: NewCarInput): Promise<string> {
     inspector_phone: (input.inspector_phone || '').trim(),
     owner_name: (input.owner_name || '').trim(),
     owner_phone: (input.owner_phone || '').trim(),
+    inspection_location: (input.inspection_location || '').trim(),
     // H14: optimistic concurrency — كل عربية بتبدأ بـ version=1
     version: 1,
     created_at: serverTimestamp(),

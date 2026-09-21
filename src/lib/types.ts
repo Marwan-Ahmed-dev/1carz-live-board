@@ -58,6 +58,8 @@ export interface Car {
   inspector_phone: string;
   owner_name: string;
   owner_phone: string;
+  /** مكان المعاينة — يظهر للجميع على البطاقة وصفحة التفاصيل */
+  inspection_location?: string;
   // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل
   // حتى لو المستخدم ما عملش onboarding لسه.
   // ['all'] = لكل المستخدمين، ['uid1', 'uid2'] = لهؤلاء بس

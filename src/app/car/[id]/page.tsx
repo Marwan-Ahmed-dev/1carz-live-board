@@ -16,11 +16,11 @@ import {
   Maximize2,
   Download,
   UserRound,
+  MapPin,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
 import { downloadAllCarImages, downloadSingleCarImage, shareCarImageFiles } from '@/lib/downloadCarImages';
-import { PRIORITY_LABELS } from '@/lib/priority';
 import { Car as CarType, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
@@ -37,8 +37,6 @@ const CONDITION_META: Record<CarCondition, string> = {
   good: 'جيدة',
   zero_km: 'كسر زيرو',
 };
-
-const PRIORITY_META = PRIORITY_LABELS;
 
 export default function CarDetailPage({ params }: { params: { id: string } }) {
   // ✅ FIX: Next.js 14 (App Router) بيبعت params كـ plain object — مش Promise.
@@ -401,7 +399,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Meta grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {/* الحالة */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
                 <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
@@ -409,16 +407,6 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                   الحالة
                 </div>
                 <div className="text-sm font-bold text-text-primary">{CONDITION_META[car.condition]}</div>
-              </div>
-              {/* الأولوية */}
-              <div className="bg-bg-card border border-border-soft rounded-xl p-3">
-                <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
-                  <Star size={14} />
-                  الأولوية
-                </div>
-                <div className="text-sm font-bold text-text-primary">
-                  {PRIORITY_META[car.priority]}
-                </div>
               </div>
               {/* التوفر */}
               <div className="bg-bg-card border border-border-soft rounded-xl p-3">
@@ -429,6 +417,18 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                 <StatusBadge status={car.status} size="md" />
               </div>
             </div>
+
+            {car.inspection_location?.trim() ? (
+              <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
+                <h3 className="text-sm font-bold text-text-secondary flex items-center gap-1.5 mb-2">
+                  <MapPin size={14} />
+                  مكان المعاينة
+                </h3>
+                <p className="text-sm font-bold text-text-primary leading-relaxed">
+                  {car.inspection_location.trim()}
+                </p>
+              </div>
+            ) : null}
 
             {/* Description — مع زر نسخ */}
             {(car.inspector_name || car.inspector_phone) && (
