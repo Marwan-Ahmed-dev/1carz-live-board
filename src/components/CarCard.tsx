@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Star, Car as CarIcon, Eye, MapPin } from 'lucide-react';
+import { Star, Car as CarIcon, Eye, MapPin, Phone } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
 import { formatPrice } from '@/lib/format';
 import { CopyButton } from '@/components/CopyButton';
@@ -48,14 +48,49 @@ function ContactBlock({
   );
 }
 
+/** Viewer: اتصل الآن على الموبايل، والرقم فقط على الشاشات الكبيرة */
+function ViewerCallBlock({ phone }: { phone: string }) {
+  const tel = phone.replace(/\s+/g, '');
+  return (
+    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+      <a
+        href={`tel:${tel}`}
+        className="md:hidden w-full inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[12px] font-bold transition-colors"
+      >
+        <Phone size={14} />
+        اتصل الآن
+      </a>
+      <p className="badge-number text-[11px] sm:text-sm text-text-secondary text-center" dir="ltr">
+        {phone}
+      </p>
+    </div>
+  );
+}
+
 function CarCardInner({ car }: CarCardProps) {
   const router = useRouter();
   const { isAdmin, isInspector } = useAuth();
   const isFeatured = car.is_featured;
   const additionalCount = car.additional_images?.length || 0;
+  const inspectorPhone = (car.inspector_phone || '').trim();
+
+  const goToDetails = () => {
+    if (car.id) router.push(`/car/${car.id}`);
+  };
 
   return (
-    <div className="relative flex flex-col h-full bg-bg-card rounded-xl sm:rounded-2xl overflow-hidden shadow-soft border border-border-soft">
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={goToDetails}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          goToDetails();
+        }
+      }}
+      className="relative flex flex-col h-full bg-bg-card rounded-xl sm:rounded-2xl overflow-hidden shadow-soft border border-border-soft cursor-pointer transition-shadow hover:shadow-medium"
+    >
       {isFeatured && (
         <div className="absolute z-10 top-1.5 right-1.5 sm:top-2 sm:right-2">
           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-accent-yellow text-text-primary text-[10px] sm:text-xs font-bold shadow-soft">
@@ -98,15 +133,21 @@ function CarCardInner({ car }: CarCardProps) {
           <span className="text-[10px] sm:text-sm font-medium text-text-secondary mr-0.5"> ج.م</span>
         </p>
 
-        {car.inspection_location?.trim() ? (
-          <p className="flex items-start gap-1 text-[11px] sm:text-xs text-text-secondary leading-snug">
+        {/* مكان المعاينة ظاهر على الكارت للمعاين / المسوّق / الزائر */}
+        {!isAdmin && car.inspection_location?.trim() ? (
+          <div className="flex items-start gap-1 rounded-lg bg-bg-primary/80 px-1.5 py-1 sm:px-2 sm:py-1.5">
             <MapPin size={12} className="flex-shrink-0 mt-0.5 text-accent-yellow-hover" />
-            <span className="line-clamp-2">{car.inspection_location.trim()}</span>
-          </p>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-xs text-text-muted font-medium">مكان المعاينة</div>
+              <p className="text-[11px] sm:text-sm font-bold text-text-primary leading-snug line-clamp-2">
+                {car.inspection_location.trim()}
+              </p>
+            </div>
+          </div>
         ) : null}
 
         {isAdmin ? (
-          <div className="space-y-1">
+          <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
             <ContactBlock
               role="المعاين"
               name={car.inspector_name || ''}
@@ -123,22 +164,18 @@ function CarCardInner({ car }: CarCardProps) {
             />
           </div>
         ) : isInspector ? (
-          <ContactBlock
-            role="المالك"
-            name={car.owner_name || ''}
-            phone={car.owner_phone || ''}
-            copyLabel="نسخ رقم المالك"
-            carId={car.id}
-          />
-        ) : (
-          <ContactBlock
-            role="المعاين"
-            name={car.inspector_name || ''}
-            phone={car.inspector_phone || ''}
-            copyLabel="نسخ رقم المعاين"
-            carId={car.id}
-          />
-        )}
+          <div onClick={(e) => e.stopPropagation()}>
+            <ContactBlock
+              role="المالك"
+              name={car.owner_name || ''}
+              phone={car.owner_phone || ''}
+              copyLabel="نسخ رقم المالك"
+              carId={car.id}
+            />
+          </div>
+        ) : inspectorPhone ? (
+          <ViewerCallBlock phone={inspectorPhone} />
+        ) : null}
 
         <div className="mt-auto flex items-center gap-1.5 pt-0.5">
           <StatusBadge status={car.status} size="sm" className="!text-[10px] sm:!text-xs !px-1.5 !py-0.5" />
@@ -146,7 +183,7 @@ function CarCardInner({ car }: CarCardProps) {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              if (car.id) router.push(`/car/${car.id}`);
+              goToDetails();
             }}
             className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 sm:py-2 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-[11px] sm:text-sm font-bold transition-colors"
             aria-label="عرض التفاصيل"

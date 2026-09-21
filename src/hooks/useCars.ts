@@ -22,6 +22,8 @@ export interface UseCarsOptions {
    * null/undefined = مفيش فلتر assignment (كل العربيات ظاهرة).
    */
   marketerFilter?: { uid: string; groupUids: string[] } | null;
+  /** أدمن على لوحة العرض: يشوف بس العربيات اللي هو نازلها */
+  createdByUid?: string | null;
 }
 
 /**
@@ -78,6 +80,9 @@ export function useCars(opts: UseCarsOptions = {}) {
         (c) => Array.isArray(c.assigned_to) && c.assigned_to.some((id) => allowed.has(id))
       );
     }
+    if (opts.createdByUid) {
+      filtered = filtered.filter((c) => c.created_by_uid === opts.createdByUid);
+    }
     if (opts.priority && opts.priority !== 'all') {
       filtered = filtered.filter((c) => c.priority === opts.priority);
     }
@@ -100,6 +105,7 @@ export function useCars(opts: UseCarsOptions = {}) {
     opts.assignedOnly,
     opts.marketerFilter?.uid,
     opts.marketerFilter?.groupUids,
+    opts.createdByUid,
   ]);
 
   return { cars, allCars, loading, error };

@@ -7,7 +7,7 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { UserGroup } from './types';
 import { logger } from './logger';
 
@@ -22,6 +22,7 @@ function normalizeGroup(snap: { id: string; data: () => Record<string, unknown> 
     id: snap.id,
     name: typeof data.name === 'string' ? data.name : '',
     memberUids: members,
+    created_by_uid: typeof data.created_by_uid === 'string' ? data.created_by_uid : undefined,
     created_at: (data.created_at as UserGroup['created_at']) || null,
     updated_at: (data.updated_at as UserGroup['updated_at']) || null,
   };
@@ -47,9 +48,12 @@ export function subscribeToGroups(callback: (groups: UserGroup[]) => void): () =
 export async function createGroup(name: string, memberUids: string[] = []): Promise<string> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('اسم المجموعة مطلوب');
+  const creatorUid = auth.currentUser?.uid;
+  if (!creatorUid) throw new Error('يجب تسجيل الدخول');
   const ref = await addDoc(collection(db, GROUPS_COLLECTION), {
     name: trimmed,
     memberUids,
+    created_by_uid: creatorUid,
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
   });

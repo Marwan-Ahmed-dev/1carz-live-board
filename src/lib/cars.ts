@@ -23,7 +23,7 @@ import {
   getCountFromServer,
   runTransaction,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { Car, NewCarInput, CarUpdateInput, Priority, CarStatus } from './types';
 import { deleteCarImages } from './storage';
 import { PRIORITY_ORDER } from './priority';
@@ -64,6 +64,7 @@ function normalizeCar(snap: DocumentData): Car {
     owner_phone: typeof data.owner_phone === 'string' ? data.owner_phone : '',
     inspection_location:
       typeof data.inspection_location === 'string' ? data.inspection_location : '',
+    created_by_uid: typeof data.created_by_uid === 'string' ? data.created_by_uid : '',
     assigned_to: assignedTo,
     created_at: data.created_at || null,
     updated_at: data.updated_at || null,
@@ -137,6 +138,10 @@ export async function addCar(input: NewCarInput): Promise<string> {
   }
 
   const ref = collection(db, CARS_COLLECTION);
+  const creatorUid =
+    (typeof input.created_by_uid === 'string' && input.created_by_uid) ||
+    auth.currentUser?.uid ||
+    '';
   const data: Record<string, unknown> = {
     ...input,
     title,
@@ -148,6 +153,7 @@ export async function addCar(input: NewCarInput): Promise<string> {
     owner_name: (input.owner_name || '').trim(),
     owner_phone: (input.owner_phone || '').trim(),
     inspection_location: (input.inspection_location || '').trim(),
+    ...(creatorUid ? { created_by_uid: creatorUid } : {}),
     // H14: optimistic concurrency — كل عربية بتبدأ بـ version=1
     version: 1,
     created_at: serverTimestamp(),

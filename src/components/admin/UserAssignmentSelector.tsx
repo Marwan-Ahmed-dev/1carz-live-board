@@ -5,6 +5,7 @@ import { Search, X, Users as UsersIcon, UserCheck, ChevronDown, ChevronLeft } fr
 import { subscribeToUsers } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { AppUser, UserGroup } from '@/lib/types';
+import { useAuth } from '@/hooks/useAuth';
 
 interface UserAssignmentSelectorProps {
   value: string[];
@@ -15,17 +16,25 @@ function displayName(u: AppUser): string {
   return u.username || u.email.split('@')[0];
 }
 
+function isOwnGroup(g: UserGroup, adminUid: string | undefined): boolean {
+  if (!adminUid) return false;
+  // مجموعات قديمة بدون created_by_uid: ظاهرة لكل الأدمنز
+  if (!g.created_by_uid) return true;
+  return g.created_by_uid === adminUid;
+}
+
 /**
  * اختيار التعيين:
  * - الكل → ['all']
  * - مجموعة → يتخزّن group.id في assigned_to (من غير ما يوسّع الأعضاء)
  * - مستخدم → يتخزّن uid
  *
- * العربية تظهر بس للي متعلم selected: عضو في مجموعة متعلّمة، أو UID متعلم، أو الكل.
+ * كل أدمن يشوف بس مجموعاته وأعضاء مجموعاته.
  */
 export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelectorProps) {
+  const { user } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [groups, setGroups] = useState<UserGroup[]>([]);
+  const [allGroups, setAllGroups] = useState<UserGroup[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -35,12 +44,28 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
       setUsers(all);
       setLoading(false);
     });
-    const unsubGroups = subscribeToGroups(setGroups);
+    const unsubGroups = subscribeToGroups(setAllGroups);
     return () => {
       unsubUsers();
       unsubGroups();
     };
   }, []);
+
+  const groups = useMemo(
+    () => allGroups.filter((g) => isOwnGroup(g, user?.uid)),
+    [allGroups, user?.uid]
+  );
+
+  const ownMemberUids = useMemo(() => {
+    const set = new Set<string>();
+    groups.forEach((g) => g.memberUids.forEach((uid) => set.add(uid)));
+    return set;
+  }, [groups]);
+
+  const scopedUsers = useMemo(
+    () => users.filter((u) => ownMemberUids.has(u.uid)),
+    [users, ownMemberUids]
+  );
 
   const isAll = value.length === 1 && value[0] === 'all';
   const selected = isAll ? [] : value;
@@ -51,14 +76,14 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
   const query = search.trim().toLowerCase();
 
   const filteredUsers = useMemo(() => {
-    if (!query) return users;
-    return users.filter(
+    if (!query) return scopedUsers;
+    return scopedUsers.filter(
       (u) =>
         u.username?.toLowerCase().includes(query) ||
         u.email.toLowerCase().includes(query) ||
         u.uid.toLowerCase().includes(query)
     );
-  }, [users, query]);
+  }, [scopedUsers, query]);
 
   const usersById = useMemo(() => {
     const map = new Map<string, AppUser>();

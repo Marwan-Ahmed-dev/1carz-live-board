@@ -17,6 +17,7 @@ import { createGroup, updateGroup, deleteGroup } from '@/lib/groups';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useAuth } from '@/hooks/useAuth';
 
 interface GroupManagerProps {
   users: AppUser[];
@@ -28,6 +29,7 @@ function displayName(u: AppUser): string {
 }
 
 export function GroupManager({ users, groups }: GroupManagerProps) {
+  const { user } = useAuth();
   const { showToast } = useToast();
   const { confirm, dialogProps } = useConfirm();
   const [search, setSearch] = useState('');
@@ -40,6 +42,12 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const ownGroups = useMemo(() => {
+    const uid = user?.uid;
+    if (!uid) return [];
+    return groups.filter((g) => !g.created_by_uid || g.created_by_uid === uid);
+  }, [groups, user?.uid]);
+
   const usersById = useMemo(() => {
     const map = new Map<string, AppUser>();
     users.forEach((u) => map.set(u.uid, u));
@@ -51,10 +59,10 @@ export function GroupManager({ users, groups }: GroupManagerProps) {
   const debouncedUserSearch = useDebouncedValue(userSearch, 250);
 
   const filteredGroups = useMemo(() => {
-    if (!debouncedSearch.trim()) return groups;
+    if (!debouncedSearch.trim()) return ownGroups;
     const s = debouncedSearch.trim().toLowerCase();
-    return groups.filter((g) => g.name.toLowerCase().includes(s));
-  }, [groups, debouncedSearch]);
+    return ownGroups.filter((g) => g.name.toLowerCase().includes(s));
+  }, [ownGroups, debouncedSearch]);
 
   const modalUsers = useMemo(() => {
     if (!debouncedUserSearch.trim()) return users;

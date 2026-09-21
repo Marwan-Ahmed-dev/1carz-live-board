@@ -17,6 +17,7 @@ import {
   Download,
   UserRound,
   MapPin,
+  Phone,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar } from '@/lib/cars';
@@ -430,8 +431,8 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               </div>
             ) : null}
 
-            {/* Description — مع زر نسخ */}
-            {(car.inspector_name || car.inspector_phone) && (
+            {/* المعاين: أدمن/معاين يشوف الاسم+الرقم، الزائر يشوف اتصل الآن / الرقم فقط */}
+            {(isAdmin || isInspector) && (car.inspector_name || car.inspector_phone) && (
               <div className="bg-bg-card border border-border-soft rounded-2xl p-5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h3 className="text-sm font-bold text-text-secondary flex items-center gap-1.5">
@@ -455,6 +456,21 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                     {car.inspector_phone}
                   </div>
                 )}
+              </div>
+            )}
+
+            {!isAdmin && !isInspector && car.inspector_phone?.trim() && (
+              <div className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-2">
+                <a
+                  href={`tel:${car.inspector_phone.replace(/\s+/g, '')}`}
+                  className="md:hidden w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors"
+                >
+                  <Phone size={16} />
+                  اتصل الآن
+                </a>
+                <p className="badge-number text-sm text-text-secondary text-center" dir="ltr">
+                  {car.inspector_phone.trim()}
+                </p>
               </div>
             )}
 

@@ -79,6 +79,7 @@ export default function CarsBoardPage() {
     uid: user?.uid,
     publicOnly: isGuest,
     marketerFilter,
+    createdByUid: isAdmin && user ? user.uid : null,
     minPrice,
     maxPrice,
   });
@@ -126,7 +127,7 @@ export default function CarsBoardPage() {
         <PriorityButtons
           current={priorityFilter}
           onChange={setPriorityFilter}
-          guestMode={isGuest || isMarketer}
+          guestMode={isGuest}
         />
 
         <PriceFilter

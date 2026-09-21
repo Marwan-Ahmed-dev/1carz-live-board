@@ -60,6 +60,8 @@ export interface Car {
   owner_phone: string;
   /** مكان المعاينة — يظهر للجميع على البطاقة وصفحة التفاصيل */
   inspection_location?: string;
+  /** UID الأدمن/المعاين اللي رفع العربية */
+  created_by_uid?: string;
   // ✅ نستخدم UIDs (مش usernames) عشان الـ assignment يقدر يشتغل
   // حتى لو المستخدم ما عملش onboarding لسه.
   // ['all'] = لكل المستخدمين، ['uid1', 'uid2'] = لهؤلاء بس
@@ -119,6 +121,8 @@ export interface UserGroup {
   id: string;
   name: string;
   memberUids: string[];
+  /** UID الأدمن اللي أنشأ المجموعة — للعزل بين الأدمنز */
+  created_by_uid?: string;
   created_at: FirestoreTs;
   updated_at: FirestoreTs;
 }

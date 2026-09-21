@@ -20,7 +20,8 @@ import {
   ListOrdered,
 } from 'lucide-react';
 import { subscribeToCars, deleteCar } from '@/lib/cars';
-import { Car, Priority } from '@/lib/types';
+import { subscribeToUsers } from '@/lib/users';
+import { AppUser, Car, Priority } from '@/lib/types';
 import { PRIORITY_LABELS, PRIORITY_ORDER } from '@/lib/priority';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -28,8 +29,8 @@ import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
-import { logger } from '@/lib/logger';
 import type { LucideIcon } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: LucideIcon; color: string }> = {
   arabyatna: { label: PRIORITY_LABELS.arabyatna, icon: Heart, color: 'text-rose-400 bg-rose-500/15' },
@@ -85,6 +86,7 @@ export default function AdminCarsPage() {
   const { showToast } = useToast();
   const { confirm, dialogProps } = useConfirm();
   const [cars, setCars] = useState<Car[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
@@ -99,8 +101,18 @@ export default function AdminCarsPage() {
       },
       { onError: () => setLoading(false) }
     );
-    return () => unsub();
+    const unsubUsers = subscribeToUsers(setUsers);
+    return () => {
+      unsub();
+      unsubUsers();
+    };
   }, []);
+
+  const usersById = useMemo(() => {
+    const map = new Map<string, AppUser>();
+    users.forEach((u) => map.set(u.uid, u));
+    return map;
+  }, [users]);
 
   // فلترة + بحث + ترتيب
   const filtered = useMemo(() => {
@@ -138,6 +150,32 @@ export default function AdminCarsPage() {
     }
     return sorted;
   }, [cars, priorityFilter, search, sortMode]);
+
+  const carsByAdmin = useMemo(() => {
+    const map = new Map<string, Car[]>();
+    for (const c of filtered) {
+      const key = c.created_by_uid || '_unknown';
+      const list = map.get(key) || [];
+      list.push(c);
+      map.set(key, list);
+    }
+    const sections: { key: string; label: string; cars: Car[] }[] = [];
+    for (const [key, list] of map.entries()) {
+      if (key === '_unknown') {
+        sections.push({ key, label: 'عربيات قديمة / بدون ناشر', cars: list });
+        continue;
+      }
+      const u = usersById.get(key);
+      const label = u?.username || u?.email || 'أدمن';
+      sections.push({ key, label: `نازل بواسطة: ${label}`, cars: list });
+    }
+    sections.sort((a, b) => {
+      if (a.key === '_unknown') return 1;
+      if (b.key === '_unknown') return -1;
+      return a.label.localeCompare(b.label, 'ar');
+    });
+    return sections;
+  }, [filtered, usersById]);
 
   const handleDelete = async (id: string, title: string) => {
     const ok = await confirm({
@@ -257,83 +295,109 @@ export default function AdminCarsPage() {
         />
       )}
 
-      {/* List */}
+      {/* List — مجمّعة حسب الأدمن الناشر */}
       {!loading && filtered.length > 0 && (
-        <div className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden">
-          <ul className="divide-y divide-admin-border">
-            {filtered.map((c) => {
-              const meta = PRIORITY_META[c.priority] || PRIORITY_META.medium;
-              const Icon = meta.icon;
-              return (
-                <li key={c.id} className="p-3 hover:bg-admin-bg transition-colors">
-                  <div className="flex items-start gap-3">
-                    {/* صورة */}
-                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
-                      {c.image_url && (
-                        <Image
-                          src={c.image_url}
-                          alt={c.title}
-                          fill
-                          sizes="(max-width: 640px) 80px, 96px"
-                          className="object-cover"
-                        />
-                      )}
-                    </div>
+        <div className="space-y-4">
+          {carsByAdmin.map((section) => (
+            <div
+              key={section.key}
+              className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden"
+            >
+              <div className="px-3 py-2.5 border-b border-admin-border bg-admin-bg/60 flex items-center gap-2">
+                <Users size={14} className="text-admin-accent" />
+                <h3 className="text-sm font-bold text-admin-text">{section.label}</h3>
+                <span className="text-xs text-admin-text-muted badge-number">
+                  {section.cars.length}
+                </span>
+              </div>
+              <ul className="divide-y divide-admin-border">
+                {section.cars.map((c) => {
+                  const meta = PRIORITY_META[c.priority] || PRIORITY_META.medium;
+                  const Icon = meta.icon;
+                  return (
+                    <li
+                      key={c.id}
+                      className="p-3 hover:bg-admin-bg transition-colors cursor-pointer"
+                      onClick={() => c.id && router.push(`/car/${c.id}`)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
+                          {c.image_url && (
+                            <Image
+                              src={c.image_url}
+                              alt={c.title}
+                              fill
+                              sizes="(max-width: 640px) 80px, 96px"
+                              className="object-cover"
+                            />
+                          )}
+                        </div>
 
-                    {/* معلومات */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-1.5 mb-1">
-                        <h3 className="text-sm sm:text-base font-bold text-admin-text truncate flex-1">
-                          {c.title}
-                        </h3>
-                        {c.is_featured && <Star size={14} className="text-admin-accent flex-shrink-0" fill="currentColor" />}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-1.5 mb-1">
+                            <h3 className="text-sm sm:text-base font-bold text-admin-text truncate flex-1">
+                              {c.title}
+                            </h3>
+                            {c.is_featured && (
+                              <Star size={14} className="text-admin-accent flex-shrink-0" fill="currentColor" />
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
+                            {(c.owner_name || c.inspector_name) && (
+                              <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
+                                {c.owner_name || c.inspector_name}
+                              </span>
+                            )}
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}
+                            >
+                              <Icon size={10} />
+                              {meta.label}
+                            </span>
+                            <StatusBadge status={c.status} tone="admin" />
+                          </div>
+
+                          <div
+                            className="badge-number text-base sm:text-lg font-bold text-admin-accent"
+                            dir="ltr"
+                          >
+                            {formatPrice(c.price)}{' '}
+                            <span className="text-xs font-medium text-admin-text-muted">ج.م</span>
+                          </div>
+                        </div>
+
+                        <div
+                          className="flex flex-col gap-1.5 flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
+                            className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors"
+                            aria-label="تعديل"
+                          >
+                            <Edit3 size={16} className="text-admin-text-muted" />
+                          </button>
+                          <button
+                            onClick={() => c.id && handleDelete(c.id, c.title)}
+                            disabled={deletingId === c.id}
+                            className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
+                            aria-label="حذف"
+                          >
+                            {deletingId === c.id ? (
+                              <AlertCircle size={16} className="text-red-400 animate-pulse" />
+                            ) : (
+                              <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
+                            )}
+                          </button>
+                        </div>
                       </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
-                        {(c.owner_name || c.inspector_name) && (
-                          <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
-                            {c.owner_name || c.inspector_name}
-                          </span>
-                        )}
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}>
-                          <Icon size={10} />
-                          {meta.label}
-                        </span>
-                        <StatusBadge status={c.status} tone="admin" />
-                      </div>
-
-                      <div className="badge-number text-base sm:text-lg font-bold text-admin-accent" dir="ltr">
-                        {formatPrice(c.price)} <span className="text-xs font-medium text-admin-text-muted">ج.م</span>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-col gap-1.5 flex-shrink-0">
-                      <button
-                        onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
-                        className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors"
-                        aria-label="تعديل"
-                      >
-                        <Edit3 size={16} className="text-admin-text-muted" />
-                      </button>
-                      <button
-                        onClick={() => c.id && handleDelete(c.id, c.title)}
-                        disabled={deletingId === c.id}
-                        className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
-                        aria-label="حذف"
-                      >
-                        {deletingId === c.id ? (
-                          <AlertCircle size={16} className="text-red-400 animate-pulse" />
-                        ) : (
-                          <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
 
