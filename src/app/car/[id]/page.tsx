@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   Calendar,
@@ -18,9 +18,11 @@ import {
   UserRound,
   MapPin,
   Phone,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { subscribeToCar } from '@/lib/cars';
+import { subscribeToCar, deleteCar } from '@/lib/cars';
 import { downloadAllCarImages, downloadSingleCarImage, shareCarImageFiles } from '@/lib/downloadCarImages';
 import { Car as CarType, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
@@ -30,6 +32,7 @@ import { Lightbox } from '@/components/Lightbox';
 import { formatPrice, formatRelativeDate, formatFullDate } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 const CONDITION_META: Record<CarCondition, string> = {
   new: 'جديدة',
@@ -44,10 +47,13 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   // استخدام use() مع object عادي بيكسر React لأن use() hook بيتطلب تكون
   // بنداؤه consistent في كل الـ renders. الحل: destructure مباشرة.
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isAdmin, isInspector, loading: authLoading, needsOnboarding } = useAuth();
   const { showToast } = useToast();
+  const { confirm, dialogProps } = useConfirm();
   const [car, setCar] = useState<CarType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -61,6 +67,31 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const [iosSharing, setIosSharing] = useState(false);
 
   const id = params?.id;
+  /** أزرار تعديل/حذف تظهر بس لما الأدمن يفتح من اللوحة (`?from=admin`) مش من لوحة العرض */
+  const showAdminManage = isAdmin && searchParams.get('from') === 'admin';
+
+  const handleDeleteCar = async () => {
+    if (!car?.id || deleting) return;
+    const ok = await confirm({
+      title: 'حذف عربية',
+      message: `هل تريد حذف "${car.title}"؟\nهذا الإجراء لا يمكن التراجع عنه.`,
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deleteCar(car.id);
+      showToast('تم حذف العربية بنجاح', 'success');
+      router.replace('/admin/cars');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل الحذف';
+      showToast(msg, 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Onboarding فقط — الضيوف يقدروا يشوفوا العربيات العامة
   useEffect(() => {
@@ -512,6 +543,28 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
               </div>
             )}
 
+            {showAdminManage && car.id && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/admin/cars/${car.id}`)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
+                >
+                  <Edit3 size={16} />
+                  تعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteCar()}
+                  disabled={deleting}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-500 text-sm font-bold transition-colors disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  حذف
+                </button>
+              </div>
+            )}
+
             {/* Timestamps — تاريخ نسبي + hover للتفاصيل */}
             {car.created_at && (
               <div
@@ -524,6 +577,8 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
           </>
         )}
       </main>
+
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
 
       {/* Lightbox */}
       {lightboxOpen && car && allImages.length > 0 && (

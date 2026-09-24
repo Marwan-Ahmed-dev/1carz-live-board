@@ -51,21 +51,18 @@ export default function CarsBoardPage() {
     }
   }, [isGuest, priorityFilter]);
 
-  // لو مسوّق: اسحب المجموعات اللي هو عضو فيها وحدّد UIDs بتاعتها
+  // لو مسوّق: اسحب المجموعات اللي هو عضو فيها (query مطابق لقواعد Firestore)
   useEffect(() => {
     if (!isMarketer || !user) {
       setMarketerGroupUids([]);
       return;
     }
-    const unsub = subscribeToGroups((groups) => {
-      const uids: string[] = [];
-      for (const g of groups) {
-        if (g.memberUids && g.memberUids.includes(user.uid)) {
-          uids.push(g.id);
-        }
-      }
-      setMarketerGroupUids(uids);
-    });
+    const unsub = subscribeToGroups(
+      (groups) => {
+        setMarketerGroupUids(groups.map((g) => g.id));
+      },
+      { memberOfUid: user.uid }
+    );
     return () => unsub();
   }, [isMarketer, user]);
 

@@ -221,6 +221,20 @@ export async function updateCar(
       version: prevVersion + 1, // bump version atomically
       updated_at: serverTimestamp(),
     };
+    // تطبيع assigned_to زي addCar — فاضي/غلط → ['all']
+    if ('assigned_to' in updates) {
+      const raw = updates.assigned_to;
+      if (Array.isArray(raw) && raw.length > 0) {
+        payload.assigned_to = Array.from(
+          new Set(raw.filter((x): x is string => typeof x === 'string' && x.length > 0))
+        );
+      } else if (typeof raw === 'string' && raw) {
+        payload.assigned_to = [raw];
+      } else {
+        logger.warn('[updateCar] assigned_to empty/invalid, defaulting to [\'all\']');
+        payload.assigned_to = ['all'];
+      }
+    }
     if (updates.status && updates.status !== prevData.status) {
       if (updates.status === 'reserved') payload.reserved_at = serverTimestamp();
       if (updates.status === 'sold') payload.sold_at = serverTimestamp();

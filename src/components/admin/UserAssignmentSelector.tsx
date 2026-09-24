@@ -26,7 +26,7 @@ function isOwnGroup(g: UserGroup, adminUid: string | undefined): boolean {
 /**
  * اختيار التعيين:
  * - الكل → ['all']
- * - مجموعة → يتخزّن group.id في assigned_to (من غير ما يوسّع الأعضاء)
+ * - مجموعة → group.id + UIDs الأعضاء الحاليين (مسوّق جديد في الجروب يشوف عبر group.id)
  * - مستخدم → يتخزّن uid
  *
  * كل أدمن يشوف بس مجموعاته وأعضاء مجموعاته.
@@ -144,17 +144,18 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
     onChange([...selected, uid]);
   };
 
-  /** اختيار المجموعة نفسها (group.id) — الأعضاء يتعلموا بصريًا من غير ما يتخزّنوا كـ UIDs */
+  /** اختيار المجموعة: نخزّن group.id + أعضاءها الحاليين
+   * - group.id → مسوّق جديد يدخل الجروب بعدين يشوف العربيات
+   * - member UIDs → الأعضاء الحاليين يشوفوا فورًا حتى لو الـ group query اتأخر */
   const toggleGroup = (group: UserGroup) => {
     if (isAll) return;
+    const memberSet = new Set(group.memberUids);
     if (selectedSet.has(group.id)) {
-      onChange(selected.filter((id) => id !== group.id));
+      onChange(selected.filter((id) => id !== group.id && !memberSet.has(id)));
       return;
     }
-    // شيل أي اختيار فردي لأعضاء المجموعة عشان ميتعارضش مع اختيار المجموعة كلها
-    const memberSet = new Set(group.memberUids);
-    const withoutMembers = selected.filter((id) => !memberSet.has(id));
-    onChange([...withoutMembers, group.id]);
+    const withoutMembers = selected.filter((id) => !memberSet.has(id) && id !== group.id);
+    onChange([...withoutMembers, group.id, ...group.memberUids]);
   };
 
   const setAllMode = () => onChange(['all']);
@@ -251,7 +252,7 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
               )}
             </div>
             <p className="mt-2 text-[11px] text-admin-text-muted leading-relaxed">
-              علّم المجموعة لوحدها عشان كل أعضائها يشوفوا العربية، أو علّم أفراد معيّنين بس.
+              علّم المجموعة عشان كل أعضائها الحاليين والمستقبليين يشوفوا العربية، أو علّم أفراد معيّنين بس.
             </p>
           </div>
 

@@ -5,32 +5,28 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
-  Edit3,
-  Trash2,
   Search,
   Star,
   Flame,
   ChevronUp,
   ChevronDown,
-  AlertCircle,
+  ChevronLeft,
   Heart,
   X,
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
   ListOrdered,
+  Users,
 } from 'lucide-react';
-import { subscribeToCars, deleteCar } from '@/lib/cars';
+import { subscribeToCars } from '@/lib/cars';
 import { subscribeToUsers } from '@/lib/users';
 import { AppUser, Car, Priority } from '@/lib/types';
 import { PRIORITY_LABELS, PRIORITY_ORDER } from '@/lib/priority';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
-import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
 import { StatusBadge } from '@/components/StatusBadge';
-import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 import type { LucideIcon } from 'lucide-react';
-import { Users } from 'lucide-react';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: LucideIcon; color: string }> = {
   arabyatna: { label: PRIORITY_LABELS.arabyatna, icon: Heart, color: 'text-rose-400 bg-rose-500/15' },
@@ -83,15 +79,14 @@ function getCreatedAtMs(c: Car): number {
 
 export default function AdminCarsPage() {
   const router = useRouter();
-  const { showToast } = useToast();
-  const { confirm, dialogProps } = useConfirm();
   const [cars, setCars] = useState<Car[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [sortMode, setSortMode] = useState<SortMode>('newest');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** أقسام الأدمنز — مقفولة افتراضيًا، الدوس يفتح العربيات */
+  const [expandedAdmins, setExpandedAdmins] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const unsub = subscribeToCars(
@@ -176,27 +171,6 @@ export default function AdminCarsPage() {
     });
     return sections;
   }, [filtered, usersById]);
-
-  const handleDelete = async (id: string, title: string) => {
-    const ok = await confirm({
-      title: 'حذف عربية',
-      message: `هل تريد حذف "${title}"؟\nهذا الإجراء لا يمكن التراجع عنه.`,
-      confirmLabel: 'حذف',
-      cancelLabel: 'إلغاء',
-      variant: 'danger',
-    });
-    if (!ok) return;
-    setDeletingId(id);
-    try {
-      await deleteCar(id);
-      showToast('تم حذف العربية بنجاح', 'success');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل الحذف';
-      showToast(msg, 'error');
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -295,113 +269,116 @@ export default function AdminCarsPage() {
         />
       )}
 
-      {/* List — مجمّعة حسب الأدمن الناشر */}
+      {/* List — أدمنز تحت بعض، كل أدمن يتوسع لإظهار عربياته */}
       {!loading && filtered.length > 0 && (
-        <div className="space-y-4">
-          {carsByAdmin.map((section) => (
-            <div
-              key={section.key}
-              className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden"
-            >
-              <div className="px-3 py-2.5 border-b border-admin-border bg-admin-bg/60 flex items-center gap-2">
-                <Users size={14} className="text-admin-accent" />
-                <h3 className="text-sm font-bold text-admin-text">{section.label}</h3>
-                <span className="text-xs text-admin-text-muted badge-number">
-                  {section.cars.length}
-                </span>
-              </div>
-              <ul className="divide-y divide-admin-border">
-                {section.cars.map((c) => {
-                  const meta = PRIORITY_META[c.priority] || PRIORITY_META.medium;
-                  const Icon = meta.icon;
-                  return (
-                    <li
-                      key={c.id}
-                      className="p-3 hover:bg-admin-bg transition-colors cursor-pointer"
-                      onClick={() => c.id && router.push(`/car/${c.id}`)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
-                          {c.image_url && (
-                            <Image
-                              src={c.image_url}
-                              alt={c.title}
-                              fill
-                              sizes="(max-width: 640px) 80px, 96px"
-                              className="object-cover"
-                            />
-                          )}
-                        </div>
+        <div className="space-y-3">
+          {carsByAdmin.map((section) => {
+            const isOpen = Boolean(expandedAdmins[section.key]);
+            return (
+              <div
+                key={section.key}
+                className="bg-admin-card border border-admin-border rounded-2xl overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedAdmins((prev) => ({
+                      ...prev,
+                      [section.key]: !prev[section.key],
+                    }))
+                  }
+                  className="w-full px-3 py-3 bg-admin-bg/60 flex items-center gap-2 hover:bg-admin-bg transition-colors text-right"
+                >
+                  <Users size={16} className="text-admin-accent flex-shrink-0" />
+                  <h3 className="flex-1 text-sm font-bold text-admin-text truncate">
+                    {section.label}
+                  </h3>
+                  <span className="text-xs text-admin-text-muted badge-number px-2 py-0.5 rounded-full bg-admin-card">
+                    {section.cars.length}
+                  </span>
+                  {isOpen ? (
+                    <ChevronDown size={18} className="text-admin-text-muted flex-shrink-0" />
+                  ) : (
+                    <ChevronLeft size={18} className="text-admin-text-muted flex-shrink-0" />
+                  )}
+                </button>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start gap-1.5 mb-1">
-                            <h3 className="text-sm sm:text-base font-bold text-admin-text truncate flex-1">
-                              {c.title}
-                            </h3>
-                            {c.is_featured && (
-                              <Star size={14} className="text-admin-accent flex-shrink-0" fill="currentColor" />
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
-                            {(c.owner_name || c.inspector_name) && (
-                              <span className="badge-number bg-admin-bg px-2 py-0.5 rounded">
-                                {c.owner_name || c.inspector_name}
-                              </span>
-                            )}
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}
-                            >
-                              <Icon size={10} />
-                              {meta.label}
-                            </span>
-                            <StatusBadge status={c.status} tone="admin" />
-                          </div>
-
-                          <div
-                            className="badge-number text-base sm:text-lg font-bold text-admin-accent"
-                            dir="ltr"
-                          >
-                            {formatPrice(c.price)}{' '}
-                            <span className="text-xs font-medium text-admin-text-muted">ج.م</span>
-                          </div>
-                        </div>
-
-                        <div
-                          className="flex flex-col gap-1.5 flex-shrink-0"
-                          onClick={(e) => e.stopPropagation()}
+                {isOpen && (
+                  <ul className="divide-y divide-admin-border border-t border-admin-border">
+                    {section.cars.map((c) => {
+                      const meta = PRIORITY_META[c.priority] || PRIORITY_META.medium;
+                      const Icon = meta.icon;
+                      return (
+                        <li
+                          key={c.id}
+                          className="p-3 hover:bg-admin-bg/50 transition-colors cursor-pointer"
+                          onClick={() => c.id && router.push(`/car/${c.id}?from=admin`)}
                         >
-                          <button
-                            onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
-                            className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-admin-border flex items-center justify-center transition-colors"
-                            aria-label="تعديل"
-                          >
-                            <Edit3 size={16} className="text-admin-text-muted" />
-                          </button>
-                          <button
-                            onClick={() => c.id && handleDelete(c.id, c.title)}
-                            disabled={deletingId === c.id}
-                            className="w-11 h-11 rounded-lg bg-admin-bg hover:bg-red-500/15 flex items-center justify-center transition-colors disabled:opacity-50"
-                            aria-label="حذف"
-                          >
-                            {deletingId === c.id ? (
-                              <AlertCircle size={16} className="text-red-400 animate-pulse" />
-                            ) : (
-                              <Trash2 size={16} className="text-admin-text-muted hover:text-red-400" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                          <div className="rounded-xl border border-admin-border bg-admin-bg/40 overflow-hidden">
+                            <div className="flex items-start gap-3 p-2.5">
+                              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg bg-admin-bg overflow-hidden flex-shrink-0 striped-bg">
+                                {c.image_url && (
+                                  <Image
+                                    src={c.image_url}
+                                    alt={c.title}
+                                    fill
+                                    sizes="(max-width: 640px) 80px, 96px"
+                                    className="object-cover"
+                                  />
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start gap-1.5 mb-1">
+                                  <h3 className="text-sm sm:text-base font-bold text-admin-text truncate flex-1">
+                                    {c.title}
+                                  </h3>
+                                  {c.is_featured && (
+                                    <Star
+                                      size={14}
+                                      className="text-admin-accent flex-shrink-0"
+                                      fill="currentColor"
+                                    />
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-admin-text-muted mb-2">
+                                  {(c.owner_name || c.inspector_name) && (
+                                    <span className="badge-number bg-admin-card px-2 py-0.5 rounded">
+                                      {c.owner_name || c.inspector_name}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${meta.color}`}
+                                  >
+                                    <Icon size={10} />
+                                    {meta.label}
+                                  </span>
+                                  <StatusBadge status={c.status} tone="admin" />
+                                </div>
+
+                                <div
+                                  className="badge-number text-base sm:text-lg font-bold text-admin-accent"
+                                  dir="ltr"
+                                >
+                                  {formatPrice(c.price)}{' '}
+                                  <span className="text-xs font-medium text-admin-text-muted">
+                                    ج.م
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
-
-      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  query,
+  where,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
@@ -28,10 +30,23 @@ function normalizeGroup(snap: { id: string; data: () => Record<string, unknown> 
   };
 }
 
-export function subscribeToGroups(callback: (groups: UserGroup[]) => void): () => void {
-  const ref = collection(db, GROUPS_COLLECTION);
+/**
+ * اشتراك في المجموعات.
+ * - بدون options: كل المجموعات (للأدمن/المعاين — القواعد تسمح).
+ * - مع memberOfUid: بس المجموعات اللي اليوزر عضو فيها (مطلوب للمسوّق،
+ *   لأن list بدون where بيتفشل تحت قواعد Firestore).
+ */
+export function subscribeToGroups(
+  callback: (groups: UserGroup[]) => void,
+  options?: { memberOfUid?: string }
+): () => void {
+  const col = collection(db, GROUPS_COLLECTION);
+  const q = options?.memberOfUid
+    ? query(col, where('memberUids', 'array-contains', options.memberOfUid))
+    : query(col);
+
   return onSnapshot(
-    ref,
+    q,
     (snap) => {
       const groups = snap.docs
         .map((d) => normalizeGroup(d))
