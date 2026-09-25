@@ -1,25 +1,22 @@
 const FETCH_TIMEOUT_MS = 25000;
+const DOWNLOAD_GAP_MS = 450;
 
 export type DownloadImagesResult = 'shared' | 'downloaded' | 'cancelled';
 
 export type DownloadAllResult =
   | { status: DownloadImagesResult }
   | {
-      /** جاهز — محتاج ضغطة جديدة (Share أو ZIP) لأن الـ gesture بيخلص أثناء التحميل */
-      status: 'needs-share-confirm';
+      /** iOS فقط: جاهز للحفظ مجموعة بمجموعة بعد ما فشل الحفظ دفعة واحدة */
+      status: 'needs-ios-batches';
       title: string;
       batches: File[][];
-      zipBlob: Blob;
-      zipName: string;
       fileCount: number;
-      platform: 'ios' | 'android' | 'mobile';
     };
 
 function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
   if (/Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
-  // iPadOS desktop UA
   return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
@@ -158,6 +155,10 @@ function safeBaseName(name: string): string {
   return cleaned.slice(0, 80) || 'car';
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function makeFile(parts: BlobPart[], name: string, type: string): File {
   try {
     return new File(parts, name, { type, lastModified: Date.now() });
@@ -175,7 +176,6 @@ export function triggerDownload(blob: Blob, filename: string): void {
   a.href = href;
   a.download = filename;
   a.rel = 'noopener';
-  a.target = '_blank';
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
@@ -263,7 +263,6 @@ async function toJpegFile(blob: Blob, filename: string): Promise<File> {
     const jpeg = await canvasToJpegBlob(canvas, 0.92);
     return makeFile([jpeg], jpgName, 'image/jpeg');
   } catch {
-    // لو التحويل فشل، نحاول نشارك الأصل بنوع image/jpeg عشان canShare
     return makeFile([blob], jpgName, 'image/jpeg');
   } finally {
     bitmap?.close();
@@ -291,8 +290,8 @@ function canShareFiles(files: File[]): boolean {
   }
 }
 
-/** جرّب كل الصور دفعة واحدة؛ قسّم لو الجهاز رفض المجموعة الكاملة. */
-function buildShareBatches(files: File[]): File[][] {
+/** iOS: جرّب الكل، وإلا قسّم لمجموعات قابلة للمشاركة */
+function buildIosShareBatches(files: File[]): File[][] {
   if (files.length === 0) return [];
   if (canShareFiles(files)) return [files];
 
@@ -318,7 +317,7 @@ async function shareFiles(files: File[], title: string): Promise<DownloadImagesR
   }
 }
 
-/** مشاركة دفعة صور — لازم من ضغطة مستخدم مباشرة. */
+/** مشاركة دفعة صور — لازم من ضغطة مستخدم مباشرة (iOS). */
 export async function shareCarImageFiles(
   files: File[],
   title: string
@@ -332,12 +331,6 @@ export async function shareCarImageFiles(
     throw new Error('فشل فتح شاشة الحفظ');
   }
   return result;
-}
-
-/** تحميل ZIP جاهز — لازم من ضغطة مستخدم مباشرة. */
-export function downloadPreparedZip(zipBlob: Blob, zipName: string): DownloadImagesResult {
-  triggerDownload(zipBlob, zipName);
-  return 'downloaded';
 }
 
 async function filesToZipBlob(files: File[], zipName: string): Promise<{ blob: Blob; name: string }> {
@@ -375,10 +368,15 @@ async function prepareJpegFiles(urls: string[], baseName: string): Promise<File[
   return files;
 }
 
-function mobilePlatform(): 'ios' | 'android' | 'mobile' {
-  if (isIOSDevice()) return 'ios';
-  if (isAndroidDevice()) return 'android';
-  return 'mobile';
+/** Android / desktop-like mobile: نزّل الصور واحدة ورا التانية من غير dialog ولا share */
+async function downloadFilesDirectly(files: File[]): Promise<DownloadImagesResult> {
+  for (let i = 0; i < files.length; i++) {
+    triggerDownload(files[i], files[i].name);
+    if (i < files.length - 1) {
+      await sleep(DOWNLOAD_GAP_MS);
+    }
+  }
+  return 'downloaded';
 }
 
 export async function downloadAllCarImages(
@@ -391,40 +389,38 @@ export async function downloadAllCarImages(
   }
 
   const base = safeBaseName(baseName);
+  const files = await prepareJpegFiles(unique, base);
 
-  // موبايل: جهّز ثم اطلب ضغطة (Share و/أو ZIP) — الـ gesture بيخلص أثناء التحميل
-  if (isMobileDevice()) {
-    const files = await prepareJpegFiles(unique, base);
-    const { blob: zipBlob, name: zipName } = await filesToZipBlob(files, `${base}-images.zip`);
-    const batches = buildShareBatches(files);
-    const platform = mobilePlatform();
-
-    // لو Share مش متاح خالص: لسه نطلب ضغطة لـ ZIP (نفس مشكلة الـ gesture)
+  // —— iOS: جرّب الكل دفعة واحدة، لو فشل → مجموعات مجموعة بمجموعة ——
+  if (isIOSDevice()) {
+    const batches = buildIosShareBatches(files);
     if (batches.length === 0) {
-      return {
-        status: 'needs-share-confirm',
-        title: base,
-        batches: [],
-        zipBlob,
-        zipName,
-        fileCount: files.length,
-        platform,
-      };
+      throw new Error('الجهاز لا يدعم حفظ الصور. استخدم زر التحميل على كل صورة.');
     }
 
+    // محاولة واحدة لكل الصور مع بعض (لما يبقوا دفعة واحدة)
+    if (batches.length === 1) {
+      const shared = await shareFiles(batches[0], base);
+      if (shared === 'shared' || shared === 'cancelled') {
+        return { status: shared };
+      }
+    }
+
+    // فشل الكل أو محتاجين مجموعات → الـ UI يكمل مجموعة بمجموعة
     return {
-      status: 'needs-share-confirm',
+      status: 'needs-ios-batches',
       title: base,
       batches,
-      zipBlob,
-      zipName,
       fileCount: files.length,
-      platform,
     };
   }
 
-  // Desktop / tablet بدون موبايل UA: ZIP أو صورة واحدة
-  const files = await prepareJpegFiles(unique, base);
+  // —— Android: تحميل مباشر لكل صورة، من غير dialog ولا share ——
+  if (isAndroidDevice() || isMobileDevice()) {
+    return { status: await downloadFilesDirectly(files) };
+  }
+
+  // —— Desktop: ZIP لو أكتر من صورة ——
   if (files.length > 1) {
     const { blob, name } = await filesToZipBlob(files, `${base}-images.zip`);
     triggerDownload(blob, name);
@@ -435,7 +431,7 @@ export async function downloadAllCarImages(
   return { status: 'downloaded' };
 }
 
-/** تحميل صورة واحدة — Share على الموبايل، download على الديسكتوب. */
+/** تحميل صورة واحدة */
 export async function downloadSingleCarImage(
   url: string,
   baseName: string,
@@ -447,11 +443,13 @@ export async function downloadSingleCarImage(
   const blob = await fetchImageBlob(url);
   const file = await toJpegFile(blob, `${base}-${index}.jpg`);
 
-  if (isMobileDevice() && canShareFiles([file])) {
+  // iOS: Share Sheet → Save Image
+  if (isIOSDevice() && canShareFiles([file])) {
     const shared = await shareFiles([file], base);
     if (shared !== 'failed') return shared;
   }
 
+  // Android + desktop: تحميل مباشر
   triggerDownload(file, file.name);
   return 'downloaded';
 }
