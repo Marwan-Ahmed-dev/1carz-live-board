@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar, deleteCar } from '@/lib/cars';
-import { downloadAllCarImages, downloadSingleCarImage, shareCarImageFiles } from '@/lib/downloadCarImages';
+import { downloadAllCarImages, downloadSingleCarImage, shareCarImageFiles, downloadPreparedZip } from '@/lib/downloadCarImages';
 import { Car as CarType, CarCondition } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { LoadingState } from '@/components/LoadingState';
@@ -59,12 +59,16 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingOne, setDownloadingOne] = useState<number | null>(null);
-  const [iosShare, setIosShare] = useState<{
+  const [mobileShare, setMobileShare] = useState<{
     title: string;
     batches: File[][];
     batchIndex: number;
+    zipBlob: Blob;
+    zipName: string;
+    fileCount: number;
+    platform: 'ios' | 'android' | 'mobile';
   } | null>(null);
-  const [iosSharing, setIosSharing] = useState(false);
+  const [mobileSharing, setMobileSharing] = useState(false);
 
   const id = params?.id;
   /** أزرار تعديل/حذف تظهر بس لما الأدمن يفتح من اللوحة (`?from=admin`) مش من لوحة العرض */
@@ -154,8 +158,16 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     try {
       const result = await downloadAllCarImages(allImages, car.title);
       if (result.status === 'cancelled') return;
-      if (result.status === 'needs-ios-confirm') {
-        setIosShare({ title: result.title, batches: result.batches, batchIndex: 0 });
+      if (result.status === 'needs-share-confirm') {
+        setMobileShare({
+          title: result.title,
+          batches: result.batches,
+          batchIndex: 0,
+          zipBlob: result.zipBlob,
+          zipName: result.zipName,
+          fileCount: result.fileCount,
+          platform: result.platform,
+        });
         return;
       }
       showToast(
@@ -176,29 +188,45 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const handleIosShareBatch = async () => {
-    if (!iosShare || iosSharing) return;
-    const batch = iosShare.batches[iosShare.batchIndex];
-    if (!batch?.length) return;
-    setIosSharing(true);
+  const handleMobileShareBatch = async () => {
+    if (!mobileShare || mobileSharing) return;
+    const batch = mobileShare.batches[mobileShare.batchIndex];
+    setMobileSharing(true);
     try {
-      const result = await shareCarImageFiles(batch, iosShare.title);
-      if (result === 'cancelled') return;
-      const nextIndex = iosShare.batchIndex + 1;
-      if (nextIndex < iosShare.batches.length) {
-        setIosShare({ ...iosShare, batchIndex: nextIndex });
-        showToast(`تم حفظ المجموعة ${nextIndex} — كمّل الباقي`, 'success');
-      } else {
-        setIosShare(null);
-        const total = iosShare.batches.reduce((n, b) => n + b.length, 0);
-        showToast(`تم تجهيز ${total} صور — احفظها في تطبيق الصور`, 'success');
+      if (batch?.length) {
+        try {
+          const result = await shareCarImageFiles(batch, mobileShare.title);
+          if (result === 'cancelled') return;
+          const nextIndex = mobileShare.batchIndex + 1;
+          if (nextIndex < mobileShare.batches.length) {
+            setMobileShare({ ...mobileShare, batchIndex: nextIndex });
+            showToast(`تم حفظ المجموعة ${nextIndex} — كمّل الباقي`, 'success');
+            return;
+          }
+          setMobileShare(null);
+          const total = mobileShare.batches.reduce((n, b) => n + b.length, 0);
+          showToast(`تم تجهيز ${total} صور — احفظها في معرض الصور`, 'success');
+          return;
+        } catch {
+          // Share فشل → ZIP من نفس الضغطة
+        }
       }
+      downloadPreparedZip(mobileShare.zipBlob, mobileShare.zipName);
+      setMobileShare(null);
+      showToast('تم تحميل ملف ZIP بالصور', 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'فشل حفظ الصور';
       showToast(message, 'error');
     } finally {
-      setIosSharing(false);
+      setMobileSharing(false);
     }
+  };
+
+  const handleMobileZipDownload = () => {
+    if (!mobileShare || mobileSharing) return;
+    downloadPreparedZip(mobileShare.zipBlob, mobileShare.zipName);
+    setMobileShare(null);
+    showToast('تم تحميل ملف ZIP بالصور', 'success');
   };
 
   const handleDownloadOne = async (index: number) => {
@@ -592,42 +620,73 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
         />
       )}
 
-      {/* iOS: ضغطة تأكيد بعد التجهيز عشان Share Sheet يشتغل ويحفظ صور مش ZIP */}
-      {iosShare && (
+      {/* موبايل: ضغطة تأكيد — Share للصور أو ZIP كـ fallback لكل المنصات */}
+      {mobileShare && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4 shadow-medium">
+          <div className="w-full max-w-md bg-bg-card border border-border-soft rounded-2xl p-5 space-y-3 shadow-medium">
             <div>
               <h3 className="text-lg font-bold text-text-primary">حفظ الصور في جهازك</h3>
               <p className="text-sm text-text-secondary mt-1 leading-relaxed">
                 اتجهزت{' '}
                 <span className="font-bold text-text-primary">
-                  {iosShare.batches.reduce((n, b) => n + b.length, 0)}
+                  {mobileShare.fileCount}
                 </span>{' '}
-                صورة. اضغط الزر وهتظهر شاشة الآيفون — اختار{' '}
-                <span className="font-bold">حفظ الصور</span> / Save Images.
+                صورة.
+                {mobileShare.batches.length > 0 ? (
+                  <>
+                    {' '}
+                    اضغط «حفظ الصور» واختَر{' '}
+                    <span className="font-bold">
+                      {mobileShare.platform === 'ios'
+                        ? 'حفظ الصور / Save Images'
+                        : 'Download / حفظ / صور'}
+                    </span>
+                    .
+                  </>
+                ) : (
+                  <> الجهاز ما بيدعمش مشاركة الصور دفعة واحدة — استخدم تحميل ZIP.</>
+                )}
               </p>
-              {iosShare.batches.length > 1 && (
+              {mobileShare.batches.length > 1 && (
                 <p className="text-xs text-text-muted mt-2">
-                  المجموعة {iosShare.batchIndex + 1} من {iosShare.batches.length} (
-                  {iosShare.batches[iosShare.batchIndex]?.length || 0} صورة)
+                  المجموعة {mobileShare.batchIndex + 1} من {mobileShare.batches.length} (
+                  {mobileShare.batches[mobileShare.batchIndex]?.length || 0} صورة)
                 </p>
               )}
             </div>
+
+            {mobileShare.batches.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleMobileShareBatch()}
+                disabled={mobileSharing}
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-sm disabled:opacity-60"
+              >
+                {mobileSharing ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Download size={18} />
+                )}
+                {mobileShare.batches.length > 1
+                  ? `حفظ المجموعة ${mobileShare.batchIndex + 1}`
+                  : 'حفظ الصور'}
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => void handleIosShareBatch()}
-              disabled={iosSharing}
-              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary font-bold text-sm disabled:opacity-60"
+              onClick={handleMobileZipDownload}
+              disabled={mobileSharing}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-border-medium text-text-primary font-bold text-sm hover:bg-bg-card-hover disabled:opacity-60"
             >
-              {iosSharing ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-              {iosShare.batches.length > 1
-                ? `حفظ المجموعة ${iosShare.batchIndex + 1}`
-                : 'حفظ كل الصور'}
+              <Download size={18} />
+              تحميل ZIP
             </button>
+
             <button
               type="button"
-              onClick={() => setIosShare(null)}
-              disabled={iosSharing}
+              onClick={() => setMobileShare(null)}
+              disabled={mobileSharing}
               className="w-full py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-bg-card-hover"
             >
               إلغاء

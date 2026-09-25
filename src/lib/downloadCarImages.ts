@@ -1,29 +1,38 @@
 const FETCH_TIMEOUT_MS = 25000;
-const DOWNLOAD_GAP_MS = 550;
 
 export type DownloadImagesResult = 'shared' | 'downloaded' | 'cancelled';
 
 export type DownloadAllResult =
   | { status: DownloadImagesResult }
   | {
-      status: 'needs-ios-confirm';
+      /** جاهز — محتاج ضغطة جديدة (Share أو ZIP) لأن الـ gesture بيخلص أثناء التحميل */
+      status: 'needs-share-confirm';
       title: string;
       batches: File[][];
+      zipBlob: Blob;
+      zipName: string;
+      fileCount: number;
+      platform: 'ios' | 'android' | 'mobile';
     };
 
 function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
-  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent || ''
-  );
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+  // iPadOS desktop UA
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
-/** iPhone/iPad + iPadOS that reports itself as MacIntel. */
 export function isIOSDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
   if (/iPad|iPhone|iPod/i.test(ua)) return true;
   return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
+function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent || '');
 }
 
 function crc32(bytes: Uint8Array): number {
@@ -128,7 +137,7 @@ function createZip(files: Array<{ name: string; data: Uint8Array }>): Blob {
 }
 
 function guessExt(blob: Blob, url: string): string {
-  const fromType = blob.type.split('/')[1];
+  const fromType = (blob.type || '').split('/')[1];
   if (fromType && /^[a-z0-9]+$/i.test(fromType) && !fromType.includes('octet')) {
     return fromType === 'jpeg' ? 'jpg' : fromType;
   }
@@ -146,19 +155,27 @@ function imageMime(blob: Blob, ext: string): string {
 
 function safeBaseName(name: string): string {
   const cleaned = name.replace(/[^\w\u0600-\u06FF-]+/g, '_').replace(/^_+|_+$/g, '');
-  return cleaned || 'car';
+  return cleaned.slice(0, 80) || 'car';
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+function makeFile(parts: BlobPart[], name: string, type: string): File {
+  try {
+    return new File(parts, name, { type, lastModified: Date.now() });
+  } catch {
+    const blob = new Blob(parts, { type });
+    Object.defineProperty(blob, 'name', { value: name, configurable: true });
+    Object.defineProperty(blob, 'lastModified', { value: Date.now(), configurable: true });
+    return blob as File;
+  }
 }
 
-function triggerDownload(blob: Blob, filename: string) {
+export function triggerDownload(blob: Blob, filename: string): void {
   const href = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = href;
   a.download = filename;
   a.rel = 'noopener';
+  a.target = '_blank';
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
@@ -166,6 +183,10 @@ function triggerDownload(blob: Blob, filename: string) {
     a.remove();
     URL.revokeObjectURL(href);
   }, 60_000);
+}
+
+function proxyImageUrl(imageUrl: string): string {
+  return `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`;
 }
 
 function nextImageProxyUrl(imageUrl: string): string {
@@ -197,9 +218,14 @@ async function blobFromResponse(res: Response): Promise<Blob> {
 
 async function fetchImageBlob(url: string): Promise<Blob> {
   try {
+    return await blobFromResponse(await fetchWithTimeout(proxyImageUrl(url), FETCH_TIMEOUT_MS));
+  } catch {
+    /* fall through */
+  }
+  try {
     return await blobFromResponse(await fetchWithTimeout(nextImageProxyUrl(url), FETCH_TIMEOUT_MS));
   } catch {
-    /* try original URL if CORS is allowed */
+    /* fall through */
   }
   return await blobFromResponse(await fetchWithTimeout(url, 8000));
 }
@@ -217,11 +243,10 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<B
   });
 }
 
-/** iOS Save Image بيشتغل أوضح مع JPEG بأسماء .jpg */
 async function toJpegFile(blob: Blob, filename: string): Promise<File> {
-  const jpgName = filename.replace(/\.[^.]+$/, '.jpg');
+  const jpgName = filename.replace(/\.[^.]+$/, '') + '.jpg';
   if (blob.type === 'image/jpeg' || blob.type === 'image/jpg') {
-    return new File([blob], jpgName, { type: 'image/jpeg' });
+    return makeFile([blob], jpgName, 'image/jpeg');
   }
 
   let bitmap: ImageBitmap | null = null;
@@ -235,10 +260,11 @@ async function toJpegFile(blob: Blob, filename: string): Promise<File> {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bitmap, 0, 0);
-    const jpeg = await canvasToJpegBlob(canvas, 0.9);
-    return new File([jpeg], jpgName, { type: 'image/jpeg' });
+    const jpeg = await canvasToJpegBlob(canvas, 0.92);
+    return makeFile([jpeg], jpgName, 'image/jpeg');
   } catch {
-    return new File([blob], jpgName, { type: 'image/jpeg' });
+    // لو التحويل فشل، نحاول نشارك الأصل بنوع image/jpeg عشان canShare
+    return makeFile([blob], jpgName, 'image/jpeg');
   } finally {
     bitmap?.close();
   }
@@ -250,23 +276,6 @@ function chunkFiles(files: File[], size: number): File[][] {
     batches.push(files.slice(i, i + size));
   }
   return batches;
-}
-
-/** جرّب كل الصور دفعة واحدة؛ قسّم بس لو iOS رفض المجموعة الكاملة. */
-function buildIosShareBatches(files: File[]): File[][] {
-  if (files.length === 0) return [];
-  if (canShareFiles(files)) return [files];
-
-  // Fallback نادر: لو الجهاز رفض الكل، نلاقي أكبر حجم مجموعة يشتغل
-  for (const size of [24, 18, 15, 12, 8, 5, 1]) {
-    if (size >= files.length) continue;
-    const batches = chunkFiles(files, size);
-    if (batches.every((batch) => canShareFiles(batch))) {
-      return batches;
-    }
-  }
-
-  return files.filter((f) => canShareFiles([f])).map((f) => [f]);
 }
 
 function canShareFiles(files: File[]): boolean {
@@ -282,9 +291,24 @@ function canShareFiles(files: File[]): boolean {
   }
 }
 
+/** جرّب كل الصور دفعة واحدة؛ قسّم لو الجهاز رفض المجموعة الكاملة. */
+function buildShareBatches(files: File[]): File[][] {
+  if (files.length === 0) return [];
+  if (canShareFiles(files)) return [files];
+
+  for (const size of [20, 15, 12, 10, 8, 5, 3, 1]) {
+    if (size >= files.length) continue;
+    const batches = chunkFiles(files, size);
+    if (batches.every((batch) => canShareFiles(batch))) {
+      return batches;
+    }
+  }
+
+  return files.filter((f) => canShareFiles([f])).map((f) => [f]);
+}
+
 async function shareFiles(files: File[], title: string): Promise<DownloadImagesResult | 'failed'> {
   try {
-    // iOS: files-only share بدون text بيفتح خيار "حفظ الصور" أوضح
     await navigator.share({ files, title });
     return 'shared';
   } catch (err) {
@@ -294,7 +318,7 @@ async function shareFiles(files: File[], title: string): Promise<DownloadImagesR
   }
 }
 
-/** مشاركة دفعة صور — لازم تتنده من ضغطة مستخدم مباشرة (خصوصاً iOS). */
+/** مشاركة دفعة صور — لازم من ضغطة مستخدم مباشرة. */
 export async function shareCarImageFiles(
   files: File[],
   title: string
@@ -310,19 +334,51 @@ export async function shareCarImageFiles(
   return result;
 }
 
+/** تحميل ZIP جاهز — لازم من ضغطة مستخدم مباشرة. */
+export function downloadPreparedZip(zipBlob: Blob, zipName: string): DownloadImagesResult {
+  triggerDownload(zipBlob, zipName);
+  return 'downloaded';
+}
+
+async function filesToZipBlob(files: File[], zipName: string): Promise<{ blob: Blob; name: string }> {
+  const entries = await Promise.all(
+    files.map(async (f) => ({
+      name: f.name || 'image.jpg',
+      data: new Uint8Array(await f.arrayBuffer()),
+    }))
+  );
+  return { blob: createZip(entries), name: zipName };
+}
+
 async function prepareJpegFiles(urls: string[], baseName: string): Promise<File[]> {
   const unique = [...new Set(urls.filter(Boolean))];
   const base = safeBaseName(baseName);
-  const files: File[] = [];
 
-  for (let i = 0; i < unique.length; i++) {
-    const blob = await fetchImageBlob(unique[i]);
-    const ext = guessExt(blob, unique[i]);
-    const typed = blob.type ? blob : new Blob([blob], { type: imageMime(blob, ext) });
-    files.push(await toJpegFile(typed, `${base}-${i + 1}.jpg`));
+  const settled = await Promise.allSettled(
+    unique.map(async (url, i) => {
+      const blob = await fetchImageBlob(url);
+      const ext = guessExt(blob, url);
+      const typed = blob.type ? blob : new Blob([blob], { type: imageMime(blob, ext) });
+      return toJpegFile(typed, `${base}-${i + 1}.jpg`);
+    })
+  );
+
+  const files: File[] = [];
+  for (const result of settled) {
+    if (result.status === 'fulfilled') files.push(result.value);
+  }
+
+  if (files.length === 0) {
+    throw new Error('تعذر تحميل الصور من السيرفر. جرّب تاني أو استخدم زر كل صورة لوحدها.');
   }
 
   return files;
+}
+
+function mobilePlatform(): 'ios' | 'android' | 'mobile' {
+  if (isIOSDevice()) return 'ios';
+  if (isAndroidDevice()) return 'android';
+  return 'mobile';
 }
 
 export async function downloadAllCarImages(
@@ -336,75 +392,50 @@ export async function downloadAllCarImages(
 
   const base = safeBaseName(baseName);
 
-  // iOS: جهّز JPEG ثم اطلب تأكيد بضغطة جديدة (الـ gesture بينتهي أثناء التحميل)
-  if (isIOSDevice()) {
+  // موبايل: جهّز ثم اطلب ضغطة (Share و/أو ZIP) — الـ gesture بيخلص أثناء التحميل
+  if (isMobileDevice()) {
     const files = await prepareJpegFiles(unique, base);
+    const { blob: zipBlob, name: zipName } = await filesToZipBlob(files, `${base}-images.zip`);
+    const batches = buildShareBatches(files);
+    const platform = mobilePlatform();
 
-    if (files.length === 1 && canShareFiles(files)) {
-      const shared = await shareFiles(files, base);
-      if (shared !== 'failed') return { status: shared };
-      triggerDownload(files[0], files[0].name);
-      return { status: 'downloaded' };
-    }
-
-    if (files.length === 1) {
-      triggerDownload(files[0], files[0].name);
-      return { status: 'downloaded' };
-    }
-
-    const batches = buildIosShareBatches(files);
+    // لو Share مش متاح خالص: لسه نطلب ضغطة لـ ZIP (نفس مشكلة الـ gesture)
     if (batches.length === 0) {
-      throw new Error('الجهاز لا يدعم حفظ الصور. استخدم زر التحميل على كل صورة.');
+      return {
+        status: 'needs-share-confirm',
+        title: base,
+        batches: [],
+        zipBlob,
+        zipName,
+        fileCount: files.length,
+        platform,
+      };
     }
 
-    // محاولة سريعة لو الـ gesture لسه شغال
-    if (batches.length === 1) {
-      const shared = await shareFiles(batches[0], base);
-      if (shared === 'shared' || shared === 'cancelled') {
-        return { status: shared };
-      }
-    }
-
-    return { status: 'needs-ios-confirm', title: base, batches };
+    return {
+      status: 'needs-share-confirm',
+      title: base,
+      batches,
+      zipBlob,
+      zipName,
+      fileCount: files.length,
+      platform,
+    };
   }
 
-  const images: Array<{ name: string; data: Uint8Array; type: string }> = [];
-  for (let i = 0; i < unique.length; i++) {
-    const blob = await fetchImageBlob(unique[i]);
-    const ext = guessExt(blob, unique[i]);
-    images.push({
-      name: `${base}-${i + 1}.${ext}`,
-      data: new Uint8Array(await blob.arrayBuffer()),
-      type: imageMime(blob, ext),
-    });
-  }
-
-  if (!isMobileDevice() && images.length > 1) {
-    triggerDownload(createZip(images.map(({ name, data }) => ({ name, data }))), `${base}-images.zip`);
+  // Desktop / tablet بدون موبايل UA: ZIP أو صورة واحدة
+  const files = await prepareJpegFiles(unique, base);
+  if (files.length > 1) {
+    const { blob, name } = await filesToZipBlob(files, `${base}-images.zip`);
+    triggerDownload(blob, name);
     return { status: 'downloaded' };
   }
 
-  // Android وغيره: مشاركة كصور لو متاحة، وإلا تحميل ملف ملف
-  if (isMobileDevice() && images.length > 1) {
-    const files = images.map(
-      (img) => new File([bytesToBlobPart(img.data)], img.name, { type: img.type })
-    );
-    if (canShareFiles(files)) {
-      const shared = await shareFiles(files, base);
-      if (shared !== 'failed') return { status: shared };
-    }
-  }
-
-  for (let i = 0; i < images.length; i++) {
-    triggerDownload(new Blob([bytesToBlobPart(images[i].data)], { type: images[i].type }), images[i].name);
-    if (i < images.length - 1) {
-      await sleep(DOWNLOAD_GAP_MS);
-    }
-  }
+  triggerDownload(files[0], files[0].name);
   return { status: 'downloaded' };
 }
 
-/** تحميل صورة واحدة — على iOS بيفتح Share Sheet عشان Save Image يشتغل. */
+/** تحميل صورة واحدة — Share على الموبايل، download على الديسكتوب. */
 export async function downloadSingleCarImage(
   url: string,
   baseName: string,
@@ -416,7 +447,7 @@ export async function downloadSingleCarImage(
   const blob = await fetchImageBlob(url);
   const file = await toJpegFile(blob, `${base}-${index}.jpg`);
 
-  if (isIOSDevice() && canShareFiles([file])) {
+  if (isMobileDevice() && canShareFiles([file])) {
     const shared = await shareFiles([file], base);
     if (shared !== 'failed') return shared;
   }
