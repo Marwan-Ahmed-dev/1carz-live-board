@@ -5,12 +5,15 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
+  Edit3,
+  Trash2,
   Search,
   Star,
   Flame,
   ChevronUp,
   ChevronDown,
   ChevronLeft,
+  AlertCircle,
   Heart,
   X,
   ArrowDownNarrowWide,
@@ -18,14 +21,16 @@ import {
   ListOrdered,
   Users,
 } from 'lucide-react';
-import { subscribeToCars } from '@/lib/cars';
+import { subscribeToCars, deleteCar } from '@/lib/cars';
 import { subscribeToUsers } from '@/lib/users';
 import { AppUser, Car, Priority } from '@/lib/types';
 import { PRIORITY_LABELS, PRIORITY_ORDER } from '@/lib/priority';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
+import { useToast } from '@/hooks/useToast';
 import { formatPrice } from '@/lib/format';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 import type { LucideIcon } from 'lucide-react';
 
 const PRIORITY_META: Record<Priority, { label: string; icon: LucideIcon; color: string }> = {
@@ -79,12 +84,15 @@ function getCreatedAtMs(c: Car): number {
 
 export default function AdminCarsPage() {
   const router = useRouter();
+  const { showToast } = useToast();
+  const { confirm, dialogProps } = useConfirm();
   const [cars, setCars] = useState<Car[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [sortMode, setSortMode] = useState<SortMode>('newest');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   /** أقسام الأدمنز — مقفولة افتراضيًا، الدوس يفتح العربيات */
   const [expandedAdmins, setExpandedAdmins] = useState<Record<string, boolean>>({});
 
@@ -171,6 +179,27 @@ export default function AdminCarsPage() {
     });
     return sections;
   }, [filtered, usersById]);
+
+  const handleDelete = async (id: string, title: string) => {
+    const ok = await confirm({
+      title: 'حذف عربية',
+      message: `هل تريد حذف "${title}"؟\nهذا الإجراء لا يمكن التراجع عنه.`,
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setDeletingId(id);
+    try {
+      await deleteCar(id);
+      showToast('تم حذف العربية بنجاح', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل الحذف';
+      showToast(msg, 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -368,6 +397,33 @@ export default function AdminCarsPage() {
                                 </div>
                               </div>
                             </div>
+
+                            <div
+                              className="flex gap-2 px-2.5 pb-2.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => c.id && router.push(`/admin/cars/${c.id}`)}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-admin-card border border-admin-border hover:border-admin-accent/50 text-admin-text text-sm font-bold transition-colors"
+                              >
+                                <Edit3 size={15} />
+                                تعديل
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => c.id && handleDelete(c.id, c.title)}
+                                disabled={deletingId === c.id}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-admin-card border border-admin-border hover:border-red-400/50 hover:text-red-400 text-admin-text-muted text-sm font-bold transition-colors disabled:opacity-50"
+                              >
+                                {deletingId === c.id ? (
+                                  <AlertCircle size={15} className="text-red-400 animate-pulse" />
+                                ) : (
+                                  <Trash2 size={15} />
+                                )}
+                                حذف
+                              </button>
+                            </div>
                           </div>
                         </li>
                       );
@@ -379,6 +435,8 @@ export default function AdminCarsPage() {
           })}
         </div>
       )}
+
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }

@@ -250,6 +250,28 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
 
         {car && (
           <>
+            {showAdminManage && car.id && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/admin/cars/${car.id}`)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
+                >
+                  <Edit3 size={16} />
+                  تعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteCar()}
+                  disabled={deleting}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-500 text-sm font-bold transition-colors disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  حذف
+                </button>
+              </div>
+            )}
+
             {/* Image Gallery */}
             <div className="space-y-2">
               {/* الصورة الرئيسية */}
@@ -540,28 +562,6 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                 <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
                   {car.description}
                 </p>
-              </div>
-            )}
-
-            {showAdminManage && car.id && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => router.push(`/admin/cars/${car.id}`)}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
-                >
-                  <Edit3 size={16} />
-                  تعديل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteCar()}
-                  disabled={deleting}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-500 text-sm font-bold transition-colors disabled:opacity-50"
-                >
-                  {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  حذف
-                </button>
               </div>
             )}
 
