@@ -5,7 +5,7 @@
 // الفورم بيشتغل offline — لو الـ save فشل، بيتحفظ في الـ IndexedDB
 // pending queue (عبر addMarketEntry).
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import {
   addMarketEntry,
@@ -18,6 +18,10 @@ import type {
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { logger } from '@/lib/logger';
+import {
+  getAllBrandNames,
+  getModelsForBrand,
+} from '@/lib/carBrands';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -133,8 +137,29 @@ export function MarketEntryForm({
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   // suggestions — لو الـ parent مش بتمررهم بنستخدم defaults ذكية.
-  const brandSuggestions = suggestions?.brands ?? [];
-  const modelSuggestions = suggestions?.models ?? [];
+  // الـ brands بندمج فيها الـ static catalog (من carBrands.ts) + الـ DB entries.
+  // الـ models بندمج فيها الـ static models للـ brand المختار + كل الـ DB models.
+  // الـ dedup بيشتغل case-sensitive — الكنسيكال من الـ catalog بيحافظ على الـ English form.
+  const staticBrandNames = useMemo(() => getAllBrandNames(), []);
+  const brandSuggestions = useMemo(() => {
+    const set = new Set<string>(staticBrandNames);
+    if (suggestions?.brands) suggestions.brands.forEach((b) => set.add(b));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [staticBrandNames, suggestions?.brands]);
+
+  const modelSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    // 1. Static models للـ brand المختار حالياً (لو الـ brand موجود في الـ catalog).
+    if (form.brand) {
+      getModelsForBrand(form.brand).forEach((m) => set.add(m));
+    }
+    // 2. كل الـ models الـ dynamic من الـ DB entries.
+    // (ممكن تكون من brand تاني، لكن الـ datalist بياخد كل الاقتراحات
+    //  ونظام الـ autocomplete في المتصفح بيفلتر على اللي بيبدأ بـ typed prefix.)
+    if (suggestions?.models) suggestions.models.forEach((m) => set.add(m));
+    return Array.from(set);
+  }, [form.brand, suggestions?.models]);
+
   const yearSuggestions =
     suggestions?.years ?? Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i);
   const mileageSuggestions = (
