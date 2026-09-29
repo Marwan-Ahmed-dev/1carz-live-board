@@ -7,8 +7,11 @@
  * - Cache-first for static assets (JS, CSS, images)
  * - Network-only for manifest.json
  *
- * Caching version: v8 — Low-priority batch (offline.html fallback, security
- * headers don't affect caching).
+ * Caching version: v9 — Market Registry feature added (/market/*).
+ * The /market pages use IndexedDB for offline-first storage and an
+ * explicit useOfflineSync hook. The service worker continues to use
+ * stale-while-revalidate for runtime GETs, but the /market route falls
+ * back gracefully to the offline.html when no data is in IndexedDB.
  *
  * ⚠️ Bump STATIC_CACHE + RUNTIME_CACHE on every deploy that changes:
  *   - the pre-cached asset list (STATIC_ASSETS)
@@ -19,8 +22,8 @@
  * is enough to force a clean slate on clients.
  */
 
-const STATIC_CACHE = '1carz-static-v8';
-const RUNTIME_CACHE = '1carz-runtime-v8';
+const STATIC_CACHE = '1carz-static-v9';
+const RUNTIME_CACHE = '1carz-runtime-v9';
 const OFFLINE_URL = '/offline.html';
 
 const STATIC_ASSETS = [

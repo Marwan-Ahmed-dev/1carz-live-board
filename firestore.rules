@@ -15,6 +15,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.role == 'inspector';
     }
 
+    function isSource() {
+      // 'source' role بنخزّنه على users/{uid}.role — مفيش custom claim.
+      // للـ Firestore rules اللي محتاجة server-side gate بنقرأ من الـ token
+      // (لو تم إعداده) أو نعمل fallback على isAdmin() — مصدر الـ market
+      // registry بيتحقق منه client-side عبر الـ layout.tsx.
+      return isAdmin() || (isSignedIn() && request.auth.token.role == 'source');
+    }
+
     function isStaff() {
       return isAdmin() || isInspector();
     }
@@ -144,6 +152,52 @@ service cloud.firestore {
                               && request.resource.data.day is string;
         allow delete: if isAdmin();
       }
+    }
+
+    // ============== Market Registry ==============
+    // الـ 'source' role بيتخزن على users/{uid}.role — الـ guard الـ server-side
+    // بيتم عبر الـ token claim (لو الأدمن حطّه يدوياً) أو عبر isAdmin().
+    // الـ client-side guard في /market/layout.tsx بيمنع الـ non-source من
+    // أصلاً ما يوصلوش لـ Firestore.
+    match /market_registry/{entryId} {
+      allow read: if isSource();
+
+      allow create: if isSource()
+                    && request.resource.data.keys().hasAll([
+                      'brand', 'model', 'year', 'trim', 'paint_condition',
+                      'mileage_km', 'maintenance', 'price_egp', 'recorded_by_uid',
+                      'created_at'
+                    ])
+                    && request.resource.data.brand is string
+                    && request.resource.data.brand.size() > 0
+                    && request.resource.data.model is string
+                    && request.resource.data.model.size() > 0
+                    && request.resource.data.year is int
+                    && request.resource.data.year >= 1900
+                    && request.resource.data.year <= 2100
+                    && request.resource.data.trim is string
+                    && request.resource.data.paint_condition is string
+                    && request.resource.data.mileage_km is int
+                    && request.resource.data.mileage_km >= 0
+                    && request.resource.data.maintenance is string
+                    && request.resource.data.price_egp is int
+                    && request.resource.data.price_egp > 0
+                    && request.resource.data.recorded_by_uid == request.auth.uid
+                    && request.resource.data.created_at == request.time;
+
+      allow update: if isSource()
+                    && (
+                      isAdmin()
+                      || resource.data.recorded_by_uid == request.auth.uid
+                    )
+                    && request.resource.data.recorded_by_uid == resource.data.recorded_by_uid
+                    && request.resource.data.created_at == resource.data.created_at;
+
+      allow delete: if isSource()
+                    && (
+                      isAdmin()
+                      || resource.data.recorded_by_uid == request.auth.uid
+                    );
     }
   }
 }

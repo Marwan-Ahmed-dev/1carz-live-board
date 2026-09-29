@@ -9,6 +9,11 @@ export interface UseAuthResult {
   userData: AppUser | null;
   isAdmin: boolean;
   isInspector: boolean;
+  /**
+   * دور 'source' — مستخدم السجل السعري (/market/*).
+   * مصدر مستقل: اليوزر العادي / المعاين / الأدمن مش مصادر.
+   */
+  isSource: boolean;
   loading: boolean;
   needsOnboarding: boolean;
   error: string | null;

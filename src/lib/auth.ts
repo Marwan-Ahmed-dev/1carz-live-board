@@ -18,7 +18,7 @@ import {
   runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { AppUser } from './types';
+import { AppUser, AccountRole } from './types';
 import { normalizeUsernameKey, validateUsername } from './users';
 import { validatePhone } from './phone';
 import { logger } from './logger';
@@ -263,6 +263,16 @@ export async function refreshClaims(): Promise<{ isAdmin: boolean; isInspector: 
 }
 
 /**
+ * 'source' role lives on the user doc (users/{uid}.role), not on the custom
+ * claim — لأن الـ source role مش بنستخدمه في Firestore rules (الـ rules
+ * بتقرأه من الـ claim لو احتاجنا server-side gate، بس الحفظ الحالية بتكتفي
+ * بـ field داتا). الدالة دي بتحضّر الـ future custom-claim mapping لو احتجنا.
+ */
+export function isSourceRole(role: AccountRole | string | null | undefined): boolean {
+  return role === 'source';
+}
+
+/**
  * إنشاء حساب مستخدم أو أدمن من لوحة التحكم عبر Firebase Admin على السيرفر.
  */
 export async function createUserByAdmin(params: {
@@ -270,7 +280,14 @@ export async function createUserByAdmin(params: {
   email: string;
   password: string;
   phone: string;
-  role?: 'admin' | 'user' | 'inspector';
+  /**
+   * دور الحساب:
+   * - admin: ادمن — له لوحة التحكم الكاملة.
+   * - user : مسوّق (الـ default). بيتكتب له is_marketer=true + daily_buyer_limit.
+   * - inspector: معاين — بيتكتب له custom claim.
+   * - source: مصدر للسجل السعري — بيدخل /market/* بس. مفيش custom claim.
+   */
+  role?: AccountRole;
   groupId?: string;
   daily_buyer_limit?: number;
 }): Promise<AppUser> {
@@ -317,7 +334,7 @@ export async function createUserByAdmin(params: {
     error?: string;
     uid?: string;
     username?: string;
-    role?: 'admin' | 'user' | 'inspector';
+    role?: AccountRole;
     phone?: string;
     daily_buyer_limit?: number;
   };

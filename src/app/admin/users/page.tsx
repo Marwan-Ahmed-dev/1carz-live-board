@@ -22,7 +22,7 @@ import {
 import { subscribeToUsers, validateUsername, deleteUserByAdmin, updateDailyBuyerLimit, updateMarketerByAdmin } from '@/lib/users';
 import { subscribeToGroups } from '@/lib/groups';
 import { createUserByAdmin } from '@/lib/auth';
-import { AppUser, DEFAULT_DAILY_BUYER_LIMIT, UserGroup } from '@/lib/types';
+import { AppUser, AccountRole, DEFAULT_DAILY_BUYER_LIMIT, UserGroup } from '@/lib/types';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { GroupManager } from '@/components/admin/GroupManager';
@@ -57,6 +57,8 @@ function isMarketerAccount(
 ): boolean {
   if (adminUids.has(u.uid) || u.role === 'admin') return false;
   if (inspectorUids.has(u.uid) || u.role === 'inspector') return false;
+  // Source role = السجل السعري. مش مسوّق.
+  if (u.role === 'source') return false;
   // الـ flag الصريح يفوز — لو الأدمن شال is_marketer لازم نصدّق الرغبة دي
   if (u.is_marketer === true) return true;
   if (u.is_marketer === false) return false;
@@ -84,7 +86,7 @@ export default function AdminUsersPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newRole, setNewRole] = useState<'user' | 'admin' | 'inspector'>('user');
+  const [newRole, setNewRole] = useState<AccountRole>('user');
   const [newGroupId, setNewGroupId] = useState('');
   const [newDailyLimit, setNewDailyLimit] = useState(String(DEFAULT_DAILY_BUYER_LIMIT));
   const [creating, setCreating] = useState(false);
@@ -219,6 +221,11 @@ export default function AdminUsersPage() {
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold">
                 <Eye size={10} />
                 معاين
+              </span>
+            )}
+            {u.role === 'source' && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 text-[10px] font-bold">
+                سجل سعري
               </span>
             )}
             {marketer && (
@@ -407,7 +414,9 @@ export default function AdminUsersPage() {
           ? 'تم إنشاء حساب أدمن'
           : newRole === 'inspector'
             ? 'تم إنشاء حساب معاين'
-            : 'تم إنشاء حساب مسوّق';
+            : newRole === 'source'
+              ? 'تم إنشاء حساب سجل سعري'
+              : 'تم إنشاء حساب مسوّق';
       showToast(toastMsg, 'success');
       setCreateOpen(false);
       setNewName('');
@@ -816,13 +825,14 @@ export default function AdminUsersPage() {
               </div>
               <div>
                 <span id="new-user-role-label" className="block text-xs font-bold text-admin-text-muted mb-1.5">نوع الحساب</span>
-                <div role="radiogroup" aria-labelledby="new-user-role-label" className="grid grid-cols-3 gap-1.5">
+                <div role="radiogroup" aria-labelledby="new-user-role-label" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {(
                     [
                       { value: 'user', label: 'مسوق' },
                       { value: 'inspector', label: 'معاين' },
                       { value: 'admin', label: 'ادمن' },
-                    ] as const
+                      { value: 'source', label: 'سجل سعري' },
+                    ] as { value: AccountRole; label: string }[]
                   ).map((opt) => (
                     <label
                       key={opt.value}

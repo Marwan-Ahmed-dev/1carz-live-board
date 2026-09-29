@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userData, setUserData] = useState<AppUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isInspector, setIsInspector] = useState(false);
+  const [isSource, setIsSource] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserData(null);
         setIsAdmin(false);
         setIsInspector(false);
+        setIsSource(false);
         setLoading(false);
         return;
       }
@@ -54,6 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserData(data);
         setIsAdmin(adminFlag);
         setIsInspector(inspectorFlag || data?.role === 'inspector');
+        // Source role is stored only on the user doc (no custom claim) — read it
+        // from userData. Source accounts are created by admin via /admin/users.
+        setIsSource(data?.role === 'source');
       } catch (err) {
         logger.error('AuthProvider: failed to load user data', err);
         if (cancelled || thisGen !== generation) return;
@@ -61,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserData(null);
         setIsAdmin(false);
         setIsInspector(false);
+        setIsSource(false);
         setError('فشل تحميل بيانات الحساب. حاول تحديث الصفحة.');
       } finally {
         if (!cancelled && thisGen === generation) setLoading(false);
@@ -78,11 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userData,
       isAdmin,
       isInspector,
+      isSource,
       loading,
       needsOnboarding: !!user && userData !== null && userData.username === null,
       error,
     }),
-    [user, userData, isAdmin, isInspector, loading, error]
+    [user, userData, isAdmin, isInspector, isSource, loading, error]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

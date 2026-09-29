@@ -39,9 +39,72 @@ export type CarStatus = 'active' | 'inactive' | 'reserved' | 'sold';
 export type CarCondition = 'new' | 'used' | 'excellent' | 'good' | 'zero_km';
 
 /**
+ * أدوار الحساب في التطبيق.
+ *
+ * - admin    : أدمن — وصول كامل للوحة التحكم.
+ * - user     : مسوّق — يشوف العربيات المعيّنة له فقط.
+ * - inspector: معاين — يقدر ينشئ/يحدّث العربيات في اللوحة.
+ * - source   : مصدر — يستخدم للسجل السعري (/market/*) فقط.
+ *              له صلاحية قراءة/كتابة على collection `market_registry`
+ *              بس، وما يقدرش يدخل على /admin أو /cars.
+ */
+export type AccountRole = 'admin' | 'user' | 'inspector' | 'source';
+
+/**
+ * صف الـ Market Registry كما هو مخزّن في Firestore (collection `market_registry`).
+ * الـ fields مطلوبة كلها في الـ create. الـ ids للـ entry مستودعة من Firestore
+ * بعد الـ push (والـ pending version يستخدم client_id مولّد محلياً).
+ */
+export interface MarketEntry {
+  id: string;
+  brand: string; // نوع العربية
+  model: string; // الموديل
+  year: number; // سنة التصنيع
+  trim: string; // الفئة
+  paint_condition: string; // فابريكا من جوا ومن برا ام لا (free text)
+  mileage_km: number; // عداد الكيلومتر
+  maintenance: string; // نوع صيانات السيارة (free text)
+  price_egp: number; // السعر بالجنيه المصري (إلزامي)
+  notes?: string; // ملاحظات اختيارية (max 500)
+  recorded_by_uid: string;
+  recorded_by_name?: string | null;
+  created_at: FirestoreTs;
+  updated_at: FirestoreTs;
+  synced_at?: FirestoreTs;
+}
+
+/**
+ * الـ input اللي المستخدم بيملاه في الـ UI — قبل الـ transform إلى MarketEntry.
+ */
+export type MarketEntryInput = Omit<
+  MarketEntry,
+  'id' | 'created_at' | 'updated_at' | 'synced_at' | 'recorded_by_uid' | 'recorded_by_name'
+>;
+
+/**
+ * نسخة معلّقة (pending) مخزّنة في IndexedDB قبل ما تتـ push لـ Firestore.
+ * الـ client_id مولّد محلياً (uuid) عشان نضمن عدم تكرار الـ push.
+ */
+export interface PendingMarketEntry {
+  client_id: string;
+  brand: string;
+  model: string;
+  year: number;
+  trim: string;
+  paint_condition: string;
+  mileage_km: number;
+  maintenance: string;
+  price_egp: number;
+  notes?: string;
+  recorded_by_uid: string;
+  recorded_by_name?: string | null;
+  queued_at: number; // Date.now() وقت الـ enqueue
+  last_error?: string | null;
+}
+
+/**
  * الـ Car document كما هو مخزّن في Firestore
  */
-export type AccountRole = 'admin' | 'user' | 'inspector';
 
 export interface Car {
   id?: string;

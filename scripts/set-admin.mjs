@@ -10,7 +10,9 @@
 //   3. Run:
 //        node scripts/set-admin.mjs <email> [role]
 //
-//      role defaults to "admin". Pass "inspector" to grant inspector access.
+//      role defaults to "admin". Pass "inspector" to grant inspector access
+//      or "source" to mark the account as market-registry source (no claim —
+//      the source role is stored on users/{uid}.role only).
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -23,12 +25,12 @@ const EMAIL = process.argv[2];
 const ROLE = (process.argv[3] || 'admin').toLowerCase();
 
 if (!EMAIL) {
-  console.error('Usage: node scripts/set-admin.mjs <email> [admin|inspector]');
+  console.error('Usage: node scripts/set-admin.mjs <email> [admin|inspector|source]');
   process.exit(1);
 }
 
-if (ROLE !== 'admin' && ROLE !== 'inspector') {
-  console.error(`Invalid role "${ROLE}" — must be "admin" or "inspector".`);
+if (ROLE !== 'admin' && ROLE !== 'inspector' && ROLE !== 'source') {
+  console.error(`Invalid role "${ROLE}" — must be "admin", "inspector", or "source".`);
   process.exit(1);
 }
 
@@ -75,8 +77,20 @@ async function main() {
     const userRecord = await auth.getUserByEmail(EMAIL);
     console.log(`Found user: ${userRecord.uid} (${userRecord.email})`);
 
-    await auth.setCustomUserClaims(userRecord.uid, { role: ROLE });
-    console.log(`✓ Successfully set role="${ROLE}" for ${EMAIL}`);
+    if (ROLE === 'source') {
+      // 'source' role lives on users/{uid}.role, not on the custom claim.
+      // (Firestore rules allow it server-side if we set the claim later, but
+      // for now we just record the role on the user doc via the admin API.)
+      // Strip any prior role claim to keep things tidy.
+      await auth.setCustomUserClaims(userRecord.uid, { role: null });
+      console.log(
+        `✓ role="source" stored on user doc (no custom claim). ` +
+          `Update users/${userRecord.uid}.role via the admin /admin/users page.`
+      );
+    } else {
+      await auth.setCustomUserClaims(userRecord.uid, { role: ROLE });
+      console.log(`✓ Successfully set role="${ROLE}" for ${EMAIL}`);
+    }
 
     const updated = await auth.getUser(userRecord.uid);
     console.log(`Current claims:`, updated.customClaims);

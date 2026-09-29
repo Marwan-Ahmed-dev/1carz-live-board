@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { jsonError, requireAdmin } from '@/lib/adminAuthServer';
 import { logger } from '@/lib/logger';
+import type { AccountRole } from '@/lib/types';
 
 function statusFromError(err: unknown): number | undefined {
   if (err && typeof err === 'object' && 'status' in err) {
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       email?: string;
       password?: string;
       phone?: string;
-      role?: 'admin' | 'user' | 'inspector';
+      role?: AccountRole;
       groupId?: string;
       isAdmin?: boolean;
       daily_buyer_limit?: number;
@@ -101,12 +102,14 @@ export async function POST(req: NextRequest) {
       return jsonError(400, 'رقم التليفون غير صالح');
     }
 
-    const role =
+    const role: AccountRole =
       body.role === 'admin' || body.isAdmin
         ? 'admin'
         : body.role === 'inspector'
           ? 'inspector'
-          : 'user';
+          : body.role === 'source'
+            ? 'source'
+            : 'user';
     const groupId = (body.groupId || '').trim();
     const trimmed = (body.name || '').trim();
     const key = normalizeUsernameKey(trimmed);
@@ -137,6 +140,8 @@ export async function POST(req: NextRequest) {
         disabled: false,
       });
       uid = record.uid;
+      // Custom claims بنحطها على الأدمن/المعاين فقط (الـ Firestore rules بتقرأها).
+      // 'source' مش محتاج claim — التحقق من الصلاحبة بيتم client-side على الـ user doc.
       if (role === 'admin' || role === 'inspector') {
         await auth.setCustomUserClaims(uid, { role });
       }
@@ -150,6 +155,7 @@ export async function POST(req: NextRequest) {
       });
       // user.role='user' ↔ مسوّق (الـ fallback التاريخي كان daily_buyer_limit > 0).
       // is_marketer بنكتبه explicit عشان الـ visibility model الجديد يعتمد عليه أولاً.
+      // 'source' role: بيتخزن في users/{uid}.role بس — مفيش custom claim ومفيش marketer flag.
       batch.set(userRef, {
         uid,
         email,
@@ -163,7 +169,8 @@ export async function POST(req: NextRequest) {
         created_at: FieldValue.serverTimestamp(),
         last_seen: null,
       });
-      if (groupId) {
+      // groupId بنطبّقها على المسوّقين بس (ما بتنفّرش على المعاين/الأدمن/المصدر).
+      if (groupId && role === 'user') {
         const groupRef = db.collection('groups').doc(groupId);
         const groupSnap = await groupRef.get();
         if (!groupSnap.exists) {
