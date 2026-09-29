@@ -66,20 +66,6 @@
         { "fieldPath": "year", "order": "DESCENDING" },
         { "fieldPath": "created_at", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "market_registry",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "created_at", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "market_registry",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "price_egp", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []
