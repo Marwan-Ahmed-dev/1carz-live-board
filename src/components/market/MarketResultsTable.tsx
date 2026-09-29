@@ -109,6 +109,7 @@ export function MarketResultsTable({
                 <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Mileage (KM)</th>
                 <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Price (EGP)</th>
                 <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Paint / Condition</th>
+                <th className="hidden md:table-cell text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Maintenance</th>
                 <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Date</th>
               </tr>
             </thead>
@@ -152,8 +153,11 @@ export function MarketResultsTable({
                     <td className="px-3 py-3 text-text-primary font-semibold" dir="ltr">
                       {entry.price_egp.toLocaleString('en-US')} EGP
                     </td>
-                    <td className="px-3 py-3 text-text-secondary max-w-[200px] truncate" title={entry.paint_condition}>
-                      {entry.paint_condition || '—'}
+                    <td className="px-3 py-3 text-text-secondary max-w-[200px]">
+                      <PaintBadge value={entry.paint_condition} />
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-3 text-text-secondary max-w-[220px] truncate" title={entry.maintenance}>
+                      {entry.maintenance || '—'}
                     </td>
                     <td className="px-3 py-3 text-text-muted text-xs whitespace-nowrap">
                       {formatDate(entry.created_at)}
@@ -271,4 +275,29 @@ function formatDate(ts: unknown): string {
   } catch {
     return '—';
   }
+}
+
+/**
+ * Paint / Condition badge — highlights "فبريكا" (factory-original paint) as a
+ * small green pill so the eye picks it up faster in the results table. Other
+ * values render as plain text with truncation.
+ */
+function PaintBadge({ value }: { value: string }) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return <span className="text-text-muted">—</span>;
+  if (trimmed.includes('فبريكا')) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200"
+        title={trimmed}
+      >
+        فبريكا
+      </span>
+    );
+  }
+  return (
+    <span className="truncate block" title={trimmed}>
+      {trimmed}
+    </span>
+  );
 }

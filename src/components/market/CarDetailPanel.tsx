@@ -5,12 +5,12 @@
 // بيعرض:
 //   1) Header: brand + model + year + trim + close
 //   2) Market Price Analysis: min/avg/max + total listings
-//   3) Suggested Price Range
-//   4) Price Trend (Last 6 Months) — SVG line chart (no library)
+//   3) Price Trend (Last 6 Months) — SVG line chart (no library, with empty states)
+//   ❌ Suggested Price Range — متشال بناء على طلب اليوزر.
 //   ❌ Mileage vs Price — متشال بناء على طلب اليوزر.
 
 import { useMemo } from 'react';
-import { X, TrendingUp, BarChart3, LineChart as LineChartIcon, Sparkles } from 'lucide-react';
+import { X, BarChart3, LineChart as LineChartIcon } from 'lucide-react';
 import type { MarketEntry } from '@/lib/types';
 
 interface CarDetailPanelProps {
@@ -59,16 +59,14 @@ export function CarDetailPanel({
     return { min, avg, max, count: matchingEntries.length, totalListings: prices.length };
   }, [matchingEntries]);
 
-  // Suggested range — استخدام ±10% من المتوسط
-  const suggested = useMemo(() => {
-    if (!stats) return null;
-    const low = stats.avg * 0.9;
-    const high = stats.avg * 1.1;
-    return { low, high };
-  }, [stats]);
-
   // Price trend — آخر 6 شهور بناءً على created_at
   const trend = useMemo(() => buildTrend(matchingEntries, 6), [matchingEntries]);
+
+  // عدد الـ buckets اللي فيها بيانات فعلاً (مش null) — لاستخدامه في empty state.
+  const trendValidCount = useMemo(
+    () => trend.reduce((n, d) => (d.value !== null ? n + 1 : n), 0),
+    [trend]
+  );
 
   return (
     <aside
@@ -76,7 +74,7 @@ export function CarDetailPanel({
       aria-label="تفاصيل السيارة"
     >
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border-soft flex items-start justify-between gap-3 bg-bg-primary/40">
+      <div className="px-4 sm:px-5 py-4 border-b border-border-soft flex items-start justify-between gap-3 bg-bg-primary/40">
         <div className="min-w-0 flex-1">
           <h2 className="text-xl font-bold text-text-primary truncate">
             {brand} {model}
@@ -88,15 +86,16 @@ export function CarDetailPanel({
         <button
           type="button"
           onClick={onClose}
-          className="w-9 h-9 rounded-lg bg-bg-card hover:bg-bg-card-hover border border-border-soft flex items-center justify-center flex-shrink-0"
+          // Touch target ≥ 44px على الموبايل (w-11 h-11) وباقي الـ breakpoints w-9 h-9.
+          className="w-11 h-11 md:w-9 md:h-11 rounded-lg bg-bg-card hover:bg-bg-card-hover border border-border-soft flex items-center justify-center flex-shrink-0"
           aria-label="إغلاق"
         >
-          <X size={16} className="text-text-secondary" />
+          <X size={18} className="text-text-secondary" />
         </button>
       </div>
 
       {/* Body */}
-      <div className="p-5 space-y-4 overflow-y-auto">
+      <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
         {/* Market Price Analysis */}
         <Card icon={<BarChart3 size={16} className="text-accent-yellow-hover" />} title="Market Price Analysis">
           {!stats ? (
@@ -115,27 +114,16 @@ export function CarDetailPanel({
           )}
         </Card>
 
-        {/* Suggested Price Range */}
-        {suggested && (
-          <Card
-            icon={<Sparkles size={16} className="text-accent-yellow-hover" />}
-            title="Suggested Price Range"
-          >
-            <p className="text-lg sm:text-xl font-bold text-text-primary badge-number" dir="ltr">
-              {formatEGP(suggested.low)} — {formatEGP(suggested.high)} EGP
-            </p>
-            <p className="text-xs text-text-muted mt-1">
-              بناءً على {stats?.count ?? 0} {stats?.count === 1 ? 'سيارة مشابهة' : 'سيارات مشابهة'} في السوق.
-            </p>
-          </Card>
-        )}
-
         {/* Price Trend */}
         <Card
           icon={<LineChartIcon size={16} className="text-accent-yellow-hover" />}
           title="Price Trend (Last 6 Months)"
         >
-          <PriceTrendSVG data={trend} />
+          <PriceTrendSVG
+            data={trend}
+            validBucketCount={trendValidCount}
+            totalMatching={matchingEntries.length}
+          />
         </Card>
       </div>
     </aside>
@@ -203,12 +191,42 @@ interface TrendBucket {
   value: number | null;
 }
 
-function PriceTrendSVG({ data }: { data: TrendBucket[] }) {
+function PriceTrendSVG({
+  data,
+  validBucketCount,
+  totalMatching,
+}: {
+  data: TrendBucket[];
+  /** عدد الـ buckets اللي فيها بيانات فعلاً (مش null). */
+  validBucketCount: number;
+  /** إجمالي عدد الـ entries المتطابقة — للـ empty state المخصّص. */
+  totalMatching: number;
+}) {
+  // Empty states — واضحة ومحددة.
+  if (validBucketCount === 0) {
+    return (
+      <p className="text-sm text-text-muted">
+        لا توجد بيانات للـ 6 شهور الأخيرة.
+      </p>
+    );
+  }
+  if (totalMatching <= 1) {
+    return (
+      <p className="text-sm text-text-muted">
+        أضف entries إضافية لرؤية اتجاه الأسعار
+      </p>
+    );
+  }
+  if (validBucketCount <= 1) {
+    return (
+      <p className="text-sm text-text-muted">
+        لا توجد بيانات كافية لرسم اتجاه الأسعار — أضف المزيد من الـ entries عبر أشهر مختلفة.
+      </p>
+    );
+  }
+
   // Filter out null buckets for chart geometry (still show the label)
   const validValues = data.map((d) => d.value).filter((v): v is number => v !== null);
-  if (validValues.length === 0) {
-    return <p className="text-sm text-text-muted">لا توجد بيانات للـ 6 شهور الأخيرة.</p>;
-  }
   const yMin = Math.min(...validValues);
   const yMax = Math.max(...validValues);
   const yPad = Math.max((yMax - yMin) * 0.1, 1);

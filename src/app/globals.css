@@ -202,6 +202,17 @@ select:focus {
   animation: modal-in 0.3s ease-out;
 }
 
+/* Market detail panel — slide in from start side (right in RTL, left in LTR).
+   We use a physical translateX since CSS transforms don't have logical
+   equivalents; in this RTL app start = right edge. */
+@keyframes panel-slide-in-from-start {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.panel-slide-in-from-start {
+  animation: panel-slide-in-from-start 0.3s ease-out;
+}
+
 /* خط مخصص للأرقام في الـ badges */
 .badge-number {
   font-family: var(--font-inter), sans-serif;

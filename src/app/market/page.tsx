@@ -4,8 +4,15 @@
 // - Top nav (MarketNav).
 // - Pending sync banner (لو في pending).
 // - Search form + Results table في العمود الشمال.
-// - Split-view: لو اليوزر اختار entry → CarDetailPanel يفتح في العمود اليمين
-//   (sticky, ~400px wide). على الموبايل بيتحول لـ full-screen overlay.
+// - Split-view responsive:
+//   • < lg (1024px) — Mobile + Tablet: detail panel = full-screen overlay
+//     يـ slide-in من الـ start side (right في الـ RTL). خلفية معتمة + close button.
+//     × الموبايل (< sm 640px): full-screen overlay بـ margins صغيرة.
+//     × التابلت (sm - lg): نفس السلوك، overlay بنفس التصميم.
+//   • ≥ lg (1024px) — Desktop: 2-column grid مع sticky panel بعرض 400px
+//     (العمود اليمين في الـ LTR = الشمال بصرياً في الـ RTL).
+// - ممنوع أي horizontal scroll على أي breakpoint.
+// - الـ close button على الموبايل بيكبر لـ 44px (touch target).
 
 import { useEffect, useMemo, useState } from 'react';
 import { MarketNav } from '@/components/market/MarketNav';
@@ -103,11 +110,12 @@ export default function MarketPage() {
   }, [entries, selectedEntry]);
 
   const panelOpen = !!selectedEntry;
+  const closePanel = () => setSelectedEntry(null);
 
   return (
     <>
       <MarketNav pendingCount={pendingCount} isSyncing={isSyncing} onSync={triggerSync} />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
         <PendingSyncBanner
           pendingCount={pendingCount}
           isSyncing={isSyncing}
@@ -115,7 +123,10 @@ export default function MarketPage() {
           onSync={triggerSync}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 items-start">
+        {/* Layout container:
+            • < lg: single column — الـ panel يطلع كـ overlay.
+            • ≥ lg: 2 columns — الجدول في العمود الأول والـ panel sticky في الـ column التاني. */}
+        <div className="lg:grid lg:grid-cols-[1fr_400px] lg:gap-4 lg:items-start">
           {/* العمود الشمال: search + results */}
           <div className="space-y-4 min-w-0">
             <MarketSearchForm
@@ -147,37 +158,55 @@ export default function MarketPage() {
             </div>
           </div>
 
-          {/* العمود اليمين: detail panel (desktop only). على الموبايل بنعرض overlay. */}
+          {/* Desktop panel — sticky على يمين الـ grid (شمال بصرياً في RTL). */}
           {panelOpen && selectedEntry && (
-            <>
-              {/* Desktop panel */}
-              <div className="hidden lg:block sticky top-20 self-start">
-                  <CarDetailPanel
-                    brand={selectedEntry.brand}
-                    model={selectedEntry.model}
-                    year={selectedEntry.year}
-                    trim={selectedEntry.trim}
-                    matchingEntries={panelMatchingEntries}
-                    onClose={() => setSelectedEntry(null)}
-                  />
-                </div>
-
-              {/* Mobile overlay */}
-              <div className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-stretch justify-end animate-fade-in">
-                <div className="w-full max-w-md m-2 sm:m-3 overflow-y-auto">
-                  <CarDetailPanel
-                    brand={selectedEntry.brand}
-                    model={selectedEntry.model}
-                    year={selectedEntry.year}
-                    trim={selectedEntry.trim}
-                    matchingEntries={panelMatchingEntries}
-                    onClose={() => setSelectedEntry(null)}
-                  />
-                </div>
-              </div>
-            </>
+            <div
+              className="hidden lg:block sticky top-20 self-start min-w-0"
+              // For narrow desktop widths, allow the panel itself to scroll internally
+              // rather than overflowing the viewport horizontally.
+              style={{ maxHeight: 'calc(100vh - 6rem)' }}
+            >
+              <CarDetailPanel
+                brand={selectedEntry.brand}
+                model={selectedEntry.model}
+                year={selectedEntry.year}
+                trim={selectedEntry.trim}
+                matchingEntries={panelMatchingEntries}
+                onClose={closePanel}
+              />
+            </div>
           )}
         </div>
+
+        {/* Mobile + Tablet overlay (< lg).
+            • positioned at the start side via inset-inline-start (right في الـ RTL).
+            • الـ panel slides in من الـ start side باستخدام الـ animation class.
+            • الـ backdrop click بيكسر الـ panel.
+            • body scroll محجوب طول ما الـ panel مفتوح عشان مفيش double-scroll. */}
+        {panelOpen && selectedEntry && (
+          <div
+            className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            onClick={closePanel}
+            aria-hidden="true"
+          >
+            <div
+              className="absolute inset-y-0 inset-inline-start-0 w-full sm:w-[28rem] sm:max-w-[90vw] panel-slide-in-from-start bg-bg-primary overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="تفاصيل السيارة"
+            >
+              <CarDetailPanel
+                brand={selectedEntry.brand}
+                model={selectedEntry.model}
+                year={selectedEntry.year}
+                trim={selectedEntry.trim}
+                matchingEntries={panelMatchingEntries}
+                onClose={closePanel}
+              />
+            </div>
+          </div>
+        )}
       </main>
     </>
   );
