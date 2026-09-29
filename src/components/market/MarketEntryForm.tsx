@@ -140,25 +140,33 @@ export function MarketEntryForm({
   // الـ brands بندمج فيها الـ static catalog (من carBrands.ts) + الـ DB entries.
   // الـ models بندمج فيها الـ static models للـ brand المختار + كل الـ DB models.
   // الـ dedup بيشتغل case-sensitive — الكنسيكال من الـ catalog بيحافظ على الـ English form.
-  const staticBrandNames = useMemo(() => getAllBrandNames(), []);
-  const brandSuggestions = useMemo(() => {
-    const set = new Set<string>(staticBrandNames);
-    if (suggestions?.brands) suggestions.brands.forEach((b) => set.add(b));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [staticBrandNames, suggestions?.brands]);
 
-  const modelSuggestions = useMemo(() => {
+  // Brand dropdown options — static catalog + DB suggestions + safety للـ current value.
+  // Sorted alphabetically (locale-aware). الـ safety بيمنع فقدان الـ brand لو الـ suggestions
+  // لسه ما حملتش (race condition) أو لو الـ brand مش في الـ catalog ومش في الـ DB.
+  const brandOptions = useMemo(() => {
+    const set = new Set<string>(getAllBrandNames());
+    if (suggestions?.brands) suggestions.brands.forEach((b) => set.add(b));
+    if (form.brand) set.add(form.brand);
+    return Array.from(set)
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ value: name, label: name }));
+  }, [suggestions?.brands, form.brand]);
+
+  // Model dropdown options — static models للـ brand المختار + DB models + safety.
+  // الـ static models بيتحطوا الأول في الترتيب (catalog order) ثم أي DB models إضافية.
+  const modelOptions = useMemo(() => {
     const set = new Set<string>();
     // 1. Static models للـ brand المختار حالياً (لو الـ brand موجود في الـ catalog).
     if (form.brand) {
       getModelsForBrand(form.brand).forEach((m) => set.add(m));
     }
     // 2. كل الـ models الـ dynamic من الـ DB entries.
-    // (ممكن تكون من brand تاني، لكن الـ datalist بياخد كل الاقتراحات
-    //  ونظام الـ autocomplete في المتصفح بيفلتر على اللي بيبدأ بـ typed prefix.)
     if (suggestions?.models) suggestions.models.forEach((m) => set.add(m));
-    return Array.from(set);
-  }, [form.brand, suggestions?.models]);
+    // 3. Safety: الـ current value لازم يكون في الـ options عشان الـ edit mode يعرضه صح.
+    if (form.model) set.add(form.model);
+    return Array.from(set).map((name) => ({ value: name, label: name }));
+  }, [form.brand, suggestions?.models, form.model]);
 
   const yearSuggestions =
     suggestions?.years ?? Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i);
@@ -169,6 +177,20 @@ export function MarketEntryForm({
   useEffect(() => {
     setForm(formFromEntry(initial));
   }, [initial]);
+
+  // لما الـ brand يتغيّر، لو الـ model القديم مش valid للـ brand الجديد بنمسحه.
+  // (مثلاً: المستخدم فتح entry ببراند Toyota وموديل Corolla، بعدين غيّر البراند لـ BMW —
+  //  "Corolla" مش في BMW models فبنمسحه عشان يختار BMW model).
+  useEffect(() => {
+    if (!form.brand || !form.model) return;
+    const modelsForBrand = getModelsForBrand(form.brand);
+    const modelInDb = suggestions?.models?.includes(form.model);
+    if (modelsForBrand.length > 0 && !modelsForBrand.includes(form.model) && !modelInDb) {
+      update('model', '');
+    }
+    // الـ effect مقصود يتشغل بس لما الـ brand يتغيّر — باقي الـ deps هي قيم read-only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.brand]);
 
   const update = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -291,26 +313,28 @@ export function MarketEntryForm({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Brand — datalist input with suggestions */}
-          <DatalistField
+          {/* Brand — strict dropdown (static catalog + DB suggestions). */}
+          <SelectField
             label="Brand (نوع العربية)"
             value={form.brand}
             onChange={(v) => update('brand', v)}
             error={errors.brand}
             required
-            suggestions={brandSuggestions}
-            placeholder="مثال: Toyota"
+            options={brandOptions}
+            placeholder="اختر الماركة..."
           />
 
-          {/* Model — datalist input */}
-          <DatalistField
+          {/* Model — strict dropdown, scoped to the selected brand's models. */}
+          {/* بنعطّله لحد ما اليوزر يختار brand عشان الـ UX يبقى واضح. */}
+          <SelectField
             label="Model (الموديل)"
             value={form.model}
             onChange={(v) => update('model', v)}
             error={errors.model}
             required
-            suggestions={modelSuggestions}
-            placeholder="مثال: Corolla"
+            options={modelOptions}
+            placeholder={form.brand ? 'اختر الموديل...' : 'اختر الماركة أولاً'}
+            disabled={!form.brand}
           />
 
           {/* Year — datalist with last 30 years */}
@@ -627,6 +651,7 @@ interface SelectFieldProps {
   required?: boolean;
   placeholder?: string;
   options: readonly { value: string; label: string }[];
+  disabled?: boolean;
 }
 
 function SelectField({
@@ -637,13 +662,15 @@ function SelectField({
   required,
   placeholder,
   options,
+  disabled,
 }: SelectFieldProps) {
   return (
     <FieldShell label={label} error={error} required={required}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={inputClass(!!error)}
+        disabled={disabled}
+        className={`${inputClass(!!error)} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         <option value="" disabled>
           {placeholder || 'اختر...'}
