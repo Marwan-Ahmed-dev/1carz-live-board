@@ -12,7 +12,7 @@ import { LoadingState } from '@/components/LoadingState';
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, userData, isAdmin, loading, needsOnboarding, error } = useAuth();
+  const { user, userData, isAdmin, isSource, loading, needsOnboarding, error } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -24,12 +24,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/onboarding');
       return;
     }
+    // Source users → /market (separate flow, no access to /admin/*)
+    if (isSource) {
+      router.replace('/market');
+      return;
+    }
     if (!isAdmin) {
       router.replace('/cars');
     }
-  }, [user, loading, needsOnboarding, isAdmin, router]);
+  }, [user, loading, needsOnboarding, isAdmin, isSource, router]);
 
-  if (loading || !user || needsOnboarding || !isAdmin) {
+  if (loading || !user || needsOnboarding || isSource || !isAdmin) {
     if (!loading && error && user && !userData) {
       return (
         <div className="min-h-screen bg-admin-bg flex items-center justify-center text-admin-text px-4 text-center">

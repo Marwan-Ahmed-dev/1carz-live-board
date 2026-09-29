@@ -15,17 +15,18 @@ import { PRIORITY_ACCENTS, PRIORITY_LABELS, PRIORITY_ORDER, PRIORITY_SECTION_LAB
 import { subscribeToGroups } from '@/lib/groups';
 
 /**
- * المسوّق = أي حساب مسجّل مش أدمن ومش معاين.
+ * المسوّق = أي حساب مسجّل مش أدمن ومش معاين ومش source.
+ * الـ source role عنده تجربة منفصلة (/market/*) — مش مسوّق ومش staff.
  * الفلتر على assigned_to لازم يشتغل لكل المسوّقين، حتى لو is_marketer
  * أو daily_buyer_limit مش متعيّنين في الـ doc (حسابات قديمة).
  */
-function isMarketerAccount(isStaff: boolean, hasUser: boolean): boolean {
-  return hasUser && !isStaff;
+function isMarketerAccount(isStaff: boolean, hasUser: boolean, isSourceUser: boolean): boolean {
+  return hasUser && !isStaff && !isSourceUser;
 }
 
 export default function CarsBoardPage() {
   const router = useRouter();
-  const { user, userData, isAdmin, isInspector, loading: authLoading, needsOnboarding, error: authError } = useAuth();
+  const { user, userData, isAdmin, isInspector, isSource, loading: authLoading, needsOnboarding, error: authError } = useAuth();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
@@ -34,15 +35,21 @@ export default function CarsBoardPage() {
   const [marketerGroupUids, setMarketerGroupUids] = useState<string[]>([]);
 
   const isStaff = isAdmin || isInspector;
+  const isSourceUser = isSource;
   const isGuest = !authLoading && !user;
-  const isMarketer = isMarketerAccount(isStaff, !!user);
+  const isMarketer = isMarketerAccount(isStaff, !!user, isSourceUser);
 
   useEffect(() => {
     if (authLoading) return;
+    // Source users → /market (separate flow, no access to /cars)
+    if (isSourceUser) {
+      router.replace('/market');
+      return;
+    }
     if (user && needsOnboarding) {
       router.replace('/onboarding');
     }
-  }, [user, authLoading, needsOnboarding, router]);
+  }, [user, authLoading, needsOnboarding, isSourceUser, router]);
 
   useEffect(() => {
     if (!isGuest) return;

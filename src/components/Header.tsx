@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { LogOut, Settings, Plus, LogIn, ArrowRight } from 'lucide-react';
+import { LogOut, Settings, Plus, LogIn, ArrowRight, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from '@/lib/auth';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -16,11 +16,11 @@ interface HeaderProps {
 export function Header({ showUsername = true }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, userData, isAdmin, isInspector, loading: authLoading } = useAuth();
+  const { user, userData, isAdmin, isInspector, isSource, loading: authLoading } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const { confirm, dialogProps } = useConfirm();
   const rolesReady = !authLoading;
-  const isMarketer = rolesReady && !!user && !isAdmin && !isInspector;
+  const isMarketer = rolesReady && !!user && !isAdmin && !isInspector && !isSource;
   const showGuestBack = rolesReady && !user && pathname !== '/';
   const showGuestLogin = rolesReady && !user;
 
@@ -101,6 +101,15 @@ export function Header({ showUsername = true }: HeaderProps) {
             >
               <Plus size={16} />
               <span className="hidden sm:inline">إضافة مشتري</span>
+            </button>
+          )}
+          {rolesReady && isSource && !isAdmin && (
+            <button
+              onClick={() => router.push('/market')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-medium transition-colors cursor-pointer"
+            >
+              <BarChart3 size={16} />
+              <span className="hidden sm:inline">السجل السعري</span>
             </button>
           )}
           {rolesReady && isInspector && !isAdmin && (

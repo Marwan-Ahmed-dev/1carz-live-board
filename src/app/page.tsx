@@ -12,7 +12,7 @@ const SELL_WHATSAPP = 'https://wa.me/201080945697';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { user, loading: authLoading, needsOnboarding, isAdmin } = useAuth();
+  const { user, loading: authLoading, needsOnboarding, isAdmin, isSource } = useAuth();
 
   useEffect(() => {
     if (authLoading) return;
@@ -25,8 +25,12 @@ export default function LandingPage() {
       router.replace('/admin/dashboard');
       return;
     }
+    if (isSource) {
+      router.replace('/market');
+      return;
+    }
     router.replace('/cars');
-  }, [user, authLoading, needsOnboarding, isAdmin, router]);
+  }, [user, authLoading, needsOnboarding, isAdmin, isSource, router]);
 
   if (authLoading || user) {
     return (

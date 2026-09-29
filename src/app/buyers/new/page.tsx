@@ -13,7 +13,7 @@ import { toEnglishDigits } from '@/lib/format';
 
 export default function NewBuyerPage() {
   const router = useRouter();
-  const { user, userData, isAdmin, isInspector, loading: authLoading, needsOnboarding } = useAuth();
+  const { user, userData, isAdmin, isInspector, isSource, loading: authLoading, needsOnboarding } = useAuth();
   const { showToast } = useToast();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -23,7 +23,7 @@ export default function NewBuyerPage() {
   const [usedToday, setUsedToday] = useState(0);
   const [checkingLimit, setCheckingLimit] = useState(true);
 
-  const isMarketer = !!user && !isAdmin && !isInspector;
+  const isMarketer = !!user && !isAdmin && !isInspector && !isSource;
   const dailyLimit =
     typeof userData?.daily_buyer_limit === 'number' && userData.daily_buyer_limit > 0
       ? Math.floor(userData.daily_buyer_limit)
@@ -40,10 +40,14 @@ export default function NewBuyerPage() {
       router.replace('/onboarding');
       return;
     }
+    if (isSource) {
+      router.replace('/market');
+      return;
+    }
     if (isAdmin || isInspector) {
       router.replace('/cars');
     }
-  }, [user, authLoading, needsOnboarding, isAdmin, isInspector, router]);
+  }, [user, authLoading, needsOnboarding, isAdmin, isInspector, isSource, router]);
 
   useEffect(() => {
     if (!user || !isMarketer) return;

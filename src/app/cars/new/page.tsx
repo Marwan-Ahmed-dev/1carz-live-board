@@ -16,7 +16,7 @@ import { LoadingState } from '@/components/LoadingState';
 export default function InspectorNewCarPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { user, isAdmin, isInspector, loading } = useAuth();
+  const { user, isAdmin, isInspector, isSource, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -24,12 +24,16 @@ export default function InspectorNewCarPage() {
       router.replace('/login');
       return;
     }
+    if (isSource) {
+      router.replace('/market');
+      return;
+    }
     if (!isAdmin && !isInspector) {
       router.replace('/cars');
     }
-  }, [user, loading, isAdmin, isInspector, router]);
+  }, [user, loading, isAdmin, isInspector, isSource, router]);
 
-  if (loading || !user || (!isAdmin && !isInspector)) {
+  if (loading || !user || isSource || (!isAdmin && !isInspector)) {
     return (
       <div className="min-h-screen bg-admin-bg text-admin-text flex items-center justify-center">
         <LoadingState variant="page" />
