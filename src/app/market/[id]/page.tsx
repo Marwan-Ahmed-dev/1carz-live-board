@@ -102,7 +102,7 @@ export default function MarketEntryDetailPage() {
           <button
             type="button"
             onClick={() => router.push('/market')}
-            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+            className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary"
           >
             <ArrowRight size={14} />
             رجوع للسجل السعري
@@ -128,20 +128,20 @@ export default function MarketEntryDetailPage() {
         />
 
         {loading ? (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-bg-card border border-border-soft rounded-2xl p-6 shadow-soft">
             <LoadingState variant="detail" />
           </div>
         ) : error || !entry ? (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 text-center text-slate-500 text-sm">
+          <div className="bg-bg-card border border-border-soft rounded-2xl p-6 text-center text-text-muted text-sm shadow-soft">
             {error || 'لم يتم العثور على الـ entry.'}
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6">
+          <div className="bg-bg-card border border-border-soft rounded-2xl p-5 sm:p-6 shadow-soft">
             <div className="mb-5">
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-2xl font-bold text-text-primary">
                 {entry.brand} {entry.model}
               </h1>
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-text-muted mt-1">
                 {entry.year} · {entry.trim} · {entry.price_egp.toLocaleString('en-US')} EGP
               </p>
             </div>
@@ -206,10 +206,10 @@ function ReadOnlyRow({
 }) {
   return (
     <div className={full ? 'sm:col-span-2' : ''}>
-      <dt className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+      <dt className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1">
         {label}
       </dt>
-      <dd className="text-sm text-slate-900" dir={dir}>
+      <dd className="text-sm text-text-primary" dir={dir}>
         {value || '—'}
       </dd>
     </div>

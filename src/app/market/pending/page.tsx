@@ -89,7 +89,7 @@ export default function MarketPendingPage() {
           <button
             type="button"
             onClick={() => router.push('/market')}
-            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+            className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary"
           >
             <ArrowRight size={14} />
             رجوع للسجل السعري
@@ -98,7 +98,7 @@ export default function MarketPendingPage() {
             type="button"
             onClick={handleSyncAll}
             disabled={isSyncing || !isOnline || entries.length === 0}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <CloudUpload size={14} />}
             Sync now
@@ -112,13 +112,13 @@ export default function MarketPendingPage() {
           onSync={handleSyncAll}
         />
 
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200">
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900">الـ entries المعلّقة</h3>
+        <div className="bg-bg-card border border-border-soft rounded-2xl shadow-soft">
+          <div className="px-5 py-4 border-b border-border-soft flex items-center justify-between">
+            <h3 className="text-base font-bold text-text-primary">الـ entries المعلّقة</h3>
             <button
               type="button"
               onClick={() => void loadPending()}
-              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+              className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
               aria-label="تحديث القائمة"
             >
               <RefreshCw size={12} />
@@ -130,11 +130,11 @@ export default function MarketPendingPage() {
               <LoadingState variant="list" count={3} />
             </div>
           ) : entries.length === 0 ? (
-            <div className="px-5 py-12 text-center text-slate-500 text-sm">
+            <div className="px-5 py-12 text-center text-text-muted text-sm">
               لا توجد entries معلّقة — كل البيانات متزامنة مع السيرفر.
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-border-soft">
               {entries.map((entry) => (
                 <PendingRow
                   key={entry.client_id}
@@ -165,17 +165,17 @@ function PendingRow({
     <li className="px-5 py-4 flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-bold text-slate-900">
+          <span className="text-sm font-bold text-text-primary">
             {entry.brand} {entry.model}
           </span>
-          <span className="text-xs text-slate-500" dir="ltr">
+          <span className="text-xs text-text-muted" dir="ltr">
             {entry.year} · {entry.trim}
           </span>
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-accent-soft text-text-primary text-[10px] font-bold">
             في الانتظار
           </span>
         </div>
-        <p className="text-xs text-slate-500 mt-1" dir="ltr">
+        <p className="text-xs text-text-muted mt-1" dir="ltr">
           {entry.price_egp.toLocaleString('en-US')} EGP ·{' '}
           {entry.mileage_km.toLocaleString('en-US')} km
         </p>
@@ -184,7 +184,7 @@ function PendingRow({
             ⚠ {entry.last_error}
           </p>
         )}
-        <p className="text-[10px] text-slate-400 mt-1">
+        <p className="text-[10px] text-text-muted mt-1">
           أُضيف في {new Date(entry.queued_at).toLocaleString('en-GB')}
         </p>
       </div>
@@ -192,7 +192,7 @@ function PendingRow({
         <button
           type="button"
           onClick={onDiscard}
-          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-700 transition-colors flex-shrink-0"
+          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-bg-primary hover:bg-red-50 text-text-muted hover:text-red-700 transition-colors flex-shrink-0"
           aria-label="تجاهل"
         >
           <Trash2 size={14} />

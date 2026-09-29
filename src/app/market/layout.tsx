@@ -3,6 +3,7 @@
 // /market/* layout — حماية الـ source role.
 // - لو مش مسجّل → redirect لـ /login.
 // - لو مسجّل لكن role !== 'source' (و مش admin) → redirect لـ /.
+// - الخلفية cream (bg-primary) زي باقي الموقع.
 
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
@@ -27,11 +28,11 @@ export default function MarketLayout({ children }: { children: ReactNode }) {
 
   if (loading || !user || (!isSource && !isAdmin)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-bg-primary">
         <LoadingState variant="page" />
       </div>
     );
   }
 
-  return <div className="min-h-screen bg-slate-50">{children}</div>;
+  return <div className="min-h-screen bg-bg-primary">{children}</div>;
 }

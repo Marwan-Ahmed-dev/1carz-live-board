@@ -270,7 +270,7 @@ export function MarketEntryForm({
             type="button"
             disabled={submitting}
             onClick={(e) => handleSubmit(e as unknown as React.FormEvent, { stayOnForm: true })}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 text-sm font-semibold disabled:opacity-60 order-2 sm:order-1"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-bg-card text-text-secondary border border-border-soft hover:bg-bg-card-hover text-sm font-semibold disabled:opacity-60 order-2 sm:order-1"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Save & Add Another
@@ -279,7 +279,7 @@ export function MarketEntryForm({
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold disabled:opacity-60 order-1 sm:order-2"
+          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold disabled:opacity-60 order-1 sm:order-2"
         >
           {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {mode === 'edit' ? 'Save Changes' : 'Save Entry'}
@@ -303,7 +303,7 @@ interface FieldShellProps {
 function FieldShell({ label, error, required, children }: FieldShellProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+      <label className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
         {label}
         {required && <span className="text-red-500 ms-1">*</span>}
       </label>
@@ -314,10 +314,10 @@ function FieldShell({ label, error, required, children }: FieldShellProps) {
 }
 
 function inputClass(hasError?: boolean): string {
-  return `w-full px-3 py-2.5 rounded-lg bg-white border text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+  return `w-full px-3 py-2.5 rounded-xl bg-bg-primary border text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-yellow/40 ${
     hasError
       ? 'border-red-400 focus:border-red-500'
-      : 'border-slate-200 focus:border-blue-500'
+      : 'border-border-soft focus:border-accent-yellow'
   }`;
 }
 

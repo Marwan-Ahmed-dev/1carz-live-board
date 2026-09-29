@@ -825,13 +825,14 @@ export default function AdminUsersPage() {
               </div>
               <div>
                 <span id="new-user-role-label" className="block text-xs font-bold text-admin-text-muted mb-1.5">نوع الحساب</span>
-                <div role="radiogroup" aria-labelledby="new-user-role-label" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                <div role="radiogroup" aria-labelledby="new-user-role-label" className="grid grid-cols-3 gap-1.5">
                   {(
                     [
+                      // 'source' role بنعملها برمجياً من scripts/set-admin.mjs بس
+                      // (مش متاحة من الـ UI لإنشاء الحسابات).
                       { value: 'user', label: 'مسوق' },
                       { value: 'inspector', label: 'معاين' },
                       { value: 'admin', label: 'ادمن' },
-                      { value: 'source', label: 'سجل سعري' },
                     ] as { value: AccountRole; label: string }[]
                   ).map((opt) => (
                     <label

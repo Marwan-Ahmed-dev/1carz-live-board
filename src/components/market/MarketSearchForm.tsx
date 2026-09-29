@@ -4,6 +4,7 @@
 // 4 أعمدة dropdowns: Brand | Model | Year | Trim في الصف الأول.
 // Mileage | Paint | Price Range | (Search + Reset) في الصف الثاني.
 // كل الـ labels بالعربي (RTL).
+// بيستخدم نفس الـ tokens بتاعت الـ site (cream / yellow / slate text).
 
 import { useMemo } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
@@ -46,7 +47,7 @@ export function MarketSearchForm({
   onReset,
   entries,
 }: MarketSearchFormProps) {
-  // بنستخرج الـ options من البيانات الموجودة (fallback على hard-coded lists).
+  // بنستخرج الـ options من البيانات الموجودة (fallback на hard-coded lists).
   const brands = useMemo(() => unique(entries.map((e) => e.brand)).filter(Boolean), [entries]);
   const models = useMemo(() => unique(entries.map((e) => e.model)).filter(Boolean), [entries]);
   const years = useMemo(
@@ -68,10 +69,10 @@ export function MarketSearchForm({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6">
+    <div className="bg-bg-card border border-border-soft rounded-2xl p-5 sm:p-6 shadow-soft">
       <div className="mb-5">
-        <h2 className="text-2xl font-bold text-slate-900">Search Cars</h2>
-        <p className="text-sm text-slate-500 mt-1">
+        <h2 className="text-2xl font-bold text-text-primary">Search Cars</h2>
+        <p className="text-sm text-text-muted mt-1">
           Find market prices based on real listings and sales data.
         </p>
       </div>
@@ -145,7 +146,7 @@ export function MarketSearchForm({
             type="button"
             onClick={onReset}
             disabled={!isFiltered}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed order-2 sm:order-1"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-bg-card text-text-secondary border border-border-soft hover:bg-bg-card-hover text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed order-2 sm:order-1"
           >
             <RotateCcw size={14} />
             Reset
@@ -153,7 +154,7 @@ export function MarketSearchForm({
           <button
             type="button"
             onClick={onSearch}
-            className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold order-1 sm:order-2"
+            className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold order-1 sm:order-2"
           >
             <Search size={14} />
             Search
@@ -193,7 +194,7 @@ function SelectField({
 }: SelectFieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+      <label className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
         {label}
       </label>
       {allowFreeText ? (
@@ -202,13 +203,13 @@ function SelectField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={freeTextPlaceholder || placeholder}
-          className="w-full px-3 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2.5 rounded-xl bg-bg-primary border border-border-soft text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-yellow/40 focus:border-accent-yellow"
         />
       ) : (
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2.5 rounded-xl bg-bg-primary border border-border-soft text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-yellow/40 focus:border-accent-yellow"
           dir="ltr"
         >
           <option value="">{placeholder}</option>
@@ -233,7 +234,7 @@ interface NumberFieldProps {
 function NumberField({ label, value, onChange, placeholder }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+      <label className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
         {label}
       </label>
       <input
@@ -243,7 +244,7 @@ function NumberField({ label, value, onChange, placeholder }: NumberFieldProps) 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className="w-full px-3 py-2.5 rounded-xl bg-bg-primary border border-border-soft text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-yellow/40 focus:border-accent-yellow"
         dir="ltr"
       />
     </div>

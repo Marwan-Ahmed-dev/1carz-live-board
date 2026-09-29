@@ -19,16 +19,16 @@ export default function MarketNewPage() {
         <button
           type="button"
           onClick={() => router.push('/market')}
-          className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 mb-3"
+          className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary mb-3"
         >
           <ArrowRight size={14} />
           رجوع للسجل السعري
         </button>
 
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6">
+        <div className="bg-bg-card border border-border-soft rounded-2xl p-5 sm:p-6 shadow-soft">
           <div className="mb-5">
-            <h1 className="text-2xl font-bold text-slate-900">إضافة entry جديد</h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <h1 className="text-2xl font-bold text-text-primary">إضافة entry جديد</h1>
+            <p className="text-sm text-text-muted mt-1">
               سجّل بيانات عربية جديدة. لو مش متصل بالإنترنت، الـ entry هيتحفظ في الانتظار
               ويُرسل تلقائياً لما ترجع الـ connection.
             </p>

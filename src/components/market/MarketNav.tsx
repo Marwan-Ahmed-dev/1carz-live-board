@@ -1,8 +1,8 @@
 'use client';
 
 // Top navigation bar لـ /market/* section.
-// مستقل تماماً عن الـ Header.tsx الموجود — بـ design language مختلف
-// (slate/blue) عشان يطابق الـ screenshot اللي بعته.
+// بيستخدم نفس الـ design language بتاع الـ Header.tsx (cream/yellow)
+// عشان يبقى consistent مع باقي الموقع.
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -12,8 +12,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Wifi,
-  WifiOff,
   Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -63,14 +61,14 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-slate-100 border-b border-slate-200">
+    <header className="sticky top-0 z-30 bg-bg-primary/95 backdrop-blur-sm border-b border-border-soft">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         {/* Logo */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-base sm:text-lg font-bold tracking-tight whitespace-nowrap">
             <span className="text-red-600">1</span>
-            <span className="text-slate-900">Carz</span>
-            <span className="ml-1 text-xs sm:text-sm font-medium text-slate-500">
+            <span className="text-text-primary">Carz</span>
+            <span className="ml-1 text-xs sm:text-sm font-medium text-text-muted">
               Market Intelligence
             </span>
           </span>
@@ -83,8 +81,8 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
             onClick={() => router.push('/market')}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
               isMarketDataActive
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+                ? 'bg-accent-yellow text-text-primary'
+                : 'bg-bg-card text-text-secondary border border-border-soft hover:bg-bg-card-hover'
             }`}
             aria-current={isMarketDataActive ? 'page' : undefined}
           >
@@ -96,8 +94,8 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
             onClick={() => router.push('/market/new')}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
               isAddActive
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+                ? 'bg-accent-yellow text-text-primary'
+                : 'bg-bg-card text-text-secondary border border-border-soft hover:bg-bg-card-hover'
             }`}
             aria-current={isAddActive ? 'page' : undefined}
           >
@@ -110,7 +108,7 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
         <div className="flex items-center gap-2 flex-shrink-0">
           <OfflineBadge pendingCount={pendingCount} />
           {isSyncing && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-xs text-slate-500">
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs text-text-muted">
               <Loader2 size={12} className="animate-spin" />
               <span>جاري المزامنة...</span>
             </span>
@@ -119,29 +117,29 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full hover:bg-slate-200 transition-colors"
+              className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full hover:bg-bg-card-hover transition-colors"
               aria-label="حساب المستخدم"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
-              <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+              <span className="w-8 h-8 rounded-full bg-accent-yellow text-text-primary flex items-center justify-center text-sm font-bold">
                 {avatarLabel}
               </span>
-              <ChevronDown size={14} className="text-slate-500" />
+              <ChevronDown size={14} className="text-text-muted" />
             </button>
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 animate-fade-in"
+                className="absolute left-0 mt-2 w-56 bg-bg-card rounded-xl shadow-medium border border-border-soft py-2 animate-fade-in"
               >
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <div className="text-sm font-semibold text-slate-900 truncate">
+                <div className="px-3 py-2 border-b border-border-soft">
+                  <div className="text-sm font-semibold text-text-primary truncate">
                     {userData?.username || user?.email || 'مستخدم'}
                   </div>
-                  <div className="text-xs text-slate-500 truncate" dir="ltr">
+                  <div className="text-xs text-text-muted truncate" dir="ltr">
                     {user?.email}
                   </div>
-                  <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold">
+                  <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-soft text-text-primary text-[10px] font-bold">
                     سجل سعري
                   </div>
                 </div>
@@ -153,7 +151,7 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
                       setMenuOpen(false);
                       onSync();
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-bg-card-hover"
                   >
                     {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                     مزامنة الآن
@@ -166,7 +164,7 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
                     setMenuOpen(false);
                     void handleLogout();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-bg-card-hover"
                 >
                   <LogOut size={14} />
                   تسجيل الخروج
@@ -186,8 +184,8 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
           onClick={() => router.push('/market')}
           className={`flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-sm font-semibold transition-colors ${
             isMarketDataActive
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-700 border border-slate-200'
+              ? 'bg-accent-yellow text-text-primary'
+              : 'bg-bg-card text-text-secondary border border-border-soft'
           }`}
         >
           <Search size={14} />
@@ -198,8 +196,8 @@ export function MarketNav({ pendingCount = 0, isSyncing = false, onSync }: Marke
           onClick={() => router.push('/market/new')}
           className={`flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-sm font-semibold transition-colors ${
             isAddActive
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-700 border border-slate-200'
+              ? 'bg-accent-yellow text-text-primary'
+              : 'bg-bg-card text-text-secondary border border-border-soft'
           }`}
         >
           <Plus size={14} />

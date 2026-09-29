@@ -3,8 +3,9 @@
 // /market — السجل السعري.
 // - Top nav (MarketNav).
 // - Pending sync banner (لو في pending).
-// - Search form.
-// - Results table.
+// - Search form + Results table في العمود الشمال.
+// - Split-view: لو اليوزر اختار entry → CarDetailPanel يفتح في العمود اليمين
+//   (sticky, ~400px wide). على الموبايل بيتحول لـ full-screen overlay.
 
 import { useEffect, useMemo, useState } from 'react';
 import { MarketNav } from '@/components/market/MarketNav';
@@ -15,9 +16,11 @@ import {
 } from '@/components/market/MarketSearchForm';
 import { MarketResultsTable } from '@/components/market/MarketResultsTable';
 import { PendingSyncBanner } from '@/components/market/PendingSyncBanner';
+import { CarDetailPanel } from '@/components/market/CarDetailPanel';
 import { useMarketEntries } from '@/hooks/useMarketEntries';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import type { MarketEntry } from '@/lib/types';
 
 export default function MarketPage() {
   const { entries, loading, source, error, onReadSuccess } = useMarketEntries();
@@ -30,6 +33,9 @@ export default function MarketPage() {
 
   const [filters, setFilters] = useState<MarketFilters>(DEFAULT_MARKET_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<MarketFilters>(DEFAULT_MARKET_FILTERS);
+
+  // الـ entry المختار + الـ panel مفتوح
+  const [selectedEntry, setSelectedEntry] = useState<MarketEntry | null>(null);
 
   // بنطبّق الفلاتر على الـ entries
   const filteredEntries = useMemo(() => {
@@ -70,6 +76,34 @@ export default function MarketPage() {
     });
   }, [entries, appliedFilters]);
 
+  // الـ entries المستخدمة للـ aggregations في الـ panel: بنتضمّن الـ entry المختار
+  // لو مش موجود في الـ filteredEntries (مثلاً لو اليوزر مسح فلتر).
+  const panelMatchingEntries = useMemo(() => {
+    if (!selectedEntry) return [];
+    // نضم الكلمة الكاملة (brand + model + year + trim) للـ matching.
+    const matches = filteredEntries.filter(
+      (e) =>
+        e.brand === selectedEntry.brand &&
+        e.model === selectedEntry.model &&
+        e.year === selectedEntry.year &&
+        e.trim === selectedEntry.trim
+    );
+    // نتأكد إن الـ entry المختار موجود في النتيجة (fallback لو ما لقيناش تطابق).
+    if (!matches.find((e) => e.id === selectedEntry.id)) {
+      matches.push(selectedEntry);
+    }
+    return matches;
+  }, [filteredEntries, selectedEntry]);
+
+  // Auto-clear selected entry لو اختفى من القائمة بعد الفلاتر
+  useEffect(() => {
+    if (selectedEntry && !entries.find((e) => e.id === selectedEntry.id)) {
+      setSelectedEntry(null);
+    }
+  }, [entries, selectedEntry]);
+
+  const panelOpen = !!selectedEntry;
+
   return (
     <>
       <MarketNav pendingCount={pendingCount} isSyncing={isSyncing} onSync={triggerSync} />
@@ -81,27 +115,68 @@ export default function MarketPage() {
           onSync={triggerSync}
         />
 
-        <MarketSearchForm
-          filters={filters}
-          onChange={setFilters}
-          onSearch={() => setAppliedFilters(filters)}
-          onReset={() => {
-            setFilters(DEFAULT_MARKET_FILTERS);
-            setAppliedFilters(DEFAULT_MARKET_FILTERS);
-          }}
-          entries={entries}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 items-start">
+          {/* العمود الشمال: search + results */}
+          <div className="space-y-4 min-w-0">
+            <MarketSearchForm
+              filters={filters}
+              onChange={setFilters}
+              onSearch={() => setAppliedFilters(filters)}
+              onReset={() => {
+                setFilters(DEFAULT_MARKET_FILTERS);
+                setAppliedFilters(DEFAULT_MARKET_FILTERS);
+              }}
+              entries={entries}
+            />
 
-        <MarketResultsTable entries={filteredEntries} loading={loading} />
+            <MarketResultsTable
+              entries={filteredEntries}
+              loading={loading}
+              selectedId={selectedEntry?.id ?? null}
+              onSelect={(entry) => setSelectedEntry(entry)}
+            />
 
-        {/* info bar: source + error */}
-        <div className="text-xs text-slate-500 px-1 flex items-center justify-between">
-          <span>
-            {source === 'cache' && 'عرض من الكاش — الاتصال قد يكون محدوداً'}
-            {source === 'firestore' && 'متصل — البيانات محدّثة'}
-            {source === 'empty' && !loading && 'لا توجد بيانات'}
-          </span>
-          {error && <span className="text-amber-600">⚠ {error}</span>}
+            {/* info bar: source + error */}
+            <div className="text-xs text-text-muted px-1 flex items-center justify-between">
+              <span>
+                {source === 'cache' && 'عرض من الكاش — الاتصال قد يكون محدوداً'}
+                {source === 'firestore' && 'متصل — البيانات محدّثة'}
+                {source === 'empty' && !loading && 'لا توجد بيانات'}
+              </span>
+              {error && <span className="text-amber-600">⚠ {error}</span>}
+            </div>
+          </div>
+
+          {/* العمود اليمين: detail panel (desktop only). على الموبايل بنعرض overlay. */}
+          {panelOpen && selectedEntry && (
+            <>
+              {/* Desktop panel */}
+              <div className="hidden lg:block sticky top-20 self-start">
+                  <CarDetailPanel
+                    brand={selectedEntry.brand}
+                    model={selectedEntry.model}
+                    year={selectedEntry.year}
+                    trim={selectedEntry.trim}
+                    matchingEntries={panelMatchingEntries}
+                    onClose={() => setSelectedEntry(null)}
+                  />
+                </div>
+
+              {/* Mobile overlay */}
+              <div className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-stretch justify-end animate-fade-in">
+                <div className="w-full max-w-md m-2 sm:m-3 overflow-y-auto">
+                  <CarDetailPanel
+                    brand={selectedEntry.brand}
+                    model={selectedEntry.model}
+                    year={selectedEntry.year}
+                    trim={selectedEntry.trim}
+                    matchingEntries={panelMatchingEntries}
+                    onClose={() => setSelectedEntry(null)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </main>
     </>

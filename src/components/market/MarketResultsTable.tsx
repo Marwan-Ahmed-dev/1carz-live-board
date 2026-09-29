@@ -4,6 +4,8 @@
 // - Header: "Search Results" + badge بالعدد + Sort dropdown.
 // - Body: جدول (#, Brand, Model, Year, Trim, Mileage, Price, Paint, Date).
 // - Footer: "Showing X to Y of Z" + Pagination.
+// - لما اليوزر يضغط على صف، بنادي `onSelect(entry)` عشان الـ parent يفتح
+//   الـ split-view detail panel.
 
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ArrowDownUp } from 'lucide-react';
@@ -16,9 +18,17 @@ const PAGE_SIZE = 10;
 interface MarketResultsTableProps {
   entries: MarketEntry[];
   loading: boolean;
+  /** الـ ID المختار حالياً عشان نعلّم الصف. */
+  selectedId?: string | null;
+  onSelect?: (entry: MarketEntry) => void;
 }
 
-export function MarketResultsTable({ entries, loading }: MarketResultsTableProps) {
+export function MarketResultsTable({
+  entries,
+  loading,
+  selectedId = null,
+  onSelect,
+}: MarketResultsTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('newest');
   const [page, setPage] = useState<number>(1);
 
@@ -54,21 +64,21 @@ export function MarketResultsTable({ entries, loading }: MarketResultsTableProps
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+    <div className="bg-bg-card border border-border-soft rounded-2xl shadow-soft">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200">
+      <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border-soft">
         <div className="flex items-center gap-3 min-w-0">
-          <h3 className="text-base font-bold text-slate-900">Search Results</h3>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+          <h3 className="text-base font-bold text-text-primary">Search Results</h3>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-soft text-text-primary text-xs font-bold">
             {entries.length} {entries.length === 1 ? 'result' : 'results'}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <ArrowDownUp size={14} className="text-slate-500 hidden sm:block" />
+          <ArrowDownUp size={14} className="text-text-muted hidden sm:block" />
           <select
             value={sortKey}
             onChange={(e) => handleSortChange(e.target.value as SortKey)}
-            className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 rounded-xl bg-bg-primary border border-border-soft text-text-secondary text-sm focus:outline-none focus:ring-2 focus:ring-accent-yellow/40 focus:border-accent-yellow"
           >
             <option value="newest">Sort by: Newest</option>
             <option value="oldest">Sort by: Oldest</option>
@@ -82,51 +92,75 @@ export function MarketResultsTable({ entries, loading }: MarketResultsTableProps
       {/* Body */}
       <div className="overflow-x-auto">
         {loading ? (
-          <div className="px-5 py-12 text-center text-slate-500 text-sm">جاري التحميل...</div>
+          <div className="px-5 py-12 text-center text-text-muted text-sm">جاري التحميل...</div>
         ) : sorted.length === 0 ? (
-          <div className="px-5 py-12 text-center text-slate-500 text-sm">
+          <div className="px-5 py-12 text-center text-text-muted text-sm">
             لا توجد نتائج — جرّب تعديل الفلاتر أو أضف entry جديد.
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-center px-3 py-3 w-12">#</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Brand</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Model</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Year</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Trim</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Mileage (KM)</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Price (EGP)</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Paint / Condition</th>
-                <th className="text-xs uppercase tracking-wide font-medium text-slate-500 text-right px-3 py-3">Date</th>
+              <tr className="bg-bg-primary/50 border-b border-border-soft">
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-center px-3 py-3 w-12">#</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Brand</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Model</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Year</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Trim</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Mileage (KM)</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Price (EGP)</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Paint / Condition</th>
+                <th className="text-xs uppercase tracking-wide font-medium text-text-muted text-right px-3 py-3">Date</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((entry, idx) => (
-                <tr
-                  key={entry.id}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                >
-                  <td className="px-3 py-3 text-slate-500 text-center font-medium">
-                    {from + idx}
-                  </td>
-                  <td className="px-3 py-3 text-slate-900 font-semibold">{entry.brand}</td>
-                  <td className="px-3 py-3 text-slate-700">{entry.model}</td>
-                  <td className="px-3 py-3 text-slate-700" dir="ltr">{entry.year}</td>
-                  <td className="px-3 py-3 text-slate-700">{entry.trim}</td>
-                  <td className="px-3 py-3 text-slate-700" dir="ltr">{entry.mileage_km.toLocaleString('en-US')}</td>
-                  <td className="px-3 py-3 text-slate-900 font-semibold" dir="ltr">
-                    {entry.price_egp.toLocaleString('en-US')} EGP
-                  </td>
-                  <td className="px-3 py-3 text-slate-700 max-w-[200px] truncate" title={entry.paint_condition}>
-                    {entry.paint_condition || '—'}
-                  </td>
-                  <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap">
-                    {formatDate(entry.created_at)}
-                  </td>
-                </tr>
-              ))}
+              {visible.map((entry, idx2) => {
+                const isSelected = selectedId === entry.id;
+                const interactive = !!onSelect;
+                return (
+                  <tr
+                    key={entry.id}
+                    onClick={interactive ? () => onSelect!(entry) : undefined}
+                    onKeyDown={
+                      interactive
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              onSelect!(entry);
+                            }
+                          }
+                        : undefined
+                    }
+                    tabIndex={interactive ? 0 : undefined}
+                    role={interactive ? 'button' : undefined}
+                    aria-pressed={interactive ? isSelected : undefined}
+                    className={`border-b border-border-soft transition-colors ${
+                      interactive
+                        ? `cursor-pointer hover:bg-bg-card-hover focus:outline-none focus-visible:bg-bg-card-hover ${
+                            isSelected ? 'bg-accent-soft' : ''
+                          }`
+                        : ''
+                    }`}
+                  >
+                    <td className="px-3 py-3 text-text-muted text-center font-medium">
+                      {from + idx2}
+                    </td>
+                    <td className="px-3 py-3 text-text-primary font-semibold">{entry.brand}</td>
+                    <td className="px-3 py-3 text-text-secondary">{entry.model}</td>
+                    <td className="px-3 py-3 text-text-secondary" dir="ltr">{entry.year}</td>
+                    <td className="px-3 py-3 text-text-secondary">{entry.trim}</td>
+                    <td className="px-3 py-3 text-text-secondary" dir="ltr">{entry.mileage_km.toLocaleString('en-US')}</td>
+                    <td className="px-3 py-3 text-text-primary font-semibold" dir="ltr">
+                      {entry.price_egp.toLocaleString('en-US')} EGP
+                    </td>
+                    <td className="px-3 py-3 text-text-secondary max-w-[200px] truncate" title={entry.paint_condition}>
+                      {entry.paint_condition || '—'}
+                    </td>
+                    <td className="px-3 py-3 text-text-muted text-xs whitespace-nowrap">
+                      {formatDate(entry.created_at)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -134,18 +168,18 @@ export function MarketResultsTable({ entries, loading }: MarketResultsTableProps
 
       {/* Footer */}
       {sorted.length > 0 && (
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-slate-200 text-sm">
-          <span className="text-slate-500">
-            Showing <span className="font-semibold text-slate-900">{from}</span> to{' '}
-            <span className="font-semibold text-slate-900">{to}</span> of{' '}
-            <span className="font-semibold text-slate-900">{sorted.length}</span> results
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-border-soft text-sm">
+          <span className="text-text-muted">
+            Showing <span className="font-semibold text-text-primary">{from}</span> to{' '}
+            <span className="font-semibold text-text-primary">{to}</span> of{' '}
+            <span className="font-semibold text-text-primary">{sorted.length}</span> results
           </span>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-border-soft text-text-secondary hover:bg-bg-card-hover disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="السابق"
             >
               <ChevronRight size={16} />
@@ -155,7 +189,7 @@ export function MarketResultsTable({ entries, loading }: MarketResultsTableProps
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-border-soft text-text-secondary hover:bg-bg-card-hover disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="التالي"
             >
               <ChevronLeft size={16} />
@@ -181,7 +215,7 @@ function PageNumbers({
     <>
       {pages.map((p, i) =>
         p === '…' ? (
-          <span key={`gap-${i}`} className="px-2 text-slate-400">
+          <span key={`gap-${i}`} className="px-2 text-text-muted">
             …
           </span>
         ) : (
@@ -191,8 +225,8 @@ function PageNumbers({
             onClick={() => onChange(p)}
             className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-sm font-semibold ${
               p === page
-                ? 'bg-blue-600 text-white'
-                : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+                ? 'bg-accent-yellow text-text-primary'
+                : 'border border-border-soft text-text-secondary hover:bg-bg-card-hover'
             }`}
             aria-current={p === page ? 'page' : undefined}
           >
