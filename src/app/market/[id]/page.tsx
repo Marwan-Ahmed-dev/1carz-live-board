@@ -2,13 +2,14 @@
 
 // /market/[id] — عرض + تعديل entry موجود.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Loader2, Trash2 } from 'lucide-react';
 import { MarketNav } from '@/components/market/MarketNav';
 import { MarketEntryForm } from '@/components/market/MarketEntryForm';
 import { PendingSyncBanner } from '@/components/market/PendingSyncBanner';
 import { useAuth } from '@/hooks/useAuth';
+import { useMarketEntries } from '@/hooks/useMarketEntries';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import {
@@ -33,11 +34,32 @@ export default function MarketEntryDetailPage() {
   const { confirm, dialogProps } = useConfirm();
   const { isOnline } = useNetworkStatus();
   const { pendingCount, isSyncing, triggerSync } = useOfflineSync();
+  const { entries } = useMarketEntries();
 
   const [entry, setEntry] = useState<MarketEntry | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
+
+  // suggestions — نفس اللي بنمرره في /market/new عشان الـ edit يكمّل بسهولة.
+  const suggestions = useMemo(() => {
+    const brandSet = new Set<string>();
+    const modelSet = new Set<string>();
+    const yearSet = new Set<number>();
+    const mileageSet = new Set<number>();
+    for (const e of entries) {
+      if (e.brand) brandSet.add(e.brand);
+      if (e.model) modelSet.add(e.model);
+      yearSet.add(e.year);
+      if (e.mileage_km) mileageSet.add(e.mileage_km);
+    }
+    return {
+      brands: Array.from(brandSet).sort(),
+      models: Array.from(modelSet).sort(),
+      years: Array.from(yearSet).sort((a, b) => b - a),
+      mileages: Array.from(mileageSet).sort((a, b) => a - b),
+    };
+  }, [entries]);
 
   const isOwner = entry && user ? entry.recorded_by_uid === user.uid : false;
   const canEdit = isOwner || isAdmin;
@@ -154,6 +176,7 @@ export default function MarketEntryDetailPage() {
                     router.refresh();
                   }
                 }}
+                suggestions={suggestions}
               />
             ) : (
               <ReadOnlyView entry={entry} />

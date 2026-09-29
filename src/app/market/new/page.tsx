@@ -2,15 +2,38 @@
 
 // /market/new — إضافة entry جديد.
 
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { MarketNav } from '@/components/market/MarketNav';
 import { MarketEntryForm } from '@/components/market/MarketEntryForm';
+import { useMarketEntries } from '@/hooks/useMarketEntries';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 
 export default function MarketNewPage() {
   const router = useRouter();
   const { pendingCount, isSyncing, triggerSync } = useOfflineSync();
+  const { entries } = useMarketEntries();
+
+  // بنستخرج suggestions مميزة من الـ entries الموجودة (brand/model unique + years + mileages).
+  const suggestions = useMemo(() => {
+    const brandSet = new Set<string>();
+    const modelSet = new Set<string>();
+    const yearSet = new Set<number>();
+    const mileageSet = new Set<number>();
+    for (const e of entries) {
+      if (e.brand) brandSet.add(e.brand);
+      if (e.model) modelSet.add(e.model);
+      yearSet.add(e.year);
+      if (e.mileage_km) mileageSet.add(e.mileage_km);
+    }
+    return {
+      brands: Array.from(brandSet).sort(),
+      models: Array.from(modelSet).sort(),
+      years: Array.from(yearSet).sort((a, b) => b - a),
+      mileages: Array.from(mileageSet).sort((a, b) => a - b),
+    };
+  }, [entries]);
 
   return (
     <>
@@ -46,6 +69,7 @@ export default function MarketNewPage() {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }
             }}
+            suggestions={suggestions}
           />
         </div>
       </main>

@@ -5,7 +5,7 @@
 // الفورم بيشتغل offline — لو الـ save فشل، بيتحفظ في الـ IndexedDB
 // pending queue (عبر addMarketEntry).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import {
   addMarketEntry,
@@ -21,6 +21,37 @@ import { logger } from '@/lib/logger';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+// ---------------------------------------------------------------------------
+// Standardised select options for trim / paint / maintenance.
+// "__other__" هو sentinel — لو اليوزر اختاره بنظهر text input حر.
+// ---------------------------------------------------------------------------
+
+const TRIM_OPTIONS = [
+  { value: 'درجه اولي', label: 'درجه اولي' },
+  { value: 'درجه تانيه', label: 'درجه تانيه' },
+  { value: 'درجه ثالثه', label: 'درجه ثالثه' },
+  { value: 'درجه رابعه', label: 'درجه رابعه' },
+] as const;
+
+const PAINT_OPTIONS = [
+  { value: 'فبريكا', label: 'فبريكا' },
+  { value: '__other__', label: 'أخرى (اكتب...)' },
+] as const;
+
+const MAINTENANCE_OPTIONS = [
+  { value: 'في التوكيل', label: 'في التوكيل' },
+  { value: 'بره التوكيل', label: 'بره التوكيل' },
+  { value: 'مختلط', label: 'مختلط' },
+  { value: '__other__', label: 'أخرى (اكتب...)' },
+] as const;
+
+const PAINT_STANDARD_VALUES: readonly string[] = PAINT_OPTIONS.map((o) => o.value).filter(
+  (v) => v !== '__other__'
+);
+const MAINTENANCE_STANDARD_VALUES: readonly string[] = MAINTENANCE_OPTIONS.map((o) => o.value).filter(
+  (v) => v !== '__other__'
+);
+
 interface MarketEntryFormProps {
   /** لما الـ mode = 'edit' بنمرر الـ entry الموجودة. */
   initial?: MarketEntry | null;
@@ -28,6 +59,13 @@ interface MarketEntryFormProps {
   onSaved?: (info: { id: string; synced: boolean; client_id: string }, mode: 'create' | 'edit') => void;
   /** Callback لـ "Save & Add Another" — نمسح الفورم بعد الحفظ. */
   onSavedAndAddAnother?: () => void;
+  /** Suggestions للـ datalist inputs (brand/model/year/mileage). */
+  suggestions?: {
+    brands?: string[];
+    models?: string[];
+    years?: number[];
+    mileages?: number[];
+  };
 }
 
 interface FormState {
@@ -35,9 +73,15 @@ interface FormState {
   model: string;
   year: string;
   trim: string;
+  /** يخزّن إما القيمة القياسية (فبريكا) أو '__other__' لو اليوزر اختار أخرى. */
   paint_condition: string;
+  /** لو paint_condition === '__other__' بنخزّن النص الحر هنا. */
+  paint_other: string;
   mileage_km: string;
+  /** يخزّن إما القيمة القياسية أو '__other__' لو اليوزر اختار أخرى. */
   maintenance: string;
+  /** لو maintenance === '__other__' بنخزّن النص الحر هنا. */
+  maintenance_other: string;
   price_egp: string;
   notes: string;
 }
@@ -48,22 +92,28 @@ const EMPTY_FORM: FormState = {
   year: '',
   trim: '',
   paint_condition: '',
+  paint_other: '',
   mileage_km: '',
   maintenance: '',
+  maintenance_other: '',
   price_egp: '',
   notes: '',
 };
 
 function formFromEntry(entry: MarketEntry | null | undefined): FormState {
   if (!entry) return EMPTY_FORM;
+  const paintIsStandard = PAINT_STANDARD_VALUES.includes(entry.paint_condition);
+  const maintenanceIsStandard = MAINTENANCE_STANDARD_VALUES.includes(entry.maintenance);
   return {
     brand: entry.brand,
     model: entry.model,
     year: String(entry.year),
     trim: entry.trim,
-    paint_condition: entry.paint_condition,
+    paint_condition: paintIsStandard ? entry.paint_condition : '__other__',
+    paint_other: paintIsStandard ? '' : entry.paint_condition,
     mileage_km: String(entry.mileage_km),
-    maintenance: entry.maintenance,
+    maintenance: maintenanceIsStandard ? entry.maintenance : '__other__',
+    maintenance_other: maintenanceIsStandard ? '' : entry.maintenance,
     price_egp: String(entry.price_egp),
     notes: entry.notes || '',
   };
@@ -73,6 +123,7 @@ export function MarketEntryForm({
   initial,
   onSaved,
   onSavedAndAddAnother,
+  suggestions,
 }: MarketEntryFormProps) {
   const { user, userData } = useAuth();
   const { showToast } = useToast();
@@ -80,6 +131,15 @@ export function MarketEntryForm({
   const [form, setForm] = useState<FormState>(() => formFromEntry(initial));
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  // suggestions — لو الـ parent مش بتمررهم بنستخدم defaults ذكية.
+  const brandSuggestions = suggestions?.brands ?? [];
+  const modelSuggestions = suggestions?.models ?? [];
+  const yearSuggestions =
+    suggestions?.years ?? Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i);
+  const mileageSuggestions = (
+    suggestions?.mileages ?? [10000, 20000, 30000, 50000, 75000, 100000, 125000, 150000, 200000]
+  ).map(String);
 
   useEffect(() => {
     setForm(formFromEntry(initial));
@@ -100,12 +160,20 @@ export function MarketEntryForm({
     if (!form.year || !Number.isFinite(yearNum)) next.year = 'سنة التصنيع مطلوبة';
     else if (yearNum < 1980 || yearNum > CURRENT_YEAR + 1) next.year = `السنة بين 1980 و ${CURRENT_YEAR + 1}`;
     if (!form.trim.trim()) next.trim = 'الفئة مطلوبة';
-    if (!form.paint_condition.trim()) next.paint_condition = 'حالة الطلاء مطلوبة';
+    if (!form.paint_condition) {
+      next.paint_condition = 'حالة الطلاء مطلوبة';
+    } else if (form.paint_condition === '__other__' && !form.paint_other.trim()) {
+      next.paint_other = 'اكتب حالة الطلاء';
+    }
     const mileageNum = Number(form.mileage_km);
     if (form.mileage_km === '' || !Number.isFinite(mileageNum) || mileageNum < 0) {
       next.mileage_km = 'عداد الكيلومتر يجب أن يكون رقم موجب';
     }
-    if (!form.maintenance.trim()) next.maintenance = 'نوع الصيانات مطلوب';
+    if (!form.maintenance) {
+      next.maintenance = 'نوع الصيانات مطلوب';
+    } else if (form.maintenance === '__other__' && !form.maintenance_other.trim()) {
+      next.maintenance_other = 'اكتب نوع الصيانات';
+    }
     const priceNum = Number(form.price_egp);
     if (form.price_egp === '' || !Number.isFinite(priceNum) || priceNum <= 0) {
       next.price_egp = 'السعر مطلوب ويجب أن يكون أكبر من صفر';
@@ -114,14 +182,20 @@ export function MarketEntryForm({
 
     if (Object.keys(next).length > 0) return { ok: false, errors: next };
 
+    // resolve "__other__" → final string
+    const paintFinal =
+      form.paint_condition === '__other__' ? form.paint_other.trim() : form.paint_condition;
+    const maintenanceFinal =
+      form.maintenance === '__other__' ? form.maintenance_other.trim() : form.maintenance;
+
     const input: MarketEntryInput = {
       brand: form.brand.trim(),
       model: form.model.trim(),
       year: yearNum,
       trim: form.trim.trim(),
-      paint_condition: form.paint_condition.trim(),
+      paint_condition: paintFinal,
       mileage_km: Math.floor(mileageNum),
-      maintenance: form.maintenance.trim(),
+      maintenance: maintenanceFinal,
       price_egp: Math.floor(priceNum),
       notes: form.notes.trim() || undefined,
     };
@@ -183,88 +257,152 @@ export function MarketEntryForm({
   };
 
   return (
-    <form onSubmit={(e) => handleSubmit(e)} className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <TextField
-          label="Brand (نوع العربية)"
-          value={form.brand}
-          onChange={(v) => update('brand', v)}
-          error={errors.brand}
-          required
-          placeholder="مثال: Toyota"
-        />
-        <TextField
-          label="Model (الموديل)"
-          value={form.model}
-          onChange={(v) => update('model', v)}
-          error={errors.model}
-          required
-          placeholder="مثال: Corolla"
-        />
-        <NumberField
-          label="Year (سنة التصنيع)"
-          value={form.year}
-          onChange={(v) => update('year', v)}
-          error={errors.year}
-          required
-          min={1980}
-          max={CURRENT_YEAR + 1}
-          placeholder="2020"
-        />
-        <TextField
-          label="Trim (الفئة)"
-          value={form.trim}
-          onChange={(v) => update('trim', v)}
-          error={errors.trim}
-          required
-          placeholder="مثال: GLI"
-        />
-        <TextField
-          label="Paint / Condition (حالة الطلاء)"
-          value={form.paint_condition}
-          onChange={(v) => update('paint_condition', v)}
-          error={errors.paint_condition}
-          required
-          placeholder="فابريكا من جوا ومن برا"
-        />
-        <NumberField
-          label="Mileage (KM) (عداد الكيلومتر)"
-          value={form.mileage_km}
-          onChange={(v) => update('mileage_km', v)}
-          error={errors.mileage_km}
-          required
-          min={0}
-          placeholder="120000"
-        />
-        <TextField
-          label="Maintenance (نوع الصيانات)"
-          value={form.maintenance}
-          onChange={(v) => update('maintenance', v)}
-          error={errors.maintenance}
-          required
-          placeholder="مثال: توكيل، توكيل + مركزي"
-        />
-        <NumberField
-          label="Price (EGP) (السعر)"
-          value={form.price_egp}
-          onChange={(v) => update('price_egp', v)}
-          error={errors.price_egp}
-          required
-          min={1}
-          placeholder="650000"
-        />
-      </div>
+    <form onSubmit={(e) => handleSubmit(e)} className="space-y-6">
+      {/* ===== SECTION: Car Data (بيانات العربيه) ===== */}
+      <section className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-5 rounded-full bg-accent-yellow" />
+          <h2 className="text-base font-bold text-text-primary">بيانات العربيه</h2>
+        </div>
 
-      <TextAreaField
-        label="Notes (ملاحظات — اختياري)"
-        value={form.notes}
-        onChange={(v) => update('notes', v)}
-        error={errors.notes}
-        maxLength={500}
-        placeholder="أي ملاحظات إضافية..."
-      />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Brand — datalist input with suggestions */}
+          <DatalistField
+            label="Brand (نوع العربية)"
+            value={form.brand}
+            onChange={(v) => update('brand', v)}
+            error={errors.brand}
+            required
+            suggestions={brandSuggestions}
+            placeholder="مثال: Toyota"
+          />
 
-      <div className="flex flex-col sm:flex-row gap-2 sm:justify-end pt-2">
+          {/* Model — datalist input */}
+          <DatalistField
+            label="Model (الموديل)"
+            value={form.model}
+            onChange={(v) => update('model', v)}
+            error={errors.model}
+            required
+            suggestions={modelSuggestions}
+            placeholder="مثال: Corolla"
+          />
+
+          {/* Year — datalist with last 30 years */}
+          <DatalistField
+            label="Year (سنة التصنيع)"
+            value={form.year}
+            onChange={(v) => update('year', v)}
+            error={errors.year}
+            required
+            inputType="number"
+            suggestions={yearSuggestions.map(String)}
+            placeholder="2020"
+          />
+
+          {/* Trim — select dropdown (4 grades) */}
+          <SelectField
+            label="Trim (الفئة)"
+            value={form.trim}
+            onChange={(v) => update('trim', v)}
+            error={errors.trim}
+            required
+            options={TRIM_OPTIONS}
+            placeholder="اختر الدرجة..."
+          />
+
+          {/* Paint — select dropdown */}
+          <SelectField
+            label="Paint / Condition (حالة الطلاء)"
+            value={form.paint_condition}
+            onChange={(v) => update('paint_condition', v)}
+            error={errors.paint_condition}
+            required
+            options={PAINT_OPTIONS}
+            placeholder="اختر..."
+          />
+
+          {/* Conditional paint_other text input */}
+          {form.paint_condition === '__other__' && (
+            <TextField
+              label="حالة الطلاء - تفاصيل"
+              value={form.paint_other}
+              onChange={(v) => update('paint_other', v)}
+              error={errors.paint_other}
+              required
+              placeholder="مثال: راشة في الباب الخلفي"
+            />
+          )}
+
+          {/* Mileage — datalist with common values */}
+          <DatalistField
+            label="Mileage (KM) (عداد الكيلومتر)"
+            value={form.mileage_km}
+            onChange={(v) => update('mileage_km', v)}
+            error={errors.mileage_km}
+            required
+            inputType="number"
+            suggestions={mileageSuggestions}
+            placeholder="120000"
+          />
+
+          {/* Maintenance — select dropdown */}
+          <SelectField
+            label="Maintenance (نوع الصيانات)"
+            value={form.maintenance}
+            onChange={(v) => update('maintenance', v)}
+            error={errors.maintenance}
+            required
+            options={MAINTENANCE_OPTIONS}
+            placeholder="اختر..."
+          />
+
+          {/* Conditional maintenance_other text input */}
+          {form.maintenance === '__other__' && (
+            <TextField
+              label="نوع الصيانات - تفاصيل"
+              value={form.maintenance_other}
+              onChange={(v) => update('maintenance_other', v)}
+              error={errors.maintenance_other}
+              required
+              placeholder="مثال: توكيل حتى 80000، بعدها مركزي"
+            />
+          )}
+        </div>
+      </section>
+
+      {/* ===== SECTION: Price & Notes (السعر والملاحظات) ===== */}
+      <section className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-5 rounded-full bg-accent-yellow" />
+          <h2 className="text-base font-bold text-text-primary">السعر والملاحظات</h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <NumberField
+            label="Price (EGP) (السعر)"
+            value={form.price_egp}
+            onChange={(v) => update('price_egp', v)}
+            error={errors.price_egp}
+            required
+            min={1}
+            placeholder="650000"
+          />
+
+          <div className="sm:col-span-2">
+            <TextAreaField
+              label="Notes (ملاحظات — اختياري)"
+              value={form.notes}
+              onChange={(v) => update('notes', v)}
+              error={errors.notes}
+              maxLength={500}
+              placeholder="أي ملاحظات إضافية..."
+            />
+          </div>
+        </div>
+      </section>
+
+      <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
         {mode === 'create' && onSavedAndAddAnother && (
           <button
             type="button"
@@ -396,6 +534,101 @@ function TextAreaField({ label, value, onChange, error, required, placeholder, m
         rows={3}
         className={inputClass(!!error) + ' resize-y min-h-[80px]'}
       />
+    </FieldShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// datalist input — text/number مع suggestions تظهر كـ autocomplete dropdown.
+// ---------------------------------------------------------------------------
+
+interface DatalistFieldProps {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  required?: boolean;
+  placeholder?: string;
+  suggestions: string[];
+  inputType?: 'text' | 'number';
+  id?: string;
+}
+
+function DatalistField({
+  label,
+  value,
+  onChange,
+  error,
+  required,
+  placeholder,
+  suggestions,
+  inputType = 'text',
+  id,
+}: DatalistFieldProps) {
+  const listId = useId();
+  return (
+    <FieldShell label={label} error={error} required={required}>
+      <input
+        type={inputType}
+        inputMode={inputType === 'number' ? 'numeric' : 'text'}
+        list={listId}
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={inputClass(!!error)}
+        dir={inputType === 'number' ? 'ltr' : undefined}
+      />
+      <datalist id={listId}>
+        {suggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+    </FieldShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// select dropdown — بخيارات ثابتة {value, label}.
+// (لازم تكون مختلفة في الـ signature عن SelectField في MarketSearchForm —
+//  هنا بندعم required/error options كمان.)
+// ---------------------------------------------------------------------------
+
+interface SelectFieldProps {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  required?: boolean;
+  placeholder?: string;
+  options: readonly { value: string; label: string }[];
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  error,
+  required,
+  placeholder,
+  options,
+}: SelectFieldProps) {
+  return (
+    <FieldShell label={label} error={error} required={required}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputClass(!!error)}
+      >
+        <option value="" disabled>
+          {placeholder || 'اختر...'}
+        </option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </FieldShell>
   );
 }
