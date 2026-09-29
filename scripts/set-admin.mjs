@@ -78,14 +78,18 @@ async function main() {
     console.log(`Found user: ${userRecord.uid} (${userRecord.email})`);
 
     if (ROLE === 'source') {
-      // 'source' role lives on users/{uid}.role, not on the custom claim.
-      // (Firestore rules allow it server-side if we set the claim later, but
-      // for now we just record the role on the user doc via the admin API.)
-      // Strip any prior role claim to keep things tidy.
-      await auth.setCustomUserClaims(userRecord.uid, { role: null });
+      // 'source' role needs to be set on BOTH the custom claim (for Firestore
+      // rules — `request.auth.token.role == 'source'`) and the user doc
+      // (for client-side useAuth.isSource detection).
+      //
+      // The Firestore user doc must also be updated separately; this script
+      // only sets the claim. Use `scripts/create-source-users.mjs` to do the
+      // full bootstrap (Auth user + claim + Firestore profile).
+      await auth.setCustomUserClaims(userRecord.uid, { role: 'source' });
       console.log(
-        `✓ role="source" stored on user doc (no custom claim). ` +
-          `Update users/${userRecord.uid}.role via the admin /admin/users page.`
+        `✓ Custom claim "role: source" set on ${EMAIL}. ` +
+          `Make sure users/${userRecord.uid}.role === 'source' in Firestore ` +
+          `(use create-source-users.mjs for the full bootstrap).`
       );
     } else {
       await auth.setCustomUserClaims(userRecord.uid, { role: ROLE });
