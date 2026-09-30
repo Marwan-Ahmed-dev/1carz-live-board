@@ -200,6 +200,7 @@ function slugToBrandName(slug: string): string {
 // ---------------------------------------------------------------------------
 
 import catalogData from './carsCatalog.generated.json';
+import { BRANDS as STATIC_BRANDS } from './carBrands';
 
 interface CatalogData {
   brands?: string[];
@@ -225,12 +226,97 @@ const allBrands: string[] = (() => {
   return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
 })();
 
-// Models per brand — Firestore catalog only (Flutter app doesn't ship models).
-// If a brand has no Firestore data, we leave the array empty (free-text fallback
-// still works via the existing safety net in MarketEntryForm).
+// ---------------------------------------------------------------------------
+// Static model catalog — carBrands.ts يحتوي على models شاملة لأكثر من 30 ماركة
+// معروفة في السوق المصري (Toyota, BMW, BYD, Abarth-like cases, إلخ).
+// الـ lookup هنا case-insensitive مع alias mapping عشان:
+//   - "Mercedes" (من الـ catalog) → "Mercedes-Benz" (من carBrands)
+//   - "BMW" / "Bmw" → "BMW"
+//   - "MG" / "Mg" → "MG"
+// ---------------------------------------------------------------------------
+
+const STATIC_MODELS_BY_CANONICAL: Record<string, string[]> = (() => {
+  const out: Record<string, string[]> = {};
+  for (const b of STATIC_BRANDS) {
+    out[b.name.toLowerCase()] = [...b.models];
+  }
+  return out;
+})();
+
+// Mapping من الأسماء الموجودة في الـ catalog لـ canonical carBrands keys.
+// بنغطي الـ variations الشائعة (case, dash, etc.) + الـ aliases في brandAliases.
+const BRAND_TO_STATIC_KEY: Record<string, string> = {
+  'mercedes': 'mercedes-benz',
+  'mercedes-benz': 'mercedes-benz',
+  'bmw': 'bmw',
+  'land rover': 'land rover',
+  'land_rover': 'land rover',
+  'rolls royce': 'rolls-royce',
+  'rolls-royce': 'rolls-royce',
+  'rolls_royce': 'rolls-royce',
+  'alfa romeo': 'alfa romeo',
+  'alfa_romeo': 'alfa romeo',
+  'aston martin': 'aston martin',
+  'aston_martin': 'aston martin',
+  'ssangyong': 'ssangyong',
+  'ssang_yong': 'ssangyong',
+  'ssang-yong': 'ssangyong',
+  'landwind': 'landwind',
+  'land wind': 'landwind',
+  'land_wind': 'landwind',
+  'li auto': 'li auto',
+  'li_auto': 'li auto',
+  'king long': 'king long',
+  'king_long': 'king long',
+  'golden dragon': 'golden dragon',
+  'golden_dragon': 'golden dragon',
+  'great wall': 'great wall',
+  'great_wall': 'great wall',
+  'mg': 'mg',
+};
+
+/**
+ * Resolve any brand name (from catalog or user input) to a carBrands key.
+ * Returns the lowercased key or null لو الـ brand مش في carBrands.
+ */
+function resolveStaticBrandKey(brand: string): string | null {
+  const lower = brand.toLowerCase().trim();
+  // 1. direct map
+  if (BRAND_TO_STATIC_KEY[lower]) return BRAND_TO_STATIC_KEY[lower];
+  // 2. direct lookup in static catalog (case-insensitive)
+  if (STATIC_MODELS_BY_CANONICAL[lower]) return lower;
+  // 3. try with underscores replaced (Flutter slug form)
+  const withSpaces = lower.replace(/_/g, ' ');
+  if (STATIC_MODELS_BY_CANONICAL[withSpaces]) return withSpaces;
+  // 4. try with spaces replaced by underscores
+  const withUnderscores = lower.replace(/ /g, '_');
+  if (STATIC_MODELS_BY_CANONICAL[withUnderscores]) return withUnderscores;
+  return null;
+}
+
+// Models per brand — combined source:
+//   1. Static carBrands models (comprehensive, hand-curated for popular brands)
+//   2. Firestore-derived models (DB entries with that exact brand name)
+// الـ static data بيغطي ~30 ماركة معروفة (Toyota, BMW, BYD, Abarth-like cases, etc.)
+// حتى لو الـ DB فاضي. الـ Firestore data بيزوّد على الـ static بـ models الـ user
+// أضافها قبل كده (free-text).
 const allModelsByBrand: Record<string, string[]> = {};
 for (const brand of allBrands) {
-  allModelsByBrand[brand] = [...(firestoreCatalog.modelsByBrand?.[brand] ?? [])].sort();
+  const set = new Set<string>();
+  // Static models (comprehensive)
+  const staticKey = resolveStaticBrandKey(brand);
+  if (staticKey && STATIC_MODELS_BY_CANONICAL[staticKey]) {
+    for (const m of STATIC_MODELS_BY_CANONICAL[staticKey]) set.add(m);
+  }
+  // Firestore-derived models (case-insensitive lookup)
+  for (const [dbBrand, dbModels] of Object.entries(
+    firestoreCatalog.modelsByBrand ?? {}
+  )) {
+    if (dbBrand.toLowerCase() === brand.toLowerCase()) {
+      for (const m of dbModels) set.add(m);
+    }
+  }
+  allModelsByBrand[brand] = Array.from(set).sort();
 }
 
 export const CARS_CATALOG = {
@@ -241,7 +327,17 @@ export const CARS_CATALOG = {
 };
 
 export function getModelsForBrand(brand: string): string[] {
-  return CARS_CATALOG.modelsByBrand[brand] ?? [];
+  // Try direct lookup first (case-insensitive)
+  const direct = CARS_CATALOG.modelsByBrand[brand];
+  if (direct && direct.length > 0) return direct;
+  // Fallback: try resolving via the static key resolver
+  const lower = brand.toLowerCase().trim();
+  for (const [catalogBrand, models] of Object.entries(CARS_CATALOG.modelsByBrand)) {
+    if (catalogBrand.toLowerCase() === lower && models.length > 0) {
+      return models;
+    }
+  }
+  return [];
 }
 
 export function getYearsForBrandModel(brand: string, model: string): number[] {
