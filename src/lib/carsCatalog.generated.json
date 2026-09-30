@@ -1,0 +1,252 @@
+{
+  "generated_at": "2026-09-30T12:21:18.047Z",
+  "source": "cars collection in Firestore (parsed from title)",
+  "total_cars": 42,
+  "parsed_titles": 38,
+  "brands": [
+    "Alfa",
+    "Audi",
+    "BMW",
+    "Bmw",
+    "Chery",
+    "Chevrolet",
+    "Citroen",
+    "Ford",
+    "Geely",
+    "Hyundai",
+    "Jaguar",
+    "Jeep",
+    "Jetour",
+    "MG",
+    "Mercedes",
+    "Mercedes-Benz",
+    "Mg",
+    "Opel",
+    "Renaul",
+    "Renault",
+    "Suzuki",
+    "citroen",
+    "ford",
+    "أوبل",
+    "بيجو",
+    "رينو",
+    "سانج",
+    "شيفروليه",
+    "لادا",
+    "نيسان"
+  ],
+  "modelsByBrand": {
+    "Mercedes": [
+      "GLE 450"
+    ],
+    "Audi": [
+      "A5 S line"
+    ],
+    "Mg": [
+      "zs"
+    ],
+    "Citroen": [
+      "c elese"
+    ],
+    "بيجو": [
+      "301 موديل – أعلى فئة"
+    ],
+    "Mercedes-Benz": [
+      "GLC 200 SUV | أعلى فئة"
+    ],
+    "رينو": [
+      "داستر — فئة تانية"
+    ],
+    "Suzuki": [
+      "Ciaz أوتوماتيك",
+      "Swift"
+    ],
+    "Hyundai": [
+      "Elantra AD",
+      "Elantra cn7"
+    ],
+    "أوبل": [
+      "إنسيجنيا"
+    ],
+    "citroen": [
+      "c elysee"
+    ],
+    "نيسان": [
+      "صني الفئة الاولى"
+    ],
+    "لادا": [
+      "جرانتا أوتوماتيك"
+    ],
+    "MG": [
+      "RX5",
+      "RX5 موديل – أعلى فئة"
+    ],
+    "Renaul": [
+      "fluence"
+    ],
+    "Alfa": [
+      "romeo giulietta"
+    ],
+    "ford": [
+      "koga"
+    ],
+    "Renault": [
+      "Stepway",
+      "megane"
+    ],
+    "Geely": [
+      "coolray"
+    ],
+    "Opel": [
+      "Astra",
+      "crossland"
+    ],
+    "Chery": [
+      "Arrizo 5"
+    ],
+    "Ford": [
+      "focus"
+    ],
+    "Jeep": [
+      "Liberty"
+    ],
+    "Jaguar": [
+      "XE – R-Dynamic HSE | أعلى فئة"
+    ],
+    "Jetour": [
+      "x90 plus -7 seats"
+    ],
+    "شيفروليه": [
+      "ماليبو LT موديل"
+    ],
+    "Bmw": [
+      "318 i",
+      "520 i adventure",
+      "x3 m sport"
+    ],
+    "BMW": [
+      "X1- sport line"
+    ],
+    "سانج": [
+      "يونج تيفولي فئة اولى"
+    ],
+    "Chevrolet": [
+      "Captiva"
+    ]
+  },
+  "yearsByBrandModel": {
+    "Mercedes::GLE 450": [
+      2023
+    ],
+    "Audi::A5 S line": [
+      2024
+    ],
+    "Mg::zs": [
+      2020
+    ],
+    "Citroen::c elese": [
+      2021
+    ],
+    "بيجو::301 موديل – أعلى فئة": [
+      2014
+    ],
+    "Mercedes-Benz::GLC 200 SUV | أعلى فئة": [
+      2022
+    ],
+    "رينو::داستر — فئة تانية": [
+      2025
+    ],
+    "Suzuki::Ciaz أوتوماتيك": [
+      2015
+    ],
+    "Hyundai::Elantra AD": [
+      2019
+    ],
+    "أوبل::إنسيجنيا": [
+      2016
+    ],
+    "citroen::c elysee": [
+      2016
+    ],
+    "نيسان::صني الفئة الاولى": [
+      2026
+    ],
+    "لادا::جرانتا أوتوماتيك": [
+      2021
+    ],
+    "MG::RX5 موديل – أعلى فئة": [
+      2022
+    ],
+    "Renaul::fluence": [
+      2011
+    ],
+    "Alfa::romeo giulietta": [
+      2020
+    ],
+    "ford::koga": [
+      2018
+    ],
+    "Renault::megane": [
+      2019
+    ],
+    "Renault::Stepway": [
+      2017
+    ],
+    "Geely::coolray": [
+      2022
+    ],
+    "Opel::Astra": [
+      2013
+    ],
+    "Chery::Arrizo 5": [
+      2022
+    ],
+    "MG::RX5": [
+      2020,
+      2019
+    ],
+    "Ford::focus": [
+      2018
+    ],
+    "Suzuki::Swift": [
+      2026
+    ],
+    "Jeep::Liberty": [
+      2006
+    ],
+    "Jaguar::XE – R-Dynamic HSE | أعلى فئة": [
+      2020
+    ],
+    "Jetour::x90 plus -7 seats": [
+      2025
+    ],
+    "شيفروليه::ماليبو LT موديل": [
+      2021
+    ],
+    "Bmw::318 i": [
+      2016
+    ],
+    "BMW::X1- sport line": [
+      2018
+    ],
+    "Opel::crossland": [
+      2021
+    ],
+    "Hyundai::Elantra cn7": [
+      2025
+    ],
+    "Bmw::x3 m sport": [
+      2011
+    ],
+    "Bmw::520 i adventure": [
+      2023
+    ],
+    "سانج::يونج تيفولي فئة اولى": [
+      2019
+    ],
+    "Chevrolet::Captiva": [
+      2021
+    ]
+  },
+  "paintByBrandModelYear": {}
+}

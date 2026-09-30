@@ -2,7 +2,9 @@
 
 // فورم البحث في /market.
 // 4 أعمدة dropdowns: Brand | Model | Year | Trim في الصف الأول.
-// Mileage | Paint | Price Range | (Search + Reset) في الصف الثاني.
+// Mileage | Paint | (Search + Reset) في الصف الثاني.
+// (تم حذف Min/Max Price بناء على طلب اليوزر — البحث بالسعر هيكون ضمني
+//  في الـ results table لما يطبّق فلاتر تانية).
 // كل الـ labels بالعربي (RTL).
 // بيستخدم نفس الـ tokens بتاعت الـ site (cream / yellow / slate text).
 
@@ -17,8 +19,6 @@ export interface MarketFilters {
   trim: string;
   mileage: string;
   paint: string;
-  minPrice: string;
-  maxPrice: string;
 }
 
 interface MarketSearchFormProps {
@@ -36,8 +36,6 @@ const DEFAULT_FILTERS: MarketFilters = {
   trim: '',
   mileage: '',
   paint: '',
-  minPrice: '',
-  maxPrice: '',
 };
 
 export function MarketSearchForm({
@@ -58,10 +56,7 @@ export function MarketSearchForm({
   const paints = useMemo(() => unique(entries.map((e) => e.paint_condition)).filter(Boolean), [entries]);
 
   const isFiltered = useMemo(() => {
-    return Object.entries(filters).some(([k, v]) => {
-      if (k === 'minPrice' || k === 'maxPrice') return v !== DEFAULT_FILTERS[k];
-      return v !== '';
-    });
+    return Object.entries(filters).some(([k, v]) => v !== DEFAULT_FILTERS[k as keyof MarketFilters]);
   }, [filters]);
 
   const update = (key: keyof MarketFilters, value: string) => {
@@ -77,8 +72,8 @@ export function MarketSearchForm({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Row 1 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {/* Row 1 — brand / model / year */}
         <SelectField
           label="Brand"
           value={filters.brand}
@@ -100,6 +95,8 @@ export function MarketSearchForm({
           placeholder="كل السنوات"
           options={years}
         />
+
+        {/* Row 2 — trim / mileage / paint */}
         <SelectField
           label="Trim"
           value={filters.trim}
@@ -107,8 +104,6 @@ export function MarketSearchForm({
           placeholder="كل الفئات"
           options={trims}
         />
-
-        {/* Row 2 */}
         <SelectField
           label="Mileage (KM)"
           value={filters.mileage}
@@ -125,23 +120,9 @@ export function MarketSearchForm({
           placeholder="كل الحالات"
           options={paints}
         />
-        <div className="sm:col-span-2 lg:col-span-2 grid grid-cols-2 gap-2">
-          <NumberField
-            label="Min Price"
-            value={filters.minPrice}
-            onChange={(v) => update('minPrice', v)}
-            placeholder="من"
-          />
-          <NumberField
-            label="Max Price"
-            value={filters.maxPrice}
-            onChange={(v) => update('maxPrice', v)}
-            placeholder="إلى"
-          />
-        </div>
 
-        {/* Buttons (last cell, spans 1 col on large) */}
-        <div className="lg:col-span-4 flex flex-col sm:flex-row gap-2 sm:justify-end pt-1">
+        {/* Buttons — span all 3 cols on lg */}
+        <div className="sm:col-span-2 lg:col-span-3 flex flex-col sm:flex-row gap-2 sm:justify-end pt-1">
           <button
             type="button"
             onClick={onReset}
@@ -220,33 +201,6 @@ function SelectField({
           ))}
         </select>
       )}
-    </div>
-  );
-}
-
-interface NumberFieldProps {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}
-
-function NumberField({ label, value, onChange, placeholder }: NumberFieldProps) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-        {label}
-      </label>
-      <input
-        type="number"
-        inputMode="numeric"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2.5 rounded-xl bg-bg-primary border border-border-soft text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-yellow/40 focus:border-accent-yellow"
-        dir="ltr"
-      />
     </div>
   );
 }

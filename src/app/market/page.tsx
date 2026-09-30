@@ -52,14 +52,6 @@ export default function MarketPage() {
       if (appliedFilters.year && String(e.year) !== appliedFilters.year) return false;
       if (appliedFilters.trim && e.trim !== appliedFilters.trim) return false;
       if (appliedFilters.paint && e.paint_condition !== appliedFilters.paint) return false;
-      if (appliedFilters.minPrice) {
-        const min = Number(appliedFilters.minPrice);
-        if (Number.isFinite(min) && e.price_egp < min) return false;
-      }
-      if (appliedFilters.maxPrice) {
-        const max = Number(appliedFilters.maxPrice);
-        if (Number.isFinite(max) && e.price_egp > max) return false;
-      }
       // mileage كـ نص حر — لو اليوزر كتب "120000" بنطابق == أو <= لو فيه إشارة.
       if (appliedFilters.mileage) {
         const raw = appliedFilters.mileage.trim();

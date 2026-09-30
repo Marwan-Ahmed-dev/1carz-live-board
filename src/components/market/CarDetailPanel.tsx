@@ -12,6 +12,7 @@
 import { useMemo } from 'react';
 import { X, BarChart3, LineChart as LineChartIcon } from 'lucide-react';
 import type { MarketEntry } from '@/lib/types';
+import { formatThousands } from '@/lib/format';
 
 interface CarDetailPanelProps {
   brand: string;
@@ -103,12 +104,16 @@ export function CarDetailPanel({
           ) : (
             <>
               <div className="grid grid-cols-3 gap-2">
-                <Stat label="Min Price" value={formatEGP(stats.min)} emphasis />
-                <Stat label="Average" value={formatEGP(stats.avg)} emphasis />
-                <Stat label="Max Price" value={formatEGP(stats.max)} emphasis />
+                <Stat label="Min Price" value={`${formatThousands(Math.round(stats.min))} EGP`} emphasis />
+                <Stat label="Average" value={`${formatThousands(Math.round(stats.avg))} EGP`} emphasis />
+                <Stat label="Max Price" value={`${formatThousands(Math.round(stats.max))} EGP`} emphasis />
               </div>
               <div className="mt-3 pt-3 border-t border-border-soft">
-                <Stat label="Total Listings" value={`${stats.count} ${stats.count === 1 ? 'سيارة' : 'سيارات'}`} muted />
+                <Stat
+                  label="Total Listings"
+                  value={`${formatThousands(stats.count)} ${stats.count === 1 ? 'سيارة' : 'سيارات'}`}
+                  muted
+                />
               </div>
             </>
           )}
@@ -358,11 +363,6 @@ function shortNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
   return String(Math.round(n));
-}
-
-function formatEGP(value: number): string {
-  if (!Number.isFinite(value)) return '0';
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value);
 }
 
 // ============================================================================

@@ -21,7 +21,11 @@ import { logger } from '@/lib/logger';
 import {
   getAllBrandNames,
   getModelsForBrand,
-} from '@/lib/carBrands';
+  getYearsForBrandModel,
+  getPaintForBrandModelYear,
+  getMaintenanceForBrandModelYear,
+} from '@/lib/carsCatalog';
+import { formatThousands } from '@/lib/format';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -31,30 +35,65 @@ const CURRENT_YEAR = new Date().getFullYear();
 // ---------------------------------------------------------------------------
 
 const TRIM_OPTIONS = [
-  { value: 'درجه اولي', label: 'درجه اولي' },
-  { value: 'درجه تانيه', label: 'درجه تانيه' },
-  { value: 'درجه ثالثه', label: 'درجه ثالثه' },
-  { value: 'درجه رابعه', label: 'درجه رابعه' },
+  { value: 'فئه اولي', label: 'فئه اولي' },
+  { value: 'فئه تانيه', label: 'فئه تانيه' },
+  { value: 'فئه ثالثه', label: 'فئه ثالثه' },
+  { value: 'فئه رابعه', label: 'فئه رابعه' },
+  { value: 'فئه خامسه', label: 'فئه خامسه' },
+  { value: 'فئه سادسه', label: 'فئه سادسه' },
+  { value: 'فئه سابعه', label: 'فئه سابعه' },
 ] as const;
 
-const PAINT_OPTIONS = [
-  { value: 'فبريكا', label: 'فبريكا' },
-  { value: '__other__', label: 'أخرى (اكتب...)' },
-] as const;
+/**
+ * الـ paint options بتتولّد dynamic من الـ catalog حسب brand/model/year.
+ * دايماً بنضم "__other__" في الآخر عشان اليوزر يقدر يكتب قيمة حرة.
+ */
+function buildPaintOptions(
+  brand: string,
+  model: string,
+  year: string
+): readonly { value: string; label: string }[] {
+  const fromCatalog = getPaintForBrandModelYear(
+    brand,
+    model,
+    year ? Number(year) : CURRENT_YEAR
+  );
+  return [
+    ...fromCatalog.map((v) => ({ value: v, label: v })),
+    { value: '__other__', label: 'أخرى (اكتب...)' },
+  ];
+}
 
-const MAINTENANCE_OPTIONS = [
-  { value: 'في التوكيل', label: 'في التوكيل' },
-  { value: 'بره التوكيل', label: 'بره التوكيل' },
-  { value: 'مختلط', label: 'مختلط' },
-  { value: '__other__', label: 'أخرى (اكتب...)' },
-] as const;
+/**
+ * الـ maintenance options static (الـ catalog ما فيهاش maintenance data حالياً).
+ */
+function buildMaintenanceOptions(
+  brand: string,
+  model: string,
+  year: string
+): readonly { value: string; label: string }[] {
+  const fromCatalog = getMaintenanceForBrandModelYear(
+    brand,
+    model,
+    year ? Number(year) : CURRENT_YEAR
+  );
+  return [
+    ...fromCatalog.map((v) => ({ value: v, label: v })),
+    { value: '__other__', label: 'أخرى (اكتب...)' },
+  ];
+}
 
-const PAINT_STANDARD_VALUES: readonly string[] = PAINT_OPTIONS.map((o) => o.value).filter(
-  (v) => v !== '__other__'
-);
-const MAINTENANCE_STANDARD_VALUES: readonly string[] = MAINTENANCE_OPTIONS.map((o) => o.value).filter(
-  (v) => v !== '__other__'
-);
+/**
+ * مجموعة الـ paint values الـ standard (مش "__other__") — مستخدمة في الـ
+ * formFromEntry عشان نعرف لو القيمة اللي راجعة من الـ DB تعتبر standard
+ * (فنعرضها في الـ select) أو حرة (فنعرضها في "__other__" + text input).
+ */
+const STANDARD_PAINT_VALUES = new Set<string>(['فبريكا']);
+const STANDARD_MAINTENANCE_VALUES = new Set<string>([
+  'في التوكيل',
+  'بره التوكيل',
+  'مختلط',
+]);
 
 interface MarketEntryFormProps {
   /** لما الـ mode = 'edit' بنمرر الـ entry الموجودة. */
@@ -106,8 +145,8 @@ const EMPTY_FORM: FormState = {
 
 function formFromEntry(entry: MarketEntry | null | undefined): FormState {
   if (!entry) return EMPTY_FORM;
-  const paintIsStandard = PAINT_STANDARD_VALUES.includes(entry.paint_condition);
-  const maintenanceIsStandard = MAINTENANCE_STANDARD_VALUES.includes(entry.maintenance);
+  const paintIsStandard = STANDARD_PAINT_VALUES.has(entry.paint_condition);
+  const maintenanceIsStandard = STANDARD_MAINTENANCE_VALUES.has(entry.maintenance);
   return {
     brand: entry.brand,
     model: entry.model,
@@ -137,7 +176,7 @@ export function MarketEntryForm({
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   // suggestions — لو الـ parent مش بتمررهم بنستخدم defaults ذكية.
-  // الـ brands بندمج فيها الـ static catalog (من carBrands.ts) + الـ DB entries.
+  // الـ brands بندمج فيها الـ static catalog (من carsCatalog.ts) + الـ DB entries.
   // الـ models بندمج فيها الـ static models للـ brand المختار + كل الـ DB models.
   // الـ dedup بيشتغل case-sensitive — الكنسيكال من الـ catalog بيحافظ على الـ English form.
 
@@ -153,11 +192,10 @@ export function MarketEntryForm({
       .map((name) => ({ value: name, label: name }));
   }, [suggestions?.brands, form.brand]);
 
-  // Model dropdown options — static models للـ brand المختار + DB models + safety.
-  // الـ static models بيتحطوا الأول في الترتيب (catalog order) ثم أي DB models إضافية.
+  // Model dropdown options — catalog models للـ brand المختار + DB models + safety.
   const modelOptions = useMemo(() => {
     const set = new Set<string>();
-    // 1. Static models للـ brand المختار حالياً (لو الـ brand موجود في الـ catalog).
+    // 1. Catalog models للـ brand المختار (لو الـ brand موجود في الـ catalog).
     if (form.brand) {
       getModelsForBrand(form.brand).forEach((m) => set.add(m));
     }
@@ -168,8 +206,25 @@ export function MarketEntryForm({
     return Array.from(set).map((name) => ({ value: name, label: name }));
   }, [form.brand, suggestions?.models, form.model]);
 
-  const yearSuggestions =
-    suggestions?.years ?? Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i);
+  // Year datalist suggestions — الـ catalog للـ brand/model المختار، أو آخر 30 سنة كـ fallback.
+  const yearSuggestions = useMemo(() => {
+    const fromCatalog = getYearsForBrandModel(form.brand, form.model);
+    if (fromCatalog.length > 0) return fromCatalog.map(String).sort((a, b) => Number(b) - Number(a));
+    return (suggestions?.years ?? Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i)).map(String);
+  }, [form.brand, form.model, suggestions?.years]);
+
+  // Paint dropdown options — dynamic من الـ catalog حسب brand/model/year.
+  const paintOptions = useMemo(
+    () => buildPaintOptions(form.brand, form.model, form.year),
+    [form.brand, form.model, form.year]
+  );
+
+  // Maintenance dropdown options — الـ catalog data + الـ standard fallback.
+  const maintenanceOptions = useMemo(
+    () => buildMaintenanceOptions(form.brand, form.model, form.year),
+    [form.brand, form.model, form.year]
+  );
+
   const mileageSuggestions = (
     suggestions?.mileages ?? [10000, 20000, 30000, 50000, 75000, 100000, 125000, 150000, 200000]
   ).map(String);
@@ -178,11 +233,30 @@ export function MarketEntryForm({
     setForm(formFromEntry(initial));
   }, [initial]);
 
-  // لما الـ brand يتغيّر، لو الـ model القديم مش valid للـ brand الجديد بنمسحه.
-  // (مثلاً: المستخدم فتح entry ببراند Toyota وموديل Corolla، بعدين غيّر البراند لـ BMW —
-  //  "Corolla" مش في BMW models فبنمسحه عشان يختار BMW model).
+  // Cascade clearing: لما brand يتغيّر، لو الـ model مش valid للـ brand الجديد بنمسحه.
+  // + لو الـ brand نفسه بقى فاضي بنمسح كل الـ dependents.
   useEffect(() => {
-    if (!form.brand || !form.model) return;
+    if (!form.brand) {
+      // brand فاضي → مسح كل الـ dependents
+      setForm((prev) =>
+        prev.model === '' &&
+        prev.year === '' &&
+        prev.paint_condition === '' &&
+        prev.maintenance === ''
+          ? prev
+          : {
+              ...prev,
+              model: '',
+              year: '',
+              paint_condition: '',
+              paint_other: '',
+              maintenance: '',
+              maintenance_other: '',
+            }
+      );
+      return;
+    }
+    if (!form.model) return;
     const modelsForBrand = getModelsForBrand(form.brand);
     const modelInDb = suggestions?.models?.includes(form.model);
     if (modelsForBrand.length > 0 && !modelsForBrand.includes(form.model) && !modelInDb) {
@@ -191,6 +265,34 @@ export function MarketEntryForm({
     // الـ effect مقصود يتشغل بس لما الـ brand يتغيّر — باقي الـ deps هي قيم read-only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.brand]);
+
+  // Model changed → لو الـ year مش valid للـ brand/model الجديد بنمسحه.
+  useEffect(() => {
+    if (!form.brand || !form.model || !form.year) return;
+    const validYears = getYearsForBrandModel(form.brand, form.model);
+    if (validYears.length > 0 && !validYears.includes(Number(form.year))) {
+      update('year', '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.model]);
+
+  // Year changed → لو الـ paint_condition الحالي مش في الـ options الجديدة بنمسحه.
+  useEffect(() => {
+    if (!form.year) return;
+    if (!form.paint_condition) return;
+    // "__other__" و "فبريكا" دايماً valid (هما الـ sentinels).
+    if (form.paint_condition === '__other__' || form.paint_condition === 'فبريكا') return;
+    const validPaints = getPaintForBrandModelYear(
+      form.brand,
+      form.model,
+      Number(form.year)
+    );
+    if (validPaints.length > 0 && !validPaints.includes(form.paint_condition)) {
+      update('paint_condition', '');
+      update('paint_other', '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.year]);
 
   const update = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -337,7 +439,7 @@ export function MarketEntryForm({
             disabled={!form.brand}
           />
 
-          {/* Year — datalist with last 30 years */}
+          {/* Year — datalist, scoped to catalog years for brand/model (fallback: last 30). */}
           <DatalistField
             label="Year (سنة التصنيع)"
             value={form.year}
@@ -345,11 +447,11 @@ export function MarketEntryForm({
             error={errors.year}
             required
             inputType="number"
-            suggestions={yearSuggestions.map(String)}
+            suggestions={yearSuggestions}
             placeholder="2020"
           />
 
-          {/* Trim — select dropdown (4 grades) */}
+          {/* Trim — select dropdown (7 grades). */}
           <SelectField
             label="Trim (الفئة)"
             value={form.trim}
@@ -360,15 +462,16 @@ export function MarketEntryForm({
             placeholder="اختر الدرجة..."
           />
 
-          {/* Paint — select dropdown */}
+          {/* Paint — dynamic dropdown scoped to brand/model/year from catalog. */}
           <SelectField
             label="Paint / Condition (حالة الطلاء)"
             value={form.paint_condition}
             onChange={(v) => update('paint_condition', v)}
             error={errors.paint_condition}
             required
-            options={PAINT_OPTIONS}
+            options={paintOptions}
             placeholder="اختر..."
+            disabled={!form.brand || !form.model}
           />
 
           {/* Conditional paint_other text input */}
@@ -392,17 +495,17 @@ export function MarketEntryForm({
             required
             inputType="number"
             suggestions={mileageSuggestions}
-            placeholder="120000"
+            placeholder={formatThousands(120000)}
           />
 
-          {/* Maintenance — select dropdown */}
+          {/* Maintenance — select dropdown (catalog-aware, falls back to standard 3 options). */}
           <SelectField
             label="Maintenance (نوع الصيانات)"
             value={form.maintenance}
             onChange={(v) => update('maintenance', v)}
             error={errors.maintenance}
             required
-            options={MAINTENANCE_OPTIONS}
+            options={maintenanceOptions}
             placeholder="اختر..."
           />
 
@@ -435,7 +538,7 @@ export function MarketEntryForm({
             error={errors.price_egp}
             required
             min={1}
-            placeholder="650000"
+            placeholder={formatThousands(650000)}
           />
 
           <div className="sm:col-span-2">

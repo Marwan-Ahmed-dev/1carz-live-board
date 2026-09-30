@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ArrowDownUp } from 'lucide-react';
 import type { MarketEntry } from '@/lib/types';
+import { formatThousands } from '@/lib/format';
 
 type SortKey = 'newest' | 'oldest' | 'price_desc' | 'price_asc' | 'year_desc';
 
@@ -149,9 +150,9 @@ export function MarketResultsTable({
                     <td className="px-3 py-3 text-text-secondary">{entry.model}</td>
                     <td className="px-3 py-3 text-text-secondary" dir="ltr">{entry.year}</td>
                     <td className="px-3 py-3 text-text-secondary">{entry.trim}</td>
-                    <td className="px-3 py-3 text-text-secondary" dir="ltr">{entry.mileage_km.toLocaleString('en-US')}</td>
+                    <td className="px-3 py-3 text-text-secondary" dir="ltr">{formatThousands(entry.mileage_km)}</td>
                     <td className="px-3 py-3 text-text-primary font-semibold" dir="ltr">
-                      {entry.price_egp.toLocaleString('en-US')} EGP
+                      {formatThousands(entry.price_egp)} EGP
                     </td>
                     <td className="px-3 py-3 text-text-secondary max-w-[200px]">
                       <PaintBadge value={entry.paint_condition} />

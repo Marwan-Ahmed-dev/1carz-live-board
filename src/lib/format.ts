@@ -39,6 +39,20 @@ export function formatPrice(price: number): string {
 }
 
 /**
+ * تنسيق أي رقم بفاصلة كل 3 أرقام (en-US locale) — أرقام صحيحة بدون كسور.
+ * مثال: 650000 → "650,000" ، 1250000 → "1,250,000"
+ *
+ * مفيد لأي رقم 3+ digits: أسعار، عداد كيلومتر، عدد الـ listings.
+ * NaN / Infinity بيرجع "0".
+ */
+export function formatThousands(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+/**
  * تنسيق قيمة الـ input أثناء الكتابة (فاصلة إنجليزية كل 3 أرقام)
  * مثال: "1980000" → "1,980,000"
  */
