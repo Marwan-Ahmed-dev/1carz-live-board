@@ -244,11 +244,15 @@ const STATIC_MODELS_BY_CANONICAL: Record<string, string[]> = (() => {
 })();
 
 // Mapping من الأسماء الموجودة في الـ catalog لـ canonical carBrands keys.
-// بنغطي الـ variations الشائعة (case, dash, etc.) + الـ aliases في brandAliases.
+// بنغطي الـ variations الشائعة (case, dash, accent, etc.) + الـ aliases في brandAliases.
 const BRAND_TO_STATIC_KEY: Record<string, string> = {
   'mercedes': 'mercedes-benz',
   'mercedes-benz': 'mercedes-benz',
   'bmw': 'bmw',
+  'citroen': 'citroen',
+  'citroën': 'citroen', // accent form from Flutter slug citro_n
+  'lynkco': 'lynk & co',
+  'lynk & co': 'lynk & co',
   'land rover': 'land rover',
   'land_rover': 'land rover',
   'rolls royce': 'rolls-royce',
