@@ -76,17 +76,20 @@ export function CarDetailPanel({
   );
 
   return (
+    // w-full + max-w-full: يضمن إن الـ aside ياخد عرض الـ parent بالظبط
+    // (على mobile الـ w-full من الـ overlay، وعلى desktop الـ column المحدّد)
+    // وممنوع أي overflow أفقي.
     <aside
-      className="bg-bg-card border border-border-soft rounded-2xl shadow-medium overflow-hidden flex flex-col"
+      className="w-full max-w-full min-w-0 bg-bg-card border border-border-soft rounded-2xl shadow-medium overflow-hidden flex flex-col"
       aria-label="تفاصيل السيارة"
     >
       {/* Header */}
       <div className="px-4 sm:px-5 py-4 border-b border-border-soft flex items-start justify-between gap-3 bg-bg-primary/40">
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold text-text-primary truncate">
+          <h2 className="text-base sm:text-lg md:text-xl font-bold text-text-primary truncate">
             {brand} {model}
           </h2>
-          <p className="text-sm text-text-muted mt-0.5 truncate">
+          <p className="text-xs sm:text-sm text-text-muted mt-0.5 truncate">
             <span dir="ltr">{year}</span> · {trim}
           </p>
         </div>
@@ -103,7 +106,13 @@ export function CarDetailPanel({
 
       {/* Body */}
       <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
-        {/* Market Price Analysis — side-by-side: used vs zero. */}
+        {/* Market Price Analysis — used vs zero.
+            الـ blocks دايماً stack عمودي (grid-cols-1) لأن:
+            - Panel على desktop = 400px → لو side-by-side كل block ≈ 178px
+              → الـ Min/Avg/Max columns بتطلع ≈ 46px فقط (ضيق جداً للأرقام).
+            - مع stack كل block بياخد عرض الـ panel كامل ≈ 368px
+              → الـ Min/Avg/Max columns ≈ 109px → كفاية لـ "1,300,000".
+            على side-by-side بيظهر الـ bug "1,300,000800,000800,000". */}
         <Card
           icon={<BarChart3 size={16} className="text-accent-yellow-hover" />}
           title="Market Price Analysis"
@@ -111,7 +120,7 @@ export function CarDetailPanel({
           {usedStats === null && zeroStats === null ? (
             <p className="text-sm text-text-muted">لا توجد بيانات كافية.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <GroupBlock
                 title="مستعملة"
                 accent="text-text-primary"
@@ -213,7 +222,7 @@ function GroupBlock({
 }) {
   if (!stats) {
     return (
-      <div className="bg-bg-card border border-border-soft rounded-xl p-3">
+      <div className="min-w-0 bg-bg-card border border-border-soft rounded-xl p-3">
         <div className={`text-xs font-bold uppercase tracking-wide mb-1 ${accent}`}>
           {title}
         </div>
@@ -222,14 +231,20 @@ function GroupBlock({
     );
   }
   return (
-    <div className="bg-bg-card border border-border-soft rounded-xl p-3 space-y-2">
+    // min-w-0 على الـ container وعلى الـ inner grid: مهم جداً.
+    // الـ CSS Grid default بيخلّي grid items عندها min-width: auto
+    // (= content intrinsic width). لو الـ value "1,300,000" أعرض من الـ column،
+    // الـ item بيكبر على حساب جيرانه → بيتداخلوا بصرياً ("1,300,000800,000800,000").
+    // بإضافة min-w-0 للـ grid container + items، الـ grid بيقدر يقيّد الـ items
+    // لـ column allocation بتاعتها، والـ break-words بيخلّي الـ value يلتف لو زاد عن العرض.
+    <div className="min-w-0 bg-bg-card border border-border-soft rounded-xl p-3 space-y-2">
       <div className={`text-xs font-bold uppercase tracking-wide ${accent}`}>{title}</div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 min-w-0">
         <Stat label="Min" value={`${formatThousands(Math.round(stats.min))}`} emphasis />
         <Stat label="Avg" value={`${formatThousands(Math.round(stats.avg))}`} emphasis />
         <Stat label="Max" value={`${formatThousands(Math.round(stats.max))}`} emphasis />
       </div>
-      <div className="pt-2 border-t border-border-soft space-y-1">
+      <div className="pt-2 border-t border-border-soft space-y-1.5 min-w-0">
         <Stat
           label="Listings"
           value={`${formatThousands(stats.count)} ${stats.count === 1 ? 'سيارة' : 'سيارات'}`}
@@ -251,12 +266,12 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-bg-primary border border-border-soft rounded-xl p-4">
-      <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-3">
+    <section className="bg-bg-primary border border-border-soft rounded-xl p-4 min-w-0">
+      <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-3 min-w-0">
         {icon}
-        {title}
+        <span className="truncate">{title}</span>
       </h3>
-      {children}
+      <div className="min-w-0">{children}</div>
     </section>
   );
 }
@@ -273,10 +288,14 @@ function Stat({
   muted?: boolean;
 }) {
   return (
-    <div>
-      <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide">{label}</div>
+    // min-w-0: سماح للـ grid item إنه يصغر لـ column allocation بتاعته
+    // (بدون ده الـ item بيكبر على حساب جيرانه → الـ overflow).
+    <div className="min-w-0">
+      <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide truncate">
+        {label}
+      </div>
       <div
-        className={`mt-0.5 text-sm font-bold ${
+        className={`mt-0.5 text-sm font-bold tabular-nums break-words leading-tight ${
           emphasis ? 'text-text-primary' : muted ? 'text-text-secondary' : 'text-text-primary'
         }`}
         dir={emphasis ? 'ltr' : undefined}
@@ -314,16 +333,20 @@ function PriceTrendSVG({
   // Empty states — واضحة ومحددة.
   if (validBucketCount === 0) {
     return (
-      <p className="text-sm text-text-muted">
-        لا توجد بيانات للـ 6 شهور الأخيرة.
-      </p>
+      <div className="rounded-lg bg-bg-card/60 border border-border-soft px-3 py-4 text-center">
+        <p className="text-sm text-text-muted">
+          لا توجد بيانات للـ 6 شهور الأخيرة.
+        </p>
+      </div>
     );
   }
   if (totalMatching <= 1) {
     return (
-      <p className="text-sm text-text-muted">
-        أضف entries إضافية لرؤية اتجاه الأسعار
-      </p>
+      <div className="rounded-lg bg-bg-card/60 border border-border-soft px-3 py-4 text-center">
+        <p className="text-sm text-text-muted leading-relaxed">
+          أضف entries إضافية لرؤية اتجاه الأسعار.
+        </p>
+      </div>
     );
   }
   const data = used; // X-axis labels come from used (same length as zero).
@@ -331,9 +354,11 @@ function PriceTrendSVG({
   const zeroValidCount = zero.reduce((n, d) => (d.value !== null ? n + 1 : n), 0);
   if (usedValidCount + zeroValidCount <= 1) {
     return (
-      <p className="text-sm text-text-muted">
-        لا توجد بيانات كافية لرسم اتجاه الأسعار — أضف المزيد من الـ entries عبر أشهر مختلفة.
-      </p>
+      <div className="rounded-lg bg-bg-card/60 border border-border-soft px-3 py-4 text-center">
+        <p className="text-sm text-text-muted leading-relaxed">
+          لا توجد بيانات كافية لرسم اتجاه الأسعار — أضف المزيد من الـ entries عبر أشهر مختلفة.
+        </p>
+      </div>
     );
   }
 
