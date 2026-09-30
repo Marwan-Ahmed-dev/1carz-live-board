@@ -53,6 +53,13 @@ const TRIM_OPTIONS = [
 /**
  * الـ paint options بتتولّد dynamic من الـ catalog حسب brand/model/year.
  * دايماً بنضم "__other__" في الآخر عشان اليوزر يقدر يكتب قيمة حرة.
+ *
+ * الـ label "فبريكا" → "فبريكا كامله" (الـ display rename بناءً على طلب
+ * اليوزر)، بس الـ value بيفضل "فبريكا" عشان:
+ *   - الـ entries القديمة اللي مخزّنة بـ "فبريكا" تفضل valid ومتوافقة مع
+ *     STANDARD_PAINT_VALUES (formFromEntry بتتعرف عليها كـ standard).
+ *   - الـ entries الجديدة اللي اليوزر يضيفها من الـ dropdown بتتخزن بنفس
+ *     القيمة "فبريكا" = الاتساق في الـ DB.
  */
 function buildPaintOptions(
   brand: string,
@@ -65,7 +72,10 @@ function buildPaintOptions(
     year ? Number(year) : CURRENT_YEAR
   );
   return [
-    ...fromCatalog.map((v) => ({ value: v, label: v })),
+    ...fromCatalog.map((v) => ({
+      value: v,
+      label: v === 'فبريكا' ? 'فبريكا كامله' : v,
+    })),
     { value: '__other__', label: 'أخرى (اكتب...)' },
   ];
 }
@@ -217,17 +227,22 @@ export function MarketEntryForm({
       .map((name) => ({ value: name, label: name }));
   }, [suggestions?.brands]);
 
-  // Model dropdown options — catalog models للـ brand المختار + DB models.
+  // Model dropdown options — catalog models للـ brand المختار فقط.
+  // الـ DB-derived models موجودة أصلاً في الـ catalog (carsCatalog.generated.json)
+  // مفلترة بالـ brand، فمش محتاجين نضيف suggestions.models (اللي هو flat list
+  // لكل الـ models من كل الـ brands) — كان ده سبب الـ bug: لما اليوزر يختار
+  // Abarth، الـ dropdown بيبين Mercedes/Changan/Hyundai/BMW models.
+  //
+  // الـ free-text fallback لسه شغّال: لو اليوزر عايز يدخل model مش في الـ
+  // catalog (مثلاً موديل custom)، يقدر يكتبه في الـ input مباشرة — الـ
+  // SearchableSelect.onChange بيمرر أي قيمة للـ parent حتى لو مش في الـ options.
   const modelOptions = useMemo(() => {
     const set = new Set<string>();
-    // 1. Catalog models للـ brand المختار (لو الـ brand موجود في الـ catalog).
     if (form.brand) {
       getModelsForBrand(form.brand).forEach((m) => set.add(m));
     }
-    // 2. كل الـ models الـ dynamic من الـ DB entries.
-    if (suggestions?.models) suggestions.models.forEach((m) => set.add(m));
     return Array.from(set).map((name) => ({ value: name, label: name }));
-  }, [form.brand, suggestions?.models]);
+  }, [form.brand]);
 
   // Year datalist suggestions — الـ catalog للـ brand/model المختار، أو آخر 30 سنة كـ fallback.
   const yearSuggestions = useMemo(() => {
@@ -277,8 +292,7 @@ export function MarketEntryForm({
     }
     if (!form.model) return;
     const modelsForBrand = getModelsForBrand(form.brand);
-    const modelInDb = suggestions?.models?.includes(form.model);
-    if (modelsForBrand.length > 0 && !modelsForBrand.includes(form.model) && !modelInDb) {
+    if (modelsForBrand.length > 0 && !modelsForBrand.includes(form.model)) {
       update('model', '');
     }
     // الـ effect مقصود يتشغل بس لما الـ brand يتغيّر — باقي الـ deps هي قيم read-only.

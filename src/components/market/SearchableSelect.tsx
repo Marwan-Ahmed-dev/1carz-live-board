@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { getBrandAliases } from '@/lib/brandAliases';
 
 export interface SearchableSelectOption {
   value: string;
@@ -76,13 +77,26 @@ export function SearchableSelect({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
 
-  // Filtered options — case-insensitive "contains" match على الـ label.
+  // Filtered options — case-insensitive "contains" match على الـ label +
+  // الـ Arabic/English brand aliases. مثلاً: لو الـ option.label = "Mercedes"
+  // والـ aliases = ['مرسيدس', 'بنز']، الـ user يقدر يدخل "مرسيدس" أو "Mercedes"
+  // أو "مر" وكلهم يطابقوا نفس الـ option.
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('ar-EG');
     if (!q) return options;
-    return options.filter((o) =>
-      o.label.toLocaleLowerCase('ar-EG').includes(q)
-    );
+    return options.filter((o) => {
+      const labelLower = o.label.toLocaleLowerCase('ar-EG');
+      if (labelLower.includes(q)) return true;
+      // brand aliases: لو الـ label عنده Arabic/transliteration aliases،
+      // بنتأكد إن الـ query بتطابق أي alias (case-insensitive).
+      const aliases = getBrandAliases(o.label);
+      if (aliases) {
+        for (const alias of aliases) {
+          if (alias.toLocaleLowerCase('ar-EG').includes(q)) return true;
+        }
+      }
+      return false;
+    });
   }, [options, query]);
 
   // Sync highlight to filtered list.
