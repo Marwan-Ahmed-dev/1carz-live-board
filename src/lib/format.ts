@@ -74,6 +74,21 @@ export function parsePriceInput(value: string): number {
 }
 
 /**
+ * إضافة فواصل الآلاف (en-US commas) للمجموعات الرقمية داخل نص حر،
+ * مع الحفاظ على باقي الحروف (operators، حروف، مسافات...).
+ * مفيد للـ inputs اللي بتسمح بأرقام مع operators مثل "<= 100,000".
+ *
+ * مثال: "less than 120000" → "less than 120,000"
+ * مثال: "<=100000" → "<=100,000"
+ * مثال: "120000" → "120,000"
+ */
+export function formatWithCommas(value: string): string {
+  return value.replace(/\d+/g, (match) =>
+    match.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  );
+}
+
+/**
  * يحوّل أي DateLike إلى Date أو null.
  * يرجع null لو الـ input فاضي / نوع غير معروف / ناتج غير صالح.
  */

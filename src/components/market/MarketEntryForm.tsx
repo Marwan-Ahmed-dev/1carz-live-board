@@ -25,7 +25,8 @@ import {
   getPaintForBrandModelYear,
   getMaintenanceForBrandModelYear,
 } from '@/lib/carsCatalog';
-import { formatThousands } from '@/lib/format';
+import { SearchableSelect } from './SearchableSelect';
+import { NumberInput } from './NumberInput';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -180,19 +181,18 @@ export function MarketEntryForm({
   // الـ models بندمج فيها الـ static models للـ brand المختار + كل الـ DB models.
   // الـ dedup بيشتغل case-sensitive — الكنسيكال من الـ catalog بيحافظ على الـ English form.
 
-  // Brand dropdown options — static catalog + DB suggestions + safety للـ current value.
-  // Sorted alphabetically (locale-aware). الـ safety بيمنع فقدان الـ brand لو الـ suggestions
-  // لسه ما حملتش (race condition) أو لو الـ brand مش في الـ catalog ومش في الـ DB.
+  // Brand dropdown options — static catalog + DB suggestions.
+  // الـ SearchableSelect بيعرض الـ controlled `value` حتى لو مش في الـ options،
+  // فمش محتاجين نضيف safety للـ current value هنا.
   const brandOptions = useMemo(() => {
     const set = new Set<string>(getAllBrandNames());
     if (suggestions?.brands) suggestions.brands.forEach((b) => set.add(b));
-    if (form.brand) set.add(form.brand);
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ value: name, label: name }));
-  }, [suggestions?.brands, form.brand]);
+  }, [suggestions?.brands]);
 
-  // Model dropdown options — catalog models للـ brand المختار + DB models + safety.
+  // Model dropdown options — catalog models للـ brand المختار + DB models.
   const modelOptions = useMemo(() => {
     const set = new Set<string>();
     // 1. Catalog models للـ brand المختار (لو الـ brand موجود في الـ catalog).
@@ -201,10 +201,8 @@ export function MarketEntryForm({
     }
     // 2. كل الـ models الـ dynamic من الـ DB entries.
     if (suggestions?.models) suggestions.models.forEach((m) => set.add(m));
-    // 3. Safety: الـ current value لازم يكون في الـ options عشان الـ edit mode يعرضه صح.
-    if (form.model) set.add(form.model);
     return Array.from(set).map((name) => ({ value: name, label: name }));
-  }, [form.brand, suggestions?.models, form.model]);
+  }, [form.brand, suggestions?.models]);
 
   // Year datalist suggestions — الـ catalog للـ brand/model المختار، أو آخر 30 سنة كـ fallback.
   const yearSuggestions = useMemo(() => {
@@ -224,10 +222,6 @@ export function MarketEntryForm({
     () => buildMaintenanceOptions(form.brand, form.model, form.year),
     [form.brand, form.model, form.year]
   );
-
-  const mileageSuggestions = (
-    suggestions?.mileages ?? [10000, 20000, 30000, 50000, 75000, 100000, 125000, 150000, 200000]
-  ).map(String);
 
   useEffect(() => {
     setForm(formFromEntry(initial));
@@ -415,28 +409,29 @@ export function MarketEntryForm({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Brand — strict dropdown (static catalog + DB suggestions). */}
-          <SelectField
+          {/* Brand — searchable combobox (static catalog + DB suggestions). */}
+          <SearchableSelect
             label="Brand (نوع العربية)"
             value={form.brand}
             onChange={(v) => update('brand', v)}
             error={errors.brand}
             required
             options={brandOptions}
-            placeholder="اختر الماركة..."
+            placeholder="اكتب أو ابحث عن الماركة..."
           />
 
-          {/* Model — strict dropdown, scoped to the selected brand's models. */}
+          {/* Model — searchable combobox scoped to selected brand's models. */}
           {/* بنعطّله لحد ما اليوزر يختار brand عشان الـ UX يبقى واضح. */}
-          <SelectField
+          <SearchableSelect
             label="Model (الموديل)"
             value={form.model}
             onChange={(v) => update('model', v)}
             error={errors.model}
             required
             options={modelOptions}
-            placeholder={form.brand ? 'اختر الموديل...' : 'اختر الماركة أولاً'}
+            placeholder={form.brand ? 'اكتب أو ابحث عن الموديل...' : 'اختر الماركة أولاً'}
             disabled={!form.brand}
+            hint={!form.brand ? 'اختر الماركة أولاً' : undefined}
           />
 
           {/* Year — datalist, scoped to catalog years for brand/model (fallback: last 30). */}
@@ -486,16 +481,15 @@ export function MarketEntryForm({
             />
           )}
 
-          {/* Mileage — datalist with common values */}
-          <DatalistField
+          {/* Mileage — NumberInput with live thousand separators. */}
+          <NumberInput
             label="Mileage (KM) (عداد الكيلومتر)"
-            value={form.mileage_km}
-            onChange={(v) => update('mileage_km', v)}
+            value={form.mileage_km ? Number(form.mileage_km) : undefined}
+            onChange={(n) => update('mileage_km', n !== undefined ? String(n) : '')}
             error={errors.mileage_km}
             required
-            inputType="number"
-            suggestions={mileageSuggestions}
-            placeholder={formatThousands(120000)}
+            min={0}
+            placeholder="120,000"
           />
 
           {/* Maintenance — select dropdown (catalog-aware, falls back to standard 3 options). */}
@@ -531,14 +525,14 @@ export function MarketEntryForm({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <NumberField
+          <NumberInput
             label="Price (EGP) (السعر)"
-            value={form.price_egp}
-            onChange={(v) => update('price_egp', v)}
+            value={form.price_egp ? Number(form.price_egp) : undefined}
+            onChange={(n) => update('price_egp', n !== undefined ? String(n) : '')}
             error={errors.price_egp}
             required
             min={1}
-            placeholder={formatThousands(650000)}
+            placeholder="650,000"
           />
 
           <div className="sm:col-span-2">
@@ -631,35 +625,6 @@ function TextField({ label, value, onChange, error, required, placeholder, maxLe
         placeholder={placeholder}
         maxLength={maxLength}
         className={inputClass(!!error)}
-      />
-    </FieldShell>
-  );
-}
-
-interface NumberFieldProps {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  error?: string;
-  required?: boolean;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-}
-
-function NumberField({ label, value, onChange, error, required, placeholder, min, max }: NumberFieldProps) {
-  return (
-    <FieldShell label={label} error={error} required={required}>
-      <input
-        type="number"
-        inputMode="numeric"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        min={min}
-        max={max}
-        className={inputClass(!!error)}
-        dir="ltr"
       />
     </FieldShell>
   );
