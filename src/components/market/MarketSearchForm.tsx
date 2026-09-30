@@ -12,14 +12,20 @@
 // بدل ما يـ scroll في dropdown طويل. الـ Mileage في الـ search mode
 // (free text مع operators زي "<= 100,000") بياخد thousand separators live
 // من غير ما نشيل الـ operators.
+//
+// الـ search بيستخدم DB-derived data فقط (مش الـ static catalog).
+// لو مفيش Mercedes في الـ DB، اليوزر مش هيشوف Mercedes في الـ Brand dropdown.
+// الـ add form (MarketEntryForm) لسه بيستخدم catalog + DB عشان اليوزر يقدر
+// يضيف brands/models جديدة.
 
 import { useMemo } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 import type { MarketEntry } from '@/lib/types';
 import {
-  getAllBrandNames,
-  getModelsForBrand,
-} from '@/lib/carsCatalog';
+  getYearsFromEntries,
+  getTrimsFromEntries,
+  getPaintsFromEntries,
+} from '@/lib/market';
 import { SearchableSelect } from './SearchableSelect';
 import { NumberInput } from './NumberInput';
 
@@ -56,10 +62,9 @@ export function MarketSearchForm({
   onReset,
   entries,
 }: MarketSearchFormProps) {
-  // Brand options = static catalog + الـ brands اللي ظهرت في الـ DB entries.
-  // الـ SearchableSelect بيعرض الـ controlled value حتى لو مش موجود في الـ list.
+  // Brand options — DB-only (distinct brands in the entries).
   const brandOptions = useMemo(() => {
-    const set = new Set<string>(getAllBrandNames());
+    const set = new Set<string>();
     entries.forEach((e) => {
       if (e.brand) set.add(e.brand);
     });
@@ -68,47 +73,52 @@ export function MarketSearchForm({
       .map((name) => ({ value: name, label: name }));
   }, [entries]);
 
-  // Model options = الـ models من الـ catalog للـ brand المختار
-  // + الـ models من الـ DB entries اللي بتطابق الـ brand (لو مفيش brand مختار، كل الـ models).
+  // Model options — DB-only (distinct models for the selected brand).
+  // لو مفيش brand مختار، بنجمع كل الـ models من الـ entries.
   const modelOptions = useMemo(() => {
     const set = new Set<string>();
-    if (filters.brand) {
-      getModelsForBrand(filters.brand).forEach((m) => set.add(m));
-      entries
-        .filter((e) => e.brand === filters.brand)
-        .forEach((e) => {
-          if (e.model) set.add(e.model);
-        });
-    } else {
-      getAllBrandNames().forEach((b) => {
-        getModelsForBrand(b).forEach((m) => set.add(m));
-      });
-      entries.forEach((e) => {
-        if (e.model) set.add(e.model);
-      });
-    }
+    entries.forEach((e) => {
+      if (filters.brand) {
+        if (e.brand === filters.brand && e.model) set.add(e.model);
+      } else if (e.model) {
+        set.add(e.model);
+      }
+    });
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ value: name, label: name }));
   }, [filters.brand, entries]);
 
-  // باقي الـ dropdowns (Year, Trim, Paint) بنستخرجهم من الـ entries
-  // — dropdowns صغيرة ومفيهاش داعي للـ searchable.
+  // Year — DB-only، cascade على (brand, model).
   const years = useMemo(
     () =>
-      unique(entries.map((e) => String(e.year)))
-        .filter(Boolean)
+      getYearsFromEntries(entries, filters.brand, filters.model)
+        .map(String)
         .sort((a, b) => Number(b) - Number(a)),
-    [entries]
+    [entries, filters.brand, filters.model]
   );
-  const trims = useMemo(
-    () => unique(entries.map((e) => e.trim)).filter(Boolean),
-    [entries]
-  );
-  const paints = useMemo(
-    () => unique(entries.map((e) => e.paint_condition)).filter(Boolean),
-    [entries]
-  );
+
+  // Trim — DB-only، cascade على (brand, model, year).
+  const trims = useMemo(() => {
+    if (!filters.brand || !filters.model || !filters.year) return [];
+    return getTrimsFromEntries(
+      entries,
+      filters.brand,
+      filters.model,
+      Number(filters.year)
+    );
+  }, [entries, filters.brand, filters.model, filters.year]);
+
+  // Paint — DB-only، cascade على (brand, model, year).
+  const paints = useMemo(() => {
+    if (!filters.brand || !filters.model || !filters.year) return [];
+    return getPaintsFromEntries(
+      entries,
+      filters.brand,
+      filters.model,
+      Number(filters.year)
+    );
+  }, [entries, filters.brand, filters.model, filters.year]);
 
   const isFiltered = useMemo(() => {
     return Object.entries(filters).some(
@@ -116,8 +126,23 @@ export function MarketSearchForm({
     );
   }, [filters]);
 
+  /**
+   * Cascade clearing: لما brand يتغيّر، بنمسح model/year/trim/paint.
+   * لما model يتغيّر، بنمسح year/trim/paint.
+   * لما year يتغيّر، بنمسح trim/paint.
+   */
   const update = (key: keyof MarketFilters, value: string) => {
-    onChange({ ...filters, [key]: value });
+    let next: MarketFilters;
+    if (key === 'brand') {
+      next = { ...filters, brand: value, model: '', year: '', trim: '', paint: '' };
+    } else if (key === 'model') {
+      next = { ...filters, model: value, year: '', trim: '', paint: '' };
+    } else if (key === 'year') {
+      next = { ...filters, year: value, trim: '', paint: '' };
+    } else {
+      next = { ...filters, [key]: value };
+    }
+    onChange(next);
   };
 
   // Mileage في الـ search: نص حر بيقبل operators زي "<= 100,000" أو "120,000".

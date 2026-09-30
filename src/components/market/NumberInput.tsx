@@ -129,7 +129,13 @@ export function NumberInput({
     let num: number | undefined;
 
     if (mode === 'free') {
-      formatted = formatWithCommas(raw);
+      // Defensive: strip commas from the digit runs BEFORE formatting. This is
+      // belt-and-suspenders alongside `formatWithCommas`'s own stripping — if
+      // the user pastes / autofills a value like "1,2345", we collapse any
+      // orphan commas between digits first so `formatWithCommas` works on a
+      // clean digit string.
+      const cleanedDigits = raw.replace(/,/g, '');
+      formatted = formatWithCommas(cleanedDigits);
       // In free mode, we still emit the numeric value (parsed).
       num = parseNumberString(formatted);
     } else {
@@ -165,7 +171,9 @@ export function NumberInput({
   const handleBlur = () => {
     // Defensive re-format on blur (covers paste / autofill / IME).
     if (mode === 'free') {
-      setDisplay(formatWithCommas(display));
+      // Strip commas from digit runs first to avoid the double-comma bug
+      // ("1,2345" → "1,2,345"). Then re-apply commas cleanly.
+      setDisplay(formatWithCommas(display.replace(/,/g, '')));
       return;
     }
     if (!display) return;

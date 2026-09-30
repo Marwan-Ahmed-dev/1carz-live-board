@@ -4,8 +4,9 @@
 // بيفتح لما اليوزر يدوس على صف في الـ results table.
 // بيعرض:
 //   1) Header: brand + model + year + trim + close
-//   2) Market Price Analysis: min/avg/max + total listings
+//   2) Market Price Analysis — split بين Used و Zero side-by-side.
 //   3) Price Trend (Last 6 Months) — SVG line chart (no library, with empty states)
+//      الـ chart بيعرض used line (default) و zero line (لو فيه بيانات زيرو).
 //   ❌ Suggested Price Range — متشال بناء على طلب اليوزر.
 //   ❌ Mileage vs Price — متشال بناء على طلب اليوزر.
 
@@ -47,26 +48,31 @@ export function CarDetailPanel({
   matchingEntries,
   onClose,
 }: CarDetailPanelProps) {
-  // Aggregations
-  const stats = useMemo(() => {
-    if (matchingEntries.length === 0) {
-      return null;
-    }
-    const prices = matchingEntries.map((e) => e.price_egp).filter((p) => Number.isFinite(p) && p > 0);
-    if (prices.length === 0) return null;
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    const avg = prices.reduce((s, p) => s + p, 0) / prices.length;
-    return { min, avg, max, count: matchingEntries.length, totalListings: prices.length };
-  }, [matchingEntries]);
+  // Split into used vs zero — بناءً على is_zero. الـ entries القديمة (بدون
+  // الـ field) بتتعامل كـ used (default false).
+  const usedEntries = useMemo(
+    () => matchingEntries.filter((e) => !e.is_zero),
+    [matchingEntries]
+  );
+  const zeroEntries = useMemo(
+    () => matchingEntries.filter((e) => e.is_zero === true),
+    [matchingEntries]
+  );
 
-  // Price trend — آخر 6 شهور بناءً على created_at
-  const trend = useMemo(() => buildTrend(matchingEntries, 6), [matchingEntries]);
+  // Aggregations per group
+  const usedStats = useMemo(() => buildStats(usedEntries), [usedEntries]);
+  const zeroStats = useMemo(() => buildStats(zeroEntries), [zeroEntries]);
 
-  // عدد الـ buckets اللي فيها بيانات فعلاً (مش null) — لاستخدامه في empty state.
+  // Price trend — used line (primary) + zero line (overlay لو فيه بيانات).
+  const usedTrend = useMemo(() => buildTrend(usedEntries, 6), [usedEntries]);
+  const zeroTrend = useMemo(() => buildTrend(zeroEntries, 6), [zeroEntries]);
   const trendValidCount = useMemo(
-    () => trend.reduce((n, d) => (d.value !== null ? n + 1 : n), 0),
-    [trend]
+    () =>
+      usedTrend.reduce(
+        (n, d, i) => (d.value !== null || zeroTrend[i]?.value !== null ? n + 1 : n),
+        0
+      ),
+    [usedTrend, zeroTrend]
   );
 
   return (
@@ -97,38 +103,58 @@ export function CarDetailPanel({
 
       {/* Body */}
       <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
-        {/* Market Price Analysis */}
-        <Card icon={<BarChart3 size={16} className="text-accent-yellow-hover" />} title="Market Price Analysis">
-          {!stats ? (
+        {/* Market Price Analysis — side-by-side: used vs zero. */}
+        <Card
+          icon={<BarChart3 size={16} className="text-accent-yellow-hover" />}
+          title="Market Price Analysis"
+        >
+          {usedStats === null && zeroStats === null ? (
             <p className="text-sm text-text-muted">لا توجد بيانات كافية.</p>
           ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2">
-                <Stat label="Min Price" value={`${formatThousands(Math.round(stats.min))} EGP`} emphasis />
-                <Stat label="Average" value={`${formatThousands(Math.round(stats.avg))} EGP`} emphasis />
-                <Stat label="Max Price" value={`${formatThousands(Math.round(stats.max))} EGP`} emphasis />
-              </div>
-              <div className="mt-3 pt-3 border-t border-border-soft">
-                <Stat
-                  label="Total Listings"
-                  value={`${formatThousands(stats.count)} ${stats.count === 1 ? 'سيارة' : 'سيارات'}`}
-                  muted
-                />
-              </div>
-            </>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <GroupBlock
+                title="مستعملة"
+                accent="text-text-primary"
+                stats={usedStats}
+                avgMileageLabel={computeAvgMileage(usedEntries)}
+              />
+              <GroupBlock
+                title="زيرو"
+                accent="text-accent-yellow-hover"
+                stats={zeroStats}
+                avgMileageLabel={
+                  zeroEntries.length > 0 ? 'صفر كيلومتر (زيرو)' : undefined
+                }
+              />
+            </div>
           )}
         </Card>
 
-        {/* Price Trend */}
+        {/* Price Trend — used (yellow) + zero (slate) lines على نفس الـ chart. */}
         <Card
           icon={<LineChartIcon size={16} className="text-accent-yellow-hover" />}
           title="Price Trend (Last 6 Months)"
         >
           <PriceTrendSVG
-            data={trend}
+            used={usedTrend}
+            zero={zeroTrend}
             validBucketCount={trendValidCount}
             totalMatching={matchingEntries.length}
           />
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-2 text-xs text-text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-0.5 bg-accent-yellow rounded-full" />
+              مستعملة
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="w-3 h-0.5 rounded-full"
+                style={{ backgroundColor: '#64748B' }}
+              />
+              زيرو
+            </span>
+          </div>
         </Card>
       </div>
     </aside>
@@ -138,6 +164,82 @@ export function CarDetailPanel({
 // ============================================================================
 // sub-components
 // ============================================================================
+
+interface StatsBucket {
+  min: number;
+  max: number;
+  avg: number;
+  count: number;
+  totalListings: number;
+}
+
+function buildStats(entries: MarketEntry[]): StatsBucket | null {
+  if (entries.length === 0) return null;
+  const prices = entries
+    .map((e) => e.price_egp)
+    .filter((p) => Number.isFinite(p) && p > 0);
+  if (prices.length === 0) return null;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const avg = prices.reduce((s, p) => s + p, 0) / prices.length;
+  return {
+    min,
+    max,
+    avg,
+    count: entries.length,
+    totalListings: prices.length,
+  };
+}
+
+function computeAvgMileage(entries: MarketEntry[]): string | undefined {
+  const vals = entries
+    .map((e) => e.mileage_km)
+    .filter((m) => Number.isFinite(m) && m >= 0);
+  if (vals.length === 0) return undefined;
+  const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+  return `${formatThousands(Math.round(avg))} كم (متوسط)`;
+}
+
+function GroupBlock({
+  title,
+  accent,
+  stats,
+  avgMileageLabel,
+}: {
+  title: string;
+  accent: string;
+  stats: StatsBucket | null;
+  avgMileageLabel?: string;
+}) {
+  if (!stats) {
+    return (
+      <div className="bg-bg-card border border-border-soft rounded-xl p-3">
+        <div className={`text-xs font-bold uppercase tracking-wide mb-1 ${accent}`}>
+          {title}
+        </div>
+        <p className="text-sm text-text-muted">لا توجد بيانات.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-bg-card border border-border-soft rounded-xl p-3 space-y-2">
+      <div className={`text-xs font-bold uppercase tracking-wide ${accent}`}>{title}</div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Min" value={`${formatThousands(Math.round(stats.min))}`} emphasis />
+        <Stat label="Avg" value={`${formatThousands(Math.round(stats.avg))}`} emphasis />
+        <Stat label="Max" value={`${formatThousands(Math.round(stats.max))}`} emphasis />
+      </div>
+      <div className="pt-2 border-t border-border-soft space-y-1">
+        <Stat
+          label="Listings"
+          value={`${formatThousands(stats.count)} ${stats.count === 1 ? 'سيارة' : 'سيارات'}`}
+          muted
+        />
+        {avgMileageLabel && <Stat label="Mileage" value={avgMileageLabel} muted />}
+      </div>
+    </div>
+  );
+}
 
 function Card({
   icon,
@@ -186,7 +288,7 @@ function Stat({
 }
 
 // ============================================================================
-// Price trend — simple SVG line chart (no library).
+// Price trend — simple SVG line chart (no library) مع used + zero overlay.
 // X-axis: months (last 6, Arabic labels).
 // Y-axis: average price per month (formatted).
 // ============================================================================
@@ -197,12 +299,14 @@ interface TrendBucket {
 }
 
 function PriceTrendSVG({
-  data,
+  used,
+  zero,
   validBucketCount,
   totalMatching,
 }: {
-  data: TrendBucket[];
-  /** عدد الـ buckets اللي فيها بيانات فعلاً (مش null). */
+  used: TrendBucket[];
+  zero: TrendBucket[];
+  /** عدد الـ buckets اللي فيها بيانات فعلاً (مش null) عبر الـ lines. */
   validBucketCount: number;
   /** إجمالي عدد الـ entries المتطابقة — للـ empty state المخصّص. */
   totalMatching: number;
@@ -222,7 +326,10 @@ function PriceTrendSVG({
       </p>
     );
   }
-  if (validBucketCount <= 1) {
+  const data = used; // X-axis labels come from used (same length as zero).
+  const usedValidCount = used.reduce((n, d) => (d.value !== null ? n + 1 : n), 0);
+  const zeroValidCount = zero.reduce((n, d) => (d.value !== null ? n + 1 : n), 0);
+  if (usedValidCount + zeroValidCount <= 1) {
     return (
       <p className="text-sm text-text-muted">
         لا توجد بيانات كافية لرسم اتجاه الأسعار — أضف المزيد من الـ entries عبر أشهر مختلفة.
@@ -230,10 +337,19 @@ function PriceTrendSVG({
     );
   }
 
-  // Filter out null buckets for chart geometry (still show the label)
-  const validValues = data.map((d) => d.value).filter((v): v is number => v !== null);
-  const yMin = Math.min(...validValues);
-  const yMax = Math.max(...validValues);
+  // Combine both series for Y scaling (used + zero share the same Y range so
+  // they're visually comparable).
+  const allValues: number[] = [];
+  [...used, ...zero].forEach((d) => {
+    if (d.value !== null) allValues.push(d.value);
+  });
+  if (allValues.length === 0) {
+    return (
+      <p className="text-sm text-text-muted">لا توجد بيانات كافية.</p>
+    );
+  }
+  const yMin = Math.min(...allValues);
+  const yMax = Math.max(...allValues);
   const yPad = Math.max((yMax - yMin) * 0.1, 1);
 
   const width = 320;
@@ -253,28 +369,31 @@ function PriceTrendSVG({
     return paddingY + (1 - ratio) * innerH;
   };
 
-  // Path: connect valid points, skip nulls (render dots only)
-  const segments: string[] = [];
-  data.forEach((d, i) => {
-    if (d.value === null) return;
-    const x = xFor(i);
-    const y = yFor(d.value);
-    if (segments.length === 0) {
-      segments.push(`M ${x} ${y}`);
-    } else {
-      // Only connect if previous valid point exists within consecutive run
-      const prevValid = data.slice(0, i).reverse().find((p) => p.value !== null);
-      if (prevValid) {
-        segments.push(`L ${x} ${y}`);
-      } else {
-        segments.push(`M ${x} ${y}`);
-      }
-    }
-  });
-  const path = segments.join(' ');
-
   // Y-axis ticks: 3 levels (min, mid, max)
   const ticks = [yMax, (yMax + yMin) / 2, yMin];
+
+  // Build the SVG path for a single series (skip nulls).
+  function buildPath(series: TrendBucket[]): string {
+    const segments: string[] = [];
+    series.forEach((d, i) => {
+      if (d.value === null) return;
+      const x = xFor(i);
+      const y = yFor(d.value);
+      if (segments.length === 0) {
+        segments.push(`M ${x} ${y}`);
+      } else {
+        const prevValid = series.slice(0, i).reverse().find((p) => p.value !== null);
+        if (prevValid) {
+          segments.push(`L ${x} ${y}`);
+        } else {
+          segments.push(`M ${x} ${y}`);
+        }
+      }
+    });
+    return segments.join(' ');
+  }
+  const usedPath = buildPath(used);
+  const zeroPath = buildPath(zero);
 
   return (
     <div className="w-full">
@@ -321,10 +440,23 @@ function PriceTrendSVG({
           );
         })}
 
-        {/* line */}
-        {path && (
+        {/* zero line (drawn first so used line is on top) */}
+        {zeroPath && (
           <path
-            d={path}
+            d={zeroPath}
+            fill="none"
+            stroke="#64748B"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="4 3"
+          />
+        )}
+
+        {/* used line (yellow, solid) */}
+        {usedPath && (
+          <path
+            d={usedPath}
             fill="none"
             stroke="#FCD34D"
             strokeWidth={2.5}
@@ -333,13 +465,13 @@ function PriceTrendSVG({
           />
         )}
 
-        {/* dots + labels */}
-        {data.map((d, i) => {
+        {/* used dots + month labels */}
+        {used.map((d, i) => {
           if (d.value === null) return null;
           const x = xFor(i);
           const y = yFor(d.value);
           return (
-            <g key={`pt-${i}`}>
+            <g key={`used-pt-${i}`}>
               <circle cx={x} cy={y} r={4} fill="#FCD34D" stroke="#1A1A1A" strokeWidth={1.5} />
               <text
                 x={x}
@@ -352,6 +484,24 @@ function PriceTrendSVG({
                 {d.label}
               </text>
             </g>
+          );
+        })}
+
+        {/* zero dots */}
+        {zero.map((d, i) => {
+          if (d.value === null) return null;
+          const x = xFor(i);
+          const y = yFor(d.value);
+          return (
+            <circle
+              key={`zero-pt-${i}`}
+              cx={x}
+              cy={y}
+              r={3}
+              fill="#64748B"
+              stroke="#1A1A1A"
+              strokeWidth={1}
+            />
           );
         })}
       </svg>

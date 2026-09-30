@@ -66,6 +66,12 @@ export interface MarketEntry {
   maintenance: string; // نوع صيانات السيارة (free text)
   price_egp: number; // السعر بالجنيه المصري (إلزامي)
   notes?: string; // ملاحظات اختيارية (max 500)
+  /**
+   * true لو العربية زيرو (factory fresh، mileage = 0). الـ entries القديمة
+   * (اللي ما فيهاش الحقل ده) بتتعامل كـ used (default false) عشان الـ
+   * backward compatibility.
+   */
+  is_zero?: boolean;
   recorded_by_uid: string;
   recorded_by_name?: string | null;
   created_at: FirestoreTs;
@@ -96,6 +102,8 @@ export interface PendingMarketEntry {
   maintenance: string;
   price_egp: number;
   notes?: string;
+  /** true لو العربية زيرو (factory fresh). */
+  is_zero?: boolean;
   recorded_by_uid: string;
   recorded_by_name?: string | null;
   queued_at: number; // Date.now() وقت الـ enqueue

@@ -78,14 +78,24 @@ export function parsePriceInput(value: string): number {
  * مع الحفاظ على باقي الحروف (operators، حروف، مسافات...).
  * مفيد للـ inputs اللي بتسمح بأرقام مع operators مثل "<= 100,000".
  *
+ * الـ defensive: لو الـ input أصلاً فيه فواصل (مثلاً من reformat سابق)،
+ * بنـ strip الأول قبل ما نضيف الفواصل من جديد — عشان نمنع الـ double-comma
+ * bug ("1,2345" → "1,2,345" بدل "12,345").
+ *
  * مثال: "less than 120000" → "less than 120,000"
  * مثال: "<=100000" → "<=100,000"
  * مثال: "120000" → "120,000"
+ * مثال: "1,2345" → "12,345" (مش "1,2,345")
  */
 export function formatWithCommas(value: string): string {
-  return value.replace(/\d+/g, (match) =>
-    match.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  );
+  return value.replace(/\d[\d,]*/g, (match) => {
+    // Strip any existing commas so the regex below sees one continuous digit
+    // run. Otherwise the regex `\B(?=(\d{3})+(?!\d))` would match mid-group
+    // and add a comma after the first digit of an already-comma-separated
+    // group (e.g. "1,2345" → "1,2,345" instead of "12,345").
+    const stripped = match.replace(/,/g, '');
+    return stripped.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  });
 }
 
 /**

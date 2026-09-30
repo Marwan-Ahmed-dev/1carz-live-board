@@ -190,19 +190,25 @@ export default function MarketEntryDetailPage() {
 }
 
 function ReadOnlyView({ entry }: { entry: MarketEntry }) {
+  const isZero = entry.is_zero === true;
   return (
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <ReadOnlyRow label="Type" value={isZero ? 'عربية زيرو' : 'عربية مستعملة'} />
       <ReadOnlyRow label="Brand" value={entry.brand} />
       <ReadOnlyRow label="Model" value={entry.model} />
       <ReadOnlyRow label="Year" value={String(entry.year)} dir="ltr" />
       <ReadOnlyRow label="Trim" value={entry.trim} />
-      <ReadOnlyRow label="Paint / Condition" value={entry.paint_condition} />
-      <ReadOnlyRow
-        label="Mileage (KM)"
-        value={entry.mileage_km.toLocaleString('en-US')}
-        dir="ltr"
-      />
-      <ReadOnlyRow label="Maintenance" value={entry.maintenance} />
+      {!isZero && (
+        <>
+          <ReadOnlyRow label="Paint / Condition" value={entry.paint_condition} />
+          <ReadOnlyRow
+            label="Mileage (KM)"
+            value={entry.mileage_km.toLocaleString('en-US')}
+            dir="ltr"
+          />
+          <ReadOnlyRow label="Maintenance" value={entry.maintenance} />
+        </>
+      )}
       <ReadOnlyRow
         label="Price (EGP)"
         value={`${entry.price_egp.toLocaleString('en-US')} EGP`}

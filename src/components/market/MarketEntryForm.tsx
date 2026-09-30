@@ -4,6 +4,10 @@
 // بيستخدم في /market/new (add) و /market/[id] (edit).
 // الفورم بيشتغل offline — لو الـ save فشل، بيتحفظ في الـ IndexedDB
 // pending queue (عبر addMarketEntry).
+//
+// فيه تاب/توغّل في الأعلى: عربية مستعملة (default) | عربية زيرو.
+// لو "زيرو" → بنعرض بس Brand/Model/Year/Trim/Price (5 fields بس).
+// لو "مستعملة" → بنعرض كل الـ fields الأصلية.
 
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
@@ -43,6 +47,7 @@ const TRIM_OPTIONS = [
   { value: 'فئه خامسه', label: 'فئه خامسه' },
   { value: 'فئه سادسه', label: 'فئه سادسه' },
   { value: 'فئه سابعه', label: 'فئه سابعه' },
+  { value: '__other__', label: 'أخرى (اكتب...)' },
 ] as const;
 
 /**
@@ -116,7 +121,10 @@ interface FormState {
   brand: string;
   model: string;
   year: string;
+  /** يخزّن إما القيمة القياسية (فئه أولى...) أو '__other__' لو اليوزر اختار أخرى. */
   trim: string;
+  /** لو trim === '__other__' بنخزّن النص الحر هنا. */
+  trim_other: string;
   /** يخزّن إما القيمة القياسية (فبريكا) أو '__other__' لو اليوزر اختار أخرى. */
   paint_condition: string;
   /** لو paint_condition === '__other__' بنخزّن النص الحر هنا. */
@@ -128,6 +136,8 @@ interface FormState {
   maintenance_other: string;
   price_egp: string;
   notes: string;
+  /** true لو العربية زيرو (factory fresh). بنتحكم فيه عبر الـ tab في الأعلى. */
+  is_zero: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -135,6 +145,7 @@ const EMPTY_FORM: FormState = {
   model: '',
   year: '',
   trim: '',
+  trim_other: '',
   paint_condition: '',
   paint_other: '',
   mileage_km: '',
@@ -142,17 +153,30 @@ const EMPTY_FORM: FormState = {
   maintenance_other: '',
   price_egp: '',
   notes: '',
+  is_zero: false,
 };
+
+const STANDARD_TRIM_VALUES = new Set<string>([
+  'فئه اولي',
+  'فئه تانيه',
+  'فئه ثالثه',
+  'فئه رابعه',
+  'فئه خامسه',
+  'فئه سادسه',
+  'فئه سابعه',
+]);
 
 function formFromEntry(entry: MarketEntry | null | undefined): FormState {
   if (!entry) return EMPTY_FORM;
   const paintIsStandard = STANDARD_PAINT_VALUES.has(entry.paint_condition);
   const maintenanceIsStandard = STANDARD_MAINTENANCE_VALUES.has(entry.maintenance);
+  const trimIsStandard = STANDARD_TRIM_VALUES.has(entry.trim);
   return {
     brand: entry.brand,
     model: entry.model,
     year: String(entry.year),
-    trim: entry.trim,
+    trim: trimIsStandard ? entry.trim : '__other__',
+    trim_other: trimIsStandard ? '' : entry.trim,
     paint_condition: paintIsStandard ? entry.paint_condition : '__other__',
     paint_other: paintIsStandard ? '' : entry.paint_condition,
     mileage_km: String(entry.mileage_km),
@@ -160,6 +184,7 @@ function formFromEntry(entry: MarketEntry | null | undefined): FormState {
     maintenance_other: maintenanceIsStandard ? '' : entry.maintenance,
     price_egp: String(entry.price_egp),
     notes: entry.notes || '',
+    is_zero: entry.is_zero === true,
   };
 }
 
@@ -302,20 +327,37 @@ export function MarketEntryForm({
     const yearNum = Number(form.year);
     if (!form.year || !Number.isFinite(yearNum)) next.year = 'سنة التصنيع مطلوبة';
     else if (yearNum < 1980 || yearNum > CURRENT_YEAR + 1) next.year = `السنة بين 1980 و ${CURRENT_YEAR + 1}`;
-    if (!form.trim.trim()) next.trim = 'الفئة مطلوبة';
-    if (!form.paint_condition) {
-      next.paint_condition = 'حالة الطلاء مطلوبة';
-    } else if (form.paint_condition === '__other__' && !form.paint_other.trim()) {
-      next.paint_other = 'اكتب حالة الطلاء';
+    // trim — validate based on which mode is active (select vs free-text).
+    if (form.is_zero) {
+      // Zero entries: 5 fields only. trim مطلوب (إما من الـ select أو نص حر).
+      if (!form.trim) {
+        next.trim = 'الفئة مطلوبة';
+      } else if (form.trim === '__other__' && !form.trim_other.trim()) {
+        next.trim_other = 'اكتب الفئة';
+      }
+    } else {
+      if (!form.trim) {
+        next.trim = 'الفئة مطلوبة';
+      } else if (form.trim === '__other__' && !form.trim_other.trim()) {
+        next.trim_other = 'اكتب الفئة';
+      }
     }
-    const mileageNum = Number(form.mileage_km);
-    if (form.mileage_km === '' || !Number.isFinite(mileageNum) || mileageNum < 0) {
-      next.mileage_km = 'عداد الكيلومتر يجب أن يكون رقم موجب';
-    }
-    if (!form.maintenance) {
-      next.maintenance = 'نوع الصيانات مطلوب';
-    } else if (form.maintenance === '__other__' && !form.maintenance_other.trim()) {
-      next.maintenance_other = 'اكتب نوع الصيانات';
+    // mileage, paint, maintenance — مطلوبين بس في الـ used mode.
+    if (!form.is_zero) {
+      if (!form.paint_condition) {
+        next.paint_condition = 'حالة الطلاء مطلوبة';
+      } else if (form.paint_condition === '__other__' && !form.paint_other.trim()) {
+        next.paint_other = 'اكتب حالة الطلاء';
+      }
+      const mileageNum = Number(form.mileage_km);
+      if (form.mileage_km === '' || !Number.isFinite(mileageNum) || mileageNum < 0) {
+        next.mileage_km = 'عداد الكيلومتر يجب أن يكون رقم موجب';
+      }
+      if (!form.maintenance) {
+        next.maintenance = 'نوع الصيانات مطلوب';
+      } else if (form.maintenance === '__other__' && !form.maintenance_other.trim()) {
+        next.maintenance_other = 'اكتب نوع الصيانات';
+      }
     }
     const priceNum = Number(form.price_egp);
     if (form.price_egp === '' || !Number.isFinite(priceNum) || priceNum <= 0) {
@@ -326,21 +368,27 @@ export function MarketEntryForm({
     if (Object.keys(next).length > 0) return { ok: false, errors: next };
 
     // resolve "__other__" → final string
+    const trimFinal =
+      form.trim === '__other__' ? form.trim_other.trim() : form.trim.trim();
     const paintFinal =
       form.paint_condition === '__other__' ? form.paint_other.trim() : form.paint_condition;
     const maintenanceFinal =
       form.maintenance === '__other__' ? form.maintenance_other.trim() : form.maintenance;
+    // mileage — للـ used mode بنستخدم الرقم اللي اليوزر كتبه (validated above)؛
+    // للـ zero mode بنحط 0 تلقائياً.
+    const mileageFinal = form.is_zero ? 0 : Math.floor(Number(form.mileage_km));
 
     const input: MarketEntryInput = {
       brand: form.brand.trim(),
       model: form.model.trim(),
       year: yearNum,
-      trim: form.trim.trim(),
-      paint_condition: paintFinal,
-      mileage_km: Math.floor(mileageNum),
-      maintenance: maintenanceFinal,
+      trim: trimFinal,
+      paint_condition: form.is_zero ? '' : paintFinal,
+      mileage_km: mileageFinal,
+      maintenance: form.is_zero ? '' : maintenanceFinal,
       price_egp: Math.floor(priceNum),
       notes: form.notes.trim() || undefined,
+      is_zero: form.is_zero,
     };
     return { ok: true, input, errors: {} };
   };
@@ -401,11 +449,61 @@ export function MarketEntryForm({
 
   return (
     <form onSubmit={(e) => handleSubmit(e)} className="space-y-6">
+      {/* ===== Car Type Toggle (مستعملة / زيرو) ===== */}
+      <div
+        role="tablist"
+        aria-label="نوع العربية"
+        className="inline-flex w-full sm:w-auto items-center gap-1 p-1 rounded-2xl bg-bg-card border border-border-soft"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!form.is_zero}
+          aria-controls="car-data-section"
+          onClick={() => {
+            if (form.is_zero) {
+              setForm((prev) => ({ ...prev, is_zero: false }));
+            }
+          }}
+          // Touch target ≥ 44px (min-h-[44px])
+          className={`flex-1 sm:flex-none min-h-[44px] px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+            !form.is_zero
+              ? 'bg-accent-yellow text-text-primary'
+              : 'text-text-secondary hover:bg-bg-card-hover'
+          }`}
+        >
+          عربية مستعملة
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={form.is_zero}
+          aria-controls="car-data-section"
+          onClick={() => {
+            if (!form.is_zero) {
+              setForm((prev) => ({ ...prev, is_zero: true }));
+            }
+          }}
+          className={`flex-1 sm:flex-none min-h-[44px] px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+            form.is_zero
+              ? 'bg-accent-yellow text-text-primary'
+              : 'text-text-secondary hover:bg-bg-card-hover'
+          }`}
+        >
+          عربية زيرو
+        </button>
+      </div>
+
       {/* ===== SECTION: Car Data (بيانات العربيه) ===== */}
-      <section className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4">
+      <section
+        id="car-data-section"
+        className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4"
+      >
         <div className="flex items-center gap-2">
           <span className="w-1 h-5 rounded-full bg-accent-yellow" />
-          <h2 className="text-base font-bold text-text-primary">بيانات العربيه</h2>
+          <h2 className="text-base font-bold text-text-primary">
+            {form.is_zero ? 'بيانات العربية (زيرو)' : 'بيانات العربيه'}
+          </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -446,76 +544,105 @@ export function MarketEntryForm({
             placeholder="2020"
           />
 
-          {/* Trim — select dropdown (7 grades). */}
-          <SelectField
-            label="Trim (الفئة)"
-            value={form.trim}
-            onChange={(v) => update('trim', v)}
-            error={errors.trim}
-            required
-            options={TRIM_OPTIONS}
-            placeholder="اختر الدرجة..."
-          />
-
-          {/* Paint — dynamic dropdown scoped to brand/model/year from catalog. */}
-          <SelectField
-            label="Paint / Condition (حالة الطلاء)"
-            value={form.paint_condition}
-            onChange={(v) => update('paint_condition', v)}
-            error={errors.paint_condition}
-            required
-            options={paintOptions}
-            placeholder="اختر..."
-            disabled={!form.brand || !form.model}
-          />
-
-          {/* Conditional paint_other text input */}
-          {form.paint_condition === '__other__' && (
-            <TextField
-              label="حالة الطلاء - تفاصيل"
-              value={form.paint_other}
-              onChange={(v) => update('paint_other', v)}
-              error={errors.paint_other}
+          {/* Trim — select dropdown (7 grades + "أخرى"). */}
+          <div>
+            <SelectField
+              label="Trim (الفئة)"
+              value={form.trim}
+              onChange={(v) => update('trim', v)}
+              error={errors.trim}
               required
-              placeholder="مثال: راشة في الباب الخلفي"
+              options={TRIM_OPTIONS}
+              placeholder="اختر الدرجة..."
             />
-          )}
-
-          {/* Mileage — NumberInput with live thousand separators. */}
-          <NumberInput
-            label="Mileage (KM) (عداد الكيلومتر)"
-            value={form.mileage_km ? Number(form.mileage_km) : undefined}
-            onChange={(n) => update('mileage_km', n !== undefined ? String(n) : '')}
-            error={errors.mileage_km}
-            required
-            min={0}
-            placeholder="120,000"
-          />
-
-          {/* Maintenance — select dropdown (catalog-aware, falls back to standard 3 options). */}
-          <SelectField
-            label="Maintenance (نوع الصيانات)"
-            value={form.maintenance}
-            onChange={(v) => update('maintenance', v)}
-            error={errors.maintenance}
-            required
-            options={maintenanceOptions}
-            placeholder="اختر..."
-          />
-
-          {/* Conditional maintenance_other text input */}
-          {form.maintenance === '__other__' && (
-            <TextField
-              label="نوع الصيانات - تفاصيل"
-              value={form.maintenance_other}
-              onChange={(v) => update('maintenance_other', v)}
-              error={errors.maintenance_other}
-              required
-              placeholder="مثال: توكيل حتى 80000، بعدها مركزي"
-            />
-          )}
+            {/* Conditional trim_other text input — يظهر لما اليوزر يختار "أخرى" */}
+            {form.trim === '__other__' && (
+              <div className="mt-2">
+                <TextField
+                  label="الفئة - نص حر"
+                  value={form.trim_other}
+                  onChange={(v) => update('trim_other', v)}
+                  error={errors.trim_other}
+                  required
+                  placeholder="مثال: Sport Line"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </section>
+
+      {/* ===== SECTION: Used Car Extras (used only) ===== */}
+      {/* الـ used-only fields: paint, mileage, maintenance. الـ zero entries
+          بتخزّن mileage=0 و paint_condition='' و maintenance='' تلقائياً. */}
+      {!form.is_zero && (
+        <section className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full bg-accent-yellow" />
+            <h2 className="text-base font-bold text-text-primary">تفاصيل الاستعمال</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Paint — dynamic dropdown scoped to brand/model/year from catalog. */}
+            <SelectField
+              label="Paint / Condition (حالة الطلاء)"
+              value={form.paint_condition}
+              onChange={(v) => update('paint_condition', v)}
+              error={errors.paint_condition}
+              required
+              options={paintOptions}
+              placeholder="اختر..."
+              disabled={!form.brand || !form.model}
+            />
+
+            {/* Conditional paint_other text input */}
+            {form.paint_condition === '__other__' && (
+              <TextField
+                label="حالة الطلاء - تفاصيل"
+                value={form.paint_other}
+                onChange={(v) => update('paint_other', v)}
+                error={errors.paint_other}
+                required
+                placeholder="مثال: راشة في الباب الخلفي"
+              />
+            )}
+
+            {/* Mileage — NumberInput with live thousand separators. */}
+            <NumberInput
+              label="Mileage (KM) (عداد الكيلومتر)"
+              value={form.mileage_km ? Number(form.mileage_km) : undefined}
+              onChange={(n) => update('mileage_km', n !== undefined ? String(n) : '')}
+              error={errors.mileage_km}
+              required
+              min={0}
+              placeholder="120,000"
+            />
+
+            {/* Maintenance — select dropdown (catalog-aware, falls back to standard 3 options). */}
+            <SelectField
+              label="Maintenance (نوع الصيانات)"
+              value={form.maintenance}
+              onChange={(v) => update('maintenance', v)}
+              error={errors.maintenance}
+              required
+              options={maintenanceOptions}
+              placeholder="اختر..."
+            />
+
+            {/* Conditional maintenance_other text input */}
+            {form.maintenance === '__other__' && (
+              <TextField
+                label="نوع الصيانات - تفاصيل"
+                value={form.maintenance_other}
+                onChange={(v) => update('maintenance_other', v)}
+                error={errors.maintenance_other}
+                required
+                placeholder="مثال: توكيل حتى 80000، بعدها مركزي"
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ===== SECTION: Price & Notes (السعر والملاحظات) ===== */}
       <section className="bg-bg-card border border-border-soft rounded-2xl p-5 space-y-4">

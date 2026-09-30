@@ -76,6 +76,7 @@ function normalizeMarketEntry(snap: DocumentData): MarketEntry {
     maintenance: typeof data.maintenance === 'string' ? data.maintenance : '',
     price_egp: typeof data.price_egp === 'number' ? data.price_egp : Number(data.price_egp) || 0,
     notes: typeof data.notes === 'string' ? data.notes : undefined,
+    is_zero: data.is_zero === true,
     recorded_by_uid: typeof data.recorded_by_uid === 'string' ? data.recorded_by_uid : '',
     recorded_by_name:
       typeof data.recorded_by_name === 'string' ? data.recorded_by_name : null,
@@ -247,6 +248,7 @@ async function enqueuePendingEntry(
     maintenance: input.maintenance.trim(),
     price_egp: input.price_egp,
     notes: input.notes?.trim() || undefined,
+    is_zero: input.is_zero === true,
     recorded_by_uid: meta.recorded_by_uid,
     recorded_by_name: meta.recorded_by_name ?? null,
     queued_at: Date.now(),
@@ -291,6 +293,7 @@ export async function syncPendingEntries(): Promise<{
           maintenance: entry.maintenance,
           price_egp: entry.price_egp,
           notes: entry.notes,
+          is_zero: entry.is_zero,
         },
         {
           recorded_by_uid: entry.recorded_by_uid,
@@ -335,6 +338,7 @@ function buildPayload(
     maintenance: input.maintenance.trim(),
     price_egp: input.price_egp,
     notes: input.notes?.trim() || null,
+    is_zero: input.is_zero === true,
     recorded_by_uid: meta.recorded_by_uid,
     recorded_by_name: meta.recorded_by_name ?? null,
   };
@@ -352,4 +356,80 @@ function makeClientId(): string {
 function extractMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+// ============================================================================
+// Cascade helpers — بنستخرج قيم مميّزة (years/trims/paints) من الـ DB entries
+// بناءً على الـ cascade (brand+model, brand+model+year).
+// بنستخدمهم في الـ MarketSearchForm عشان dropdowns الـ search تبقى DB-driven
+// ومش static. الـ returned arrays مرتّبة ومنفصلة.
+// ============================================================================
+
+/**
+ * الـ years الموجودة لـ (brand, model) — distinct، مرتّبة descending.
+ * بترجع [] لو مفيش تطابق.
+ */
+export function getYearsFromEntries(
+  entries: MarketEntry[],
+  brand: string,
+  model: string
+): number[] {
+  if (!brand || !model) return [];
+  const set = new Set<number>();
+  for (const e of entries) {
+    if (e.brand === brand && e.model === model && Number.isFinite(e.year)) {
+      set.add(e.year);
+    }
+  }
+  return Array.from(set).sort((a, b) => b - a);
+}
+
+/**
+ * الـ trims الموجودة لـ (brand, model, year) — distinct، مرتّبة ascending.
+ * بترجع [] لو مفيش تطابق.
+ */
+export function getTrimsFromEntries(
+  entries: MarketEntry[],
+  brand: string,
+  model: string,
+  year: number
+): string[] {
+  if (!brand || !model || !Number.isFinite(year)) return [];
+  const set = new Set<string>();
+  for (const e of entries) {
+    if (
+      e.brand === brand &&
+      e.model === model &&
+      e.year === year &&
+      e.trim
+    ) {
+      set.add(e.trim);
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * الـ paint conditions الموجودة لـ (brand, model, year) — distinct، مرتّبة.
+ * بترجع [] لو مفيش تطابق.
+ */
+export function getPaintsFromEntries(
+  entries: MarketEntry[],
+  brand: string,
+  model: string,
+  year: number
+): string[] {
+  if (!brand || !model || !Number.isFinite(year)) return [];
+  const set = new Set<string>();
+  for (const e of entries) {
+    if (
+      e.brand === brand &&
+      e.model === model &&
+      e.year === year &&
+      e.paint_condition
+    ) {
+      set.add(e.paint_condition);
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
