@@ -426,8 +426,9 @@ export function MarketEntryForm({
           initial.id,
           v.input,
           {
-            recorded_by_uid: user.uid,
-            recorded_by_name: userData?.username || user.email || null,
+            recorded_by_uid: initial.recorded_by_uid || user.uid,
+            recorded_by_name:
+              initial.recorded_by_name || userData?.username || user.email || null,
           }
         );
         showToast('تم تحديث الـ entry', 'success');
@@ -444,11 +445,13 @@ export function MarketEntryForm({
       } else {
         showToast('تم حفظ الـ entry في الانتظار — سيُرسل تلقائياً عند توفر الإنترنت', 'info');
       }
-      onSaved?.(result, 'create');
 
-      if (opts.stayOnForm && onSavedAndAddAnother) {
-        onSavedAndAddAnother();
+      if (opts.stayOnForm) {
+        onSavedAndAddAnother?.();
         setForm(EMPTY_FORM);
+        setErrors({});
+      } else {
+        onSaved?.(result, 'create');
       }
     } catch (err) {
       logger.error('[MarketEntryForm] save failed:', err);
@@ -462,7 +465,10 @@ export function MarketEntryForm({
   };
 
   return (
-    <form onSubmit={(e) => handleSubmit(e)} className="space-y-6">
+    <form
+      onSubmit={(e) => handleSubmit(e, mode === 'create' ? { stayOnForm: true } : {})}
+      className="space-y-6"
+    >
       {/* ===== Car Type Toggle (مستعملة / زيرو) ===== */}
       <div
         role="tablist"
@@ -690,25 +696,26 @@ export function MarketEntryForm({
       </section>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-        {mode === 'create' && onSavedAndAddAnother && (
+        {mode === 'create' ? (
           <button
             type="button"
             disabled={submitting}
             onClick={(e) => handleSubmit(e as unknown as React.FormEvent, { stayOnForm: true })}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-bg-card text-text-secondary border border-border-soft hover:bg-bg-card-hover text-sm font-semibold disabled:opacity-60 order-2 sm:order-1"
+            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold disabled:opacity-60 w-full sm:w-auto"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Save & Add Another
           </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={submitting}
+            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold disabled:opacity-60 w-full sm:w-auto"
+          >
+            {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            Save Changes
+          </button>
         )}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold disabled:opacity-60 order-1 sm:order-2"
-        >
-          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {mode === 'edit' ? 'Save Changes' : 'Save Entry'}
-        </button>
       </div>
     </form>
   );

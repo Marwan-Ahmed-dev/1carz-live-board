@@ -11,7 +11,7 @@
 //   ❌ Mileage vs Price — متشال بناء على طلب اليوزر.
 
 import { useMemo } from 'react';
-import { X, BarChart3, LineChart as LineChartIcon } from 'lucide-react';
+import { X, BarChart3, LineChart as LineChartIcon, Pencil, Trash2 } from 'lucide-react';
 import type { MarketEntry } from '@/lib/types';
 import { formatThousands } from '@/lib/format';
 
@@ -23,6 +23,13 @@ interface CarDetailPanelProps {
   /** All matching entries (used for aggregations + chart). */
   matchingEntries: MarketEntry[];
   onClose: () => void;
+  /** الـ entry اللي اليوزر ضغط عليه في الجدول — للتعديل/الحذف */
+  selectedEntry?: MarketEntry | null;
+  /** هل اليوزر الحالي يقدر يعدّل/يحذف الـ selected entry */
+  canManageSelected?: boolean;
+  onEditSelected?: () => void;
+  onDeleteSelected?: () => void;
+  deletingSelected?: boolean;
 }
 
 const ARABIC_MONTHS = [
@@ -47,6 +54,11 @@ export function CarDetailPanel({
   trim,
   matchingEntries,
   onClose,
+  selectedEntry = null,
+  canManageSelected = false,
+  onEditSelected,
+  onDeleteSelected,
+  deletingSelected = false,
 }: CarDetailPanelProps) {
   // Split into used vs zero — بناءً على is_zero. الـ entries القديمة (بدون
   // الـ field) بتتعامل كـ used (default false).
@@ -103,6 +115,28 @@ export function CarDetailPanel({
           <X size={18} className="text-text-secondary" />
         </button>
       </div>
+
+      {canManageSelected && selectedEntry && (
+        <div className="px-4 sm:px-5 py-3 border-b border-border-soft flex gap-2 bg-bg-primary/20">
+          <button
+            type="button"
+            onClick={onEditSelected}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
+          >
+            <Pencil size={15} />
+            تعديل
+          </button>
+          <button
+            type="button"
+            onClick={onDeleteSelected}
+            disabled={deletingSelected}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-sm font-bold transition-colors disabled:opacity-50"
+          >
+            <Trash2 size={15} />
+            حذف
+          </button>
+        </div>
+      )}
 
       {/* Body */}
       <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">

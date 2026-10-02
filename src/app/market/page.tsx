@@ -15,6 +15,7 @@
 // - الـ close button على الموبايل بيكبر لـ 44px (touch target).
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { MarketNav } from '@/components/market/MarketNav';
 import {
   MarketSearchForm,
@@ -24,12 +25,21 @@ import {
 import { MarketResultsTable } from '@/components/market/MarketResultsTable';
 import { PendingSyncBanner } from '@/components/market/PendingSyncBanner';
 import { CarDetailPanel } from '@/components/market/CarDetailPanel';
+import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 import { useMarketEntries } from '@/hooks/useMarketEntries';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
+import { deleteMarketEntry } from '@/lib/market';
+import { logger } from '@/lib/logger';
 import type { MarketEntry } from '@/lib/types';
 
 export default function MarketPage() {
+  const router = useRouter();
+  const { user, isAdmin } = useAuth();
+  const { showToast } = useToast();
+  const { confirm, dialogProps } = useConfirm();
   const { entries, loading, source, error, onReadSuccess } = useMarketEntries();
   const { isOnline } = useNetworkStatus();
 
@@ -43,6 +53,13 @@ export default function MarketPage() {
 
   // الـ entry المختار + الـ panel مفتوح
   const [selectedEntry, setSelectedEntry] = useState<MarketEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const canManageSelected = Boolean(
+    selectedEntry &&
+      user &&
+      (isAdmin || selectedEntry.recorded_by_uid === user.uid)
+  );
 
   // بنطبّق الفلاتر على الـ entries
   const filteredEntries = useMemo(() => {
@@ -104,6 +121,50 @@ export default function MarketPage() {
   const panelOpen = !!selectedEntry;
   const closePanel = () => setSelectedEntry(null);
 
+  const handleEditSelected = () => {
+    if (!selectedEntry) return;
+    router.push(`/market/${selectedEntry.id}`);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!selectedEntry) return;
+    const ok = await confirm({
+      title: 'حذف الـ entry',
+      message: `هل تريد حذف "${selectedEntry.brand} ${selectedEntry.model}"؟ هذا الإجراء لا يمكن التراجع عنه.`,
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deleteMarketEntry(selectedEntry.id);
+      showToast('تم حذف الـ entry', 'success');
+      setSelectedEntry(null);
+    } catch (err) {
+      logger.error('[MarketPage] delete failed:', err);
+      showToast(err instanceof Error ? err.message : 'فشل الحذف', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const panelProps = selectedEntry
+    ? {
+        brand: selectedEntry.brand,
+        model: selectedEntry.model,
+        year: selectedEntry.year,
+        trim: selectedEntry.trim,
+        matchingEntries: panelMatchingEntries,
+        onClose: closePanel,
+        selectedEntry,
+        canManageSelected,
+        onEditSelected: handleEditSelected,
+        onDeleteSelected: () => void handleDeleteSelected(),
+        deletingSelected: deleting,
+      }
+    : null;
+
   return (
     <>
       <MarketNav pendingCount={pendingCount} isSyncing={isSyncing} onSync={triggerSync} />
@@ -151,21 +212,14 @@ export default function MarketPage() {
           </div>
 
           {/* Desktop panel — sticky على يمين الـ grid (شمال بصرياً في RTL). */}
-          {panelOpen && selectedEntry && (
+          {panelOpen && panelProps && (
             <div
               className="hidden lg:block sticky top-20 self-start min-w-0"
               // For narrow desktop widths, allow the panel itself to scroll internally
               // rather than overflowing the viewport horizontally.
               style={{ maxHeight: 'calc(100vh - 6rem)' }}
             >
-              <CarDetailPanel
-                brand={selectedEntry.brand}
-                model={selectedEntry.model}
-                year={selectedEntry.year}
-                trim={selectedEntry.trim}
-                matchingEntries={panelMatchingEntries}
-                onClose={closePanel}
-              />
+              <CarDetailPanel {...panelProps} />
             </div>
           )}
         </div>
@@ -175,7 +229,7 @@ export default function MarketPage() {
             • الـ panel slides in من الـ start side باستخدام الـ animation class.
             • الـ backdrop click بيكسر الـ panel.
             • body scroll محجوب طول ما الـ panel مفتوح عشان مفيش double-scroll. */}
-        {panelOpen && selectedEntry && (
+        {panelOpen && panelProps && (
           <div
             className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
             onClick={closePanel}
@@ -188,18 +242,12 @@ export default function MarketPage() {
               aria-modal="true"
               aria-label="تفاصيل السيارة"
             >
-              <CarDetailPanel
-                brand={selectedEntry.brand}
-                model={selectedEntry.model}
-                year={selectedEntry.year}
-                trim={selectedEntry.trim}
-                matchingEntries={panelMatchingEntries}
-                onClose={closePanel}
-              />
+              <CarDetailPanel {...panelProps} />
             </div>
           </div>
         )}
       </main>
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </>
   );
 }

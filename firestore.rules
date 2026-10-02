@@ -16,11 +16,13 @@ service cloud.firestore {
     }
 
     function isSource() {
-      // 'source' role بنخزّنه على users/{uid}.role — مفيش custom claim.
-      // للـ Firestore rules اللي محتاجة server-side gate بنقرأ من الـ token
-      // (لو تم إعداده) أو نعمل fallback على isAdmin() — مصدر الـ market
-      // registry بيتحقق منه client-side عبر الـ layout.tsx.
-      return isAdmin() || (isSignedIn() && request.auth.token.role == 'source');
+      // الـ source role بيتخزّن على users/{uid}.role (مش دايماً custom claim).
+      // بنقبل الـ claim لو موجود، ونقرأ من الـ user doc كـ fallback.
+      return isAdmin()
+             || (isSignedIn() && request.auth.token.role == 'source')
+             || (isSignedIn()
+                 && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                 && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'source');
     }
 
     function isStaff() {

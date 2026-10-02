@@ -58,13 +58,7 @@ export default function MarketNewPage() {
           </div>
 
           <MarketEntryForm
-            onSaved={(result) => {
-              if (result.synced) {
-                router.push(`/market/${result.id}`);
-              }
-            }}
             onSavedAndAddAnother={() => {
-              // النموذج بيتفرّغ داخلياً — بنعمل scroll للـ top عشان اليوزر يشوف الفورم الفاضي.
               if (typeof window !== 'undefined') {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }
