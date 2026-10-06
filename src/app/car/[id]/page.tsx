@@ -68,8 +68,9 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const [iosSharing, setIosSharing] = useState(false);
 
   const id = params?.id;
-  /** أزرار تعديل/حذف تظهر بس لما الأدمن يفتح من اللوحة (`?from=admin`) مش من لوحة العرض */
-  const showAdminManage = isAdmin && searchParams.get('from') === 'admin';
+  /** أي أدمن يقدر يعدّل/يحذف من صفحة التفاصيل (لوحة العرض أو الأدمن) */
+  const showAdminManage = isAdmin;
+  const fromAdminPanel = searchParams.get('from') === 'admin';
 
   const handleDeleteCar = async () => {
     if (!car?.id || deleting) return;
@@ -85,7 +86,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     try {
       await deleteCar(car.id);
       showToast('تم حذف العربية بنجاح', 'success');
-      router.replace('/admin/cars');
+      router.replace(fromAdminPanel ? '/admin/cars' : '/cars');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل الحذف';
       showToast(msg, 'error');

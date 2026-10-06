@@ -226,6 +226,12 @@ export function UserAssignmentSelector({ value, onChange }: UserAssignmentSelect
         </button>
       </div>
 
+      {isAll && (
+        <p className="text-[11px] text-admin-text-muted leading-relaxed px-0.5">
+          الكل = كل المسوّقين يشوفوا العربية، مش بس مجموعاتك.
+        </p>
+      )}
+
       {!isAll && (
         <div className="bg-admin-bg border border-admin-border rounded-xl overflow-hidden">
           <div className="p-3 border-b border-admin-border">

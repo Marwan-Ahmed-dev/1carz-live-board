@@ -30,6 +30,8 @@ export default function CarsBoardPage() {
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
+  /** أدمن: عربياتي فقط | كل العربيات المنشورة من كل الأدمنز */
+  const [adminScope, setAdminScope] = useState<'mine' | 'all'>('mine');
 
   // المجموعات اللي اليوزر عضو فيها (للمسوّق فقط)
   const [marketerGroupUids, setMarketerGroupUids] = useState<string[]>([]);
@@ -83,7 +85,7 @@ export default function CarsBoardPage() {
     uid: user?.uid,
     publicOnly: isGuest,
     marketerFilter,
-    createdByUid: isAdmin && user ? user.uid : null,
+    createdByUid: isAdmin && user && adminScope === 'mine' ? user.uid : null,
     minPrice,
     maxPrice,
   });
@@ -133,6 +135,33 @@ export default function CarsBoardPage() {
           onChange={setPriorityFilter}
           guestMode={isGuest}
         />
+
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAdminScope('mine')}
+              className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                adminScope === 'mine'
+                  ? 'bg-accent-yellow text-text-primary'
+                  : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              عربياتي
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminScope('all')}
+              className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                adminScope === 'all'
+                  ? 'bg-accent-yellow text-text-primary'
+                  : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              كل العربيات
+            </button>
+          </div>
+        )}
 
         <PriceFilter
           onApply={(min, max) => {

@@ -504,7 +504,8 @@ export function subscribeToCars(
   // كمان نفلتر client-side عشان لو الـ query رجّع أكتر من اللازم.
   if (filters.marketerFilter && filters.marketerFilter.uid) {
     const { uid, groupUids } = filters.marketerFilter;
-    const filterIds = Array.from(new Set([uid, ...groupUids, 'all'])).slice(0, 30);
+    // 'all' أولاً عشان ما يتقطعش لو المسوّق عضو في أكتر من ~29 مجموعة
+    const filterIds = Array.from(new Set(['all', uid, ...groupUids])).slice(0, 30);
     constraints.push(where('assigned_to', 'array-contains-any', filterIds));
   }
 
