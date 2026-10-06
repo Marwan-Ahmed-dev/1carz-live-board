@@ -31,13 +31,8 @@ service firebase.storage {
         request.resource.size < 10 * 1024 * 1024
       );
 
-      allow delete: if isAdmin() || (
-        request.auth != null &&
-        firestore.exists(/databases/(default)/documents/cars/$(carId)) &&
-        firestore.get(/databases/(default)/documents/cars/$(carId)).data.assigned_to.hasAny(
-          [request.auth.uid, 'all']
-        )
-      );
+      // حذف صور العربية: أي staff (أدمن/معاينة) عشان حذف العربية من التفاصيل يشتغل
+      allow delete: if isStaff();
     }
   }
 }

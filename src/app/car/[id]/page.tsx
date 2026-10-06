@@ -68,9 +68,10 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   const [iosSharing, setIosSharing] = useState(false);
 
   const id = params?.id;
-  /** أي أدمن يقدر يعدّل/يحذف من صفحة التفاصيل (لوحة العرض أو الأدمن) */
-  const showAdminManage = isAdmin;
+  /** أدمن أو معاين يقدروا يعدّلوا/يحذفوا من صفحة التفاصيل */
+  const showStaffManage = isAdmin || isInspector;
   const fromAdminPanel = searchParams.get('from') === 'admin';
+  const editHref = fromAdminPanel && isAdmin ? `/admin/cars/${id}` : `/cars/${id}`;
 
   const handleDeleteCar = async () => {
     if (!car?.id || deleting) return;
@@ -86,7 +87,7 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     try {
       await deleteCar(car.id);
       showToast('تم حذف العربية بنجاح', 'success');
-      router.replace(fromAdminPanel ? '/admin/cars' : '/cars');
+      router.replace(fromAdminPanel && isAdmin ? '/admin/cars' : '/cars');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل الحذف';
       showToast(msg, 'error');
@@ -256,11 +257,11 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
 
         {car && (
           <>
-            {showAdminManage && car.id && (
+            {showStaffManage && car.id && (
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => router.push(`/admin/cars/${car.id}`)}
+                  onClick={() => router.push(editHref)}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
                 >
                   <Edit3 size={16} />

@@ -101,7 +101,8 @@ service cloud.firestore {
       allow list, get: if true;
 
       allow create, update: if isStaff();
-      allow delete: if isAdmin();
+      // أدمن + معاين يقدروا يحذفوا من صفحة التفاصيل / لوحة العرض
+      allow delete: if isStaff();
     }
 
     match /copy_events/{eventId} {
