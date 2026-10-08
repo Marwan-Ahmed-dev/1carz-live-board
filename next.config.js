@@ -44,8 +44,11 @@ const SECURITY_HEADERS = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // نسمح بتحميل صور Firebase Storage و Firestore
+  // نسمح بتحميل صور Firebase Storage مباشرة بدون Vercel Image Optimization.
+  // السبب: /_next/image بيرجع 402 لما حصة الـ Image Optimization تخلص على Vercel
+  // فالصور بتتكسر جزئياً (كاش قديم يظهر، طلبات جديدة تفشل).
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
