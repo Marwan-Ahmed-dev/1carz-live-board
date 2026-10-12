@@ -10,10 +10,13 @@
 //   ❌ Suggested Price Range — متشال بناء على طلب اليوزر.
 //   ❌ Mileage vs Price — متشال بناء على طلب اليوزر.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, BarChart3, LineChart as LineChartIcon, Pencil, Trash2 } from 'lucide-react';
 import type { MarketEntry } from '@/lib/types';
 import { formatThousands } from '@/lib/format';
+
+/** قيمة خاصة = كل الفئات */
+const TRIM_ALL = '__all__';
 
 interface CarDetailPanelProps {
   brand: string;
@@ -60,15 +63,48 @@ export function CarDetailPanel({
   onDeleteSelected,
   deletingSelected = false,
 }: CarDetailPanelProps) {
+  const availableTrims = useMemo(() => {
+    const set = new Set<string>();
+    matchingEntries.forEach((e) => {
+      const t = (e.trim || '').trim();
+      if (t) set.add(t);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [matchingEntries]);
+
+  const showTrimSwitcher = availableTrims.length > 1;
+
+  // افتراضي: فئة الـ entry المختار، أو الكل لو مش موجودة في القائمة
+  const [selectedTrim, setSelectedTrim] = useState<string>(() => {
+    const t = (trim || '').trim();
+    return t || TRIM_ALL;
+  });
+
+  useEffect(() => {
+    const t = (selectedEntry?.trim || trim || '').trim();
+    if (t && availableTrims.includes(t)) {
+      setSelectedTrim(t);
+    } else if (availableTrims.length <= 1 && availableTrims[0]) {
+      setSelectedTrim(availableTrims[0]);
+    } else {
+      setSelectedTrim(TRIM_ALL);
+    }
+  }, [selectedEntry?.id, selectedEntry?.trim, trim, availableTrims]);
+
+  const scopedEntries = useMemo(() => {
+    if (!showTrimSwitcher || selectedTrim === TRIM_ALL) return matchingEntries;
+    return matchingEntries.filter((e) => (e.trim || '').trim() === selectedTrim);
+  }, [matchingEntries, selectedTrim, showTrimSwitcher]);
+
   // Split into used vs zero — بناءً على is_zero. الـ entries القديمة (بدون
   // الـ field) بتتعامل كـ used (default false).
   const usedEntries = useMemo(
-    () => matchingEntries.filter((e) => !e.is_zero),
-    [matchingEntries]
+    () => scopedEntries.filter((e) => !e.is_zero),
+    [scopedEntries]
   );
   const zeroEntries = useMemo(
-    () => matchingEntries.filter((e) => e.is_zero === true),
-    [matchingEntries]
+    () => scopedEntries.filter((e) => e.is_zero === true),
+    [scopedEntries]
   );
 
   // Aggregations per group
@@ -87,6 +123,11 @@ export function CarDetailPanel({
     [usedTrend, zeroTrend]
   );
 
+  const headerTrimLabel =
+    selectedTrim === TRIM_ALL
+      ? 'كل الفئات'
+      : selectedTrim || trim || '—';
+
   return (
     // w-full + max-w-full: يضمن إن الـ aside ياخد عرض الـ parent بالظبط
     // (على mobile الـ w-full من الـ overlay، وعلى desktop الـ column المحدّد)
@@ -102,7 +143,16 @@ export function CarDetailPanel({
             {brand} {model}
           </h2>
           <p className="text-xs sm:text-sm text-text-muted mt-0.5 truncate">
-            <span dir="ltr">{year}</span> · {trim}
+            {selectedEntry ? (
+              <>
+                <span dir="ltr">{selectedEntry.year}</span>
+                {selectedEntry.trim ? ` · ${selectedEntry.trim}` : ''}
+              </>
+            ) : (
+              <>
+                <span dir="ltr">{year}</span> · {headerTrimLabel}
+              </>
+            )}
           </p>
         </div>
         <button
@@ -135,6 +185,40 @@ export function CarDetailPanel({
             <Trash2 size={15} />
             حذف
           </button>
+        </div>
+      )}
+
+      {/* Trim switcher — يظهر بس لو فيه أكتر من فئة لنفس الموديل */}
+      {showTrimSwitcher && (
+        <div className="px-4 sm:px-5 py-3 border-b border-border-soft bg-bg-primary/10">
+          <p className="text-[11px] font-bold text-text-muted mb-2">الفئة</p>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+            <button
+              type="button"
+              onClick={() => setSelectedTrim(TRIM_ALL)}
+              className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                selectedTrim === TRIM_ALL
+                  ? 'bg-accent-yellow text-text-primary'
+                  : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              الكل
+            </button>
+            {availableTrims.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setSelectedTrim(t)}
+                className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                  selectedTrim === t
+                    ? 'bg-accent-yellow text-text-primary'
+                    : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -182,7 +266,7 @@ export function CarDetailPanel({
             used={usedTrend}
             zero={zeroTrend}
             validBucketCount={trendValidCount}
-            totalMatching={matchingEntries.length}
+            totalMatching={scopedEntries.length}
           />
           {/* Legend */}
           <div className="flex items-center gap-4 mt-2 text-xs text-text-muted">

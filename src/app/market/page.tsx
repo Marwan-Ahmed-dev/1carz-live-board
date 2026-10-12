@@ -92,24 +92,18 @@ export default function MarketPage() {
     });
   }, [entries, appliedFilters]);
 
-  // الـ entries المستخدمة للـ aggregations في الـ panel: بنتضمّن الـ entry المختار
-  // لو مش موجود في الـ filteredEntries (مثلاً لو اليوزر مسح فلتر).
+  // مقارنة اللوحة: brand+model فقط من كل الـ entries.
+  // السنة/الفئة مش شرط تطابق — اليوزر يقدر يبدّل الفئة من اللوحة لو فيه أكتر من فئة.
   const panelMatchingEntries = useMemo(() => {
     if (!selectedEntry) return [];
-    // نضم الكلمة الكاملة (brand + model + year + trim) للـ matching.
-    const matches = filteredEntries.filter(
-      (e) =>
-        e.brand === selectedEntry.brand &&
-        e.model === selectedEntry.model &&
-        e.year === selectedEntry.year &&
-        e.trim === selectedEntry.trim
+    const matches = entries.filter(
+      (e) => e.brand === selectedEntry.brand && e.model === selectedEntry.model
     );
-    // نتأكد إن الـ entry المختار موجود في النتيجة (fallback لو ما لقيناش تطابق).
     if (!matches.find((e) => e.id === selectedEntry.id)) {
       matches.push(selectedEntry);
     }
     return matches;
-  }, [filteredEntries, selectedEntry]);
+  }, [entries, selectedEntry]);
 
   // Auto-clear selected entry لو اختفى من القائمة بعد الفلاتر
   useEffect(() => {
