@@ -16,12 +16,12 @@ export function InspectedBadge({ size = 'sm', className = '' }: InspectedBadgePr
   return (
     <div
       className={`pointer-events-none drop-shadow-md ${className}`}
-      title="سيارة مفحوصة — علامة الاعتماد"
-      aria-label="سيارة مفحوصة"
+      title="تم فحصها — علامة الاعتماد"
+      aria-label="تم فحصها"
     >
       <Image
         src="/badges/certified.png"
-        alt="مفحوصة — علامة الاعتماد"
+        alt="تم فحصها"
         width={dim}
         height={dim}
         className="object-contain"

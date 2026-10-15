@@ -67,7 +67,7 @@ export default function LoginPage() {
             <BrandLogo size={80} rounded={false} className="rounded-2xl" />
           </div>
           <h1 className="text-3xl font-bold text-text-primary mb-2">
-            1CARZ LIVE BOARD
+            1Carz
           </h1>
           <p className="text-text-secondary text-base">لوحة العربيات الحية</p>
         </div>
@@ -163,7 +163,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-text-muted text-xs mt-6">
-          © 1CARZ LIVE BOARD · جميع الحقوق محفوظة
+          © 1Carz · جميع الحقوق محفوظة
         </p>
       </div>
     </main>

@@ -70,7 +70,7 @@ export function Header({ showUsername = true }: HeaderProps) {
             <div className="flex flex-col text-right min-w-0">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-sm sm:text-base font-bold text-text-primary leading-tight truncate">
-                  1CARZ LIVE BOARD
+                  1Carz
                 </h1>
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="مباشر" />
               </div>

@@ -41,7 +41,7 @@ async function shareOnIos(): Promise<ShortcutAddResult> {
   const url = `${window.location.origin}/`;
   try {
     await navigator.share({
-      title: '1CARZ LIVE BOARD',
+      title: '1Carz',
       text: 'لوحة العربيات الحية',
       url,
     });

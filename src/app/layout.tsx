@@ -31,14 +31,14 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    '1CARZ — منصة مصرية لتسويق وبيع السيارات. تصفّح اللوحة الحية، سيارات تم فحصها، وحمّل التطبيق من Google Play.',
+    '1Carz — منصة مصرية لتسويق وبيع السيارات. تصفّح العروض، سيارات تم فحصها، وحمّل التطبيق من Google Play.',
   alternates: { canonical: '/' },
-  manifest: '/manifest.json?v=8',
+  manifest: '/manifest.json?v=9',
   applicationName: SITE_NAME,
   appleWebApp: {
     capable: false,
     statusBarStyle: 'default',
-    title: '1CARZ',
+    title: '1Carz',
   },
   icons: {
     icon: [{ url: '/favicon.png?v=8', type: 'image/png' }],

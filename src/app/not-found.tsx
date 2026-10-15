@@ -44,7 +44,7 @@ export default function NotFound() {
         </div>
 
         <p className="text-[11px] text-text-muted mt-6" dir="ltr">
-          © 1CARZ LIVE BOARD
+          © 1Carz
         </p>
       </div>
     </main>

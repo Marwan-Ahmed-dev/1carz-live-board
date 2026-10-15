@@ -1,7 +1,7 @@
 {
-  "name": "1CARZ LIVE BOARD",
-  "short_name": "1CARZ",
-  "description": "لوحة العربيات الحية - تطبيق عرض السيارات",
+  "name": "1Carz",
+  "short_name": "1Carz",
+  "description": "منصة 1Carz لتسويق وبيع السيارات في مصر",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
