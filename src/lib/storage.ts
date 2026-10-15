@@ -15,16 +15,25 @@ export const MAX_CAR_IMAGES = 30;
  */
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
-/** أبعاد واضحة للعرض — أقرب لـ StorageImageService في Flutter (1280×960) */
-const MAX_WIDTH = 1280;
-const MAX_HEIGHT = 960;
+/**
+ * أبعاد واضحة للعرض.
+ * ملاحظة iOS: صور الآيفون غالباً 12MP+؛ لو ضغطناها لـ 150–200KB (الجودة كانت
+ * بتنزل لـ 0.55) تظهر pixelated. الهدف الجديد يحافظ على تفاصيل العربيات.
+ */
+const MAX_WIDTH = 1920;
+const MAX_HEIGHT = 1440;
 
-/** هدف المساحة بعد الضغط */
-const TARGET_MIN_BYTES = 150 * 1024;
-const TARGET_MAX_BYTES = 200 * 1024;
+/** هدف المساحة بعد الضغط — مساحة كافية لجودة واضحة */
+const TARGET_MAX_BYTES = 700 * 1024;
+/** لو أكبر من كده حتى بعد floor quality، نصغّر الأبعاد شوية */
+const HARD_MAX_BYTES = 900 * 1024;
 
-const QUALITY_FLOOR = 0.55;
-const QUALITY_CEIL = 0.88;
+const QUALITY_FLOOR = 0.74;
+const QUALITY_CEIL = 0.92;
+const QUALITY_START = 0.86;
+
+/** علامة إن الملف عدى على compressCarImage — نمنع ضغط مزدوج */
+const COMPRESSED_MARKER = '-1carz';
 
 /** زي copyResize في Flutter: landscape → maxWidth، portrait → maxHeight */
 function fitWithinBox(
@@ -105,22 +114,24 @@ function drawToCanvas(
   return canvas;
 }
 
-/** يضبط جودة JPEG عشان المساحة توقع بين 150–200KB قد الإمكان */
+/** يضبط جودة JPEG تحت سقف المساحة بدون ما ينزل تحت QUALITY_FLOOR */
 async function encodeNearTarget(canvas: HTMLCanvasElement): Promise<Blob> {
   let lo = QUALITY_FLOOR;
   let hi = QUALITY_CEIL;
-  let best = await canvasToJpegBlob(canvas, 0.78);
+  let best = await canvasToJpegBlob(canvas, QUALITY_START);
 
-  for (let i = 0; i < 8; i++) {
+  if (best.size <= TARGET_MAX_BYTES) {
+    return best;
+  }
+
+  for (let i = 0; i < 7; i++) {
     const mid = (lo + hi) / 2;
     const blob = await canvasToJpegBlob(canvas, mid);
     best = blob;
     if (blob.size > TARGET_MAX_BYTES) {
       hi = mid;
-    } else if (blob.size < TARGET_MIN_BYTES) {
-      lo = mid;
     } else {
-      return blob;
+      lo = mid;
     }
   }
 
@@ -130,9 +141,18 @@ async function encodeNearTarget(canvas: HTMLCanvasElement): Promise<Blob> {
   return best;
 }
 
+function isAlreadyCompressedByUs(file: File): boolean {
+  return (
+    file.type === 'image/jpeg' &&
+    file.name.includes(COMPRESSED_MARKER) &&
+    file.name.endsWith('.jpg')
+  );
+}
+
 /**
- * ضغط صور العربيات بجودة واضحة للعين ومساحة ~150–200KB.
- * الأبعاد حوالي 1280×960 (مش 600×450 اللي كانت بتبوّظ الصورة).
+ * ضغط صور العربيات بجودة واضحة.
+ * يحل مشكلة iOS: صور الآيفون الكبيرة كانت بتتضغط لـ ~200KB فتبان pixelated
+ * عند بعض المستخدمين (حسب حجم/تعقيد الصورة الأصلية).
  */
 export async function compressCarImage(file: File): Promise<File> {
   if (!isImageFile(file)) {
@@ -142,11 +162,23 @@ export async function compressCarImage(file: File): Promise<File> {
     throw new Error('حجم الصورة يجب أن يكون أقل من 10 ميجابايت');
   }
 
+  // متضغطش تاني لو الملف عدى على الـ pipeline قبل كده (CarForm → upload)
+  if (isAlreadyCompressedByUs(file)) {
+    return file;
+  }
+
   let source: ImageBitmap | HTMLImageElement;
   try {
-    source = await createImageBitmap(file);
+    // imageOrientation: مهم على iOS عشان EXIF orientation يتطبّق صح
+    source = await createImageBitmap(file, {
+      imageOrientation: 'from-image',
+    } as ImageBitmapOptions);
   } catch {
-    source = await loadImageElement(file);
+    try {
+      source = await createImageBitmap(file);
+    } catch {
+      source = await loadImageElement(file);
+    }
   }
 
   const srcW = source.width;
@@ -155,8 +187,6 @@ export async function compressCarImage(file: File): Promise<File> {
     throw new Error('تعذر قراءة أبعاد الصورة');
   }
 
-  // M19: ارفض الصور اللي أبعادها صغيرة جداً (مش هتظهر بشكل مفيد) أو
-  // كبيرة جداً (تستهلك Storage + bandwidth بدون فايدة فعلية).
   if (srcW < MIN_IMAGE_DIMENSION || srcH < MIN_IMAGE_DIMENSION) {
     throw new Error(
       `الصورة صغيرة جداً (${srcW}×${srcH}). الحد الأدنى ${MIN_IMAGE_DIMENSION}px على الأقل بُعد واحد.`
@@ -172,9 +202,9 @@ export async function compressCarImage(file: File): Promise<File> {
   let canvas = drawToCanvas(source, width, height);
   let blob = await encodeNearTarget(canvas);
 
-  // لو لسه أكبر من 200KB عند أقل جودة، صغّر شوية وأعدّ
-  if (blob.size > TARGET_MAX_BYTES) {
-    const smaller = fitWithinBox(srcW, srcH, 1080, 810);
+  // لو لسه ضخم جداً عند أقل جودة مقبولة، صغّر الأبعاد مرة واحدة فقط (مش لجودة 0.55)
+  if (blob.size > HARD_MAX_BYTES) {
+    const smaller = fitWithinBox(srcW, srcH, 1600, 1200);
     width = smaller.width;
     height = smaller.height;
     canvas = drawToCanvas(source, width, height);
@@ -185,8 +215,9 @@ export async function compressCarImage(file: File): Promise<File> {
     source.close();
   }
 
-  const base = file.name.replace(/\.[^.]+$/, '') || 'car';
-  return new File([blob], `${base}.jpg`, {
+  const rawBase = file.name.replace(/\.[^.]+$/, '') || 'car';
+  const base = rawBase.replace(new RegExp(`${COMPRESSED_MARKER}$`), '') || 'car';
+  return new File([blob], `${base}${COMPRESSED_MARKER}.jpg`, {
     type: 'image/jpeg',
     lastModified: Date.now(),
   });
@@ -199,12 +230,8 @@ export async function compressCarImage(file: File): Promise<File> {
  * @returns URL الصورة على Storage
  */
 export async function uploadCarImage(file: File, carId: string): Promise<string> {
-  // لو الفورم ضغط بالفعل ضمن الهدف، متضغطش تاني
-  const alreadyCompressed =
-    file.type === 'image/jpeg' &&
-    file.name.endsWith('.jpg') &&
-    file.size <= TARGET_MAX_BYTES + 20 * 1024;
-  const compressed = alreadyCompressed ? file : await compressCarImage(file);
+  // CarForm بيضغط عند الاختيار — متضغطش تاني (الضغط المزدوج كان بيبوّظ الجودة)
+  const compressed = isAlreadyCompressedByUs(file) ? file : await compressCarImage(file);
 
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);

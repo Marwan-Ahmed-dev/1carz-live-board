@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Save, X, Upload, Loader2, Star, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Save, X, Upload, Loader2, Star, ShieldCheck, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Car, CarCondition, CarStatus, Priority, NewCarInput } from '@/lib/types';
 import { MAX_CAR_IMAGES, MAX_IMAGE_SIZE, CarImageSlot, compressCarImage } from '@/lib/storage';
 import { validatePhone } from '@/lib/phone';
@@ -81,6 +81,9 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const [condition, setCondition] = useState<CarCondition>(initial?.condition || 'used');
   const [status, setStatus] = useState<CarStatus>(initial?.status || 'active');
   const [isFeatured, setIsFeatured] = useState(initial?.is_featured || false);
+  const [isInspected, setIsInspected] = useState(
+    initial?.is_inspected || initial?.priority === 'arabyatna' || false
+  );
   // ✅ FIX: defensive — نتأكد أن assigned_to array (ممكن يكون string قديم في legacy data)
   const [assignedTo, setAssignedTo] = useState<string[]>(
     Array.isArray(initial?.assigned_to)
@@ -228,6 +231,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         additional_images: keptExisting.slice(firstExisting ? 1 : 0),
         condition,
         is_featured: isFeatured,
+        is_inspected: isInspected,
         inspector_name: inspectorName.trim(),
         inspector_phone: inspectorPhone.trim(),
         owner_name: ownerName.trim(),
@@ -363,7 +367,7 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
               {totalImageCount === 0 ? 'اختر صور' : `إضافة صور (${MAX_CAR_IMAGES - totalImageCount} متبقي)`}
             </label>
             <p className="text-xs text-admin-text-muted">
-              JPG / PNG · تُضغط تلقائياً · حد أقصى 10 ميجابايت لكل صورة · حد أقصى {MAX_CAR_IMAGES} صورة إجمالاً
+              JPG / PNG / HEIC · تُضغط بجودة عالية · حد أقصى 10 ميجابايت لكل صورة · حد أقصى {MAX_CAR_IMAGES} صورة
             </p>
           </div>
         )}
@@ -558,20 +562,35 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         </div>
       </div>
 
-      {/* Featured */}
-      <label className="flex items-center gap-3 bg-admin-card border border-admin-border rounded-xl p-3 cursor-pointer hover:border-admin-accent/30 transition-colors">
-        <input
-          type="checkbox"
-          checked={isFeatured}
-          onChange={(e) => setIsFeatured(e.target.checked)}
-          className="w-5 h-5 rounded border-admin-border text-admin-accent focus:ring-admin-accent cursor-pointer"
-        />
-        <Star size={18} className={isFeatured ? 'text-admin-accent' : 'text-admin-text-muted'} fill={isFeatured ? 'currentColor' : 'none'} />
-        <div className="flex-1">
-          <div className="text-sm font-bold text-admin-text">سيارة مفحوصة</div>
-          <div className="text-xs text-admin-text-muted">تعرض علامة الاعتماد على البطاقة وصفحة التفاصيل</div>
-        </div>
-      </label>
+      {/* مميزة + مفحوصة — مستقلين */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-3 bg-admin-card border border-admin-border rounded-xl p-3 cursor-pointer hover:border-admin-accent/30 transition-colors">
+          <input
+            type="checkbox"
+            checked={isFeatured}
+            onChange={(e) => setIsFeatured(e.target.checked)}
+            className="w-5 h-5 rounded border-admin-border text-admin-accent focus:ring-admin-accent cursor-pointer"
+          />
+          <Star size={18} className={isFeatured ? 'text-admin-accent' : 'text-admin-text-muted'} fill={isFeatured ? 'currentColor' : 'none'} />
+          <div className="flex-1">
+            <div className="text-sm font-bold text-admin-text">عربية مميزة</div>
+            <div className="text-xs text-admin-text-muted">تعرض شارة «مميز» (النجمة) على البطاقة</div>
+          </div>
+        </label>
+        <label className="flex items-center gap-3 bg-admin-card border border-admin-border rounded-xl p-3 cursor-pointer hover:border-admin-accent/30 transition-colors">
+          <input
+            type="checkbox"
+            checked={isInspected}
+            onChange={(e) => setIsInspected(e.target.checked)}
+            className="w-5 h-5 rounded border-admin-border text-admin-accent focus:ring-admin-accent cursor-pointer"
+          />
+          <ShieldCheck size={18} className={isInspected ? 'text-emerald-500' : 'text-admin-text-muted'} />
+          <div className="flex-1">
+            <div className="text-sm font-bold text-admin-text">سيارة مفحوصة</div>
+            <div className="text-xs text-admin-text-muted">تعرض علامة الاعتماد (CERTIFIED) على البطاقة</div>
+          </div>
+        </label>
+      </div>
 
       {/* Assignment */}
       <div className="bg-admin-card border border-admin-border rounded-2xl p-4">

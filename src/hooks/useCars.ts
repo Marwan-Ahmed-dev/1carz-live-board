@@ -84,7 +84,14 @@ export function useCars(opts: UseCarsOptions = {}) {
       filtered = filtered.filter((c) => c.created_by_uid === opts.createdByUid);
     }
     if (opts.priority && opts.priority !== 'all') {
-      filtered = filtered.filter((c) => c.priority === opts.priority);
+      if (opts.priority === 'arabyatna') {
+        // فلتر «سيارات مفحوصة»: is_inspected أو priority القديم
+        filtered = filtered.filter(
+          (c) => !!c.is_inspected || c.priority === 'arabyatna'
+        );
+      } else {
+        filtered = filtered.filter((c) => c.priority === opts.priority);
+      }
     }
     if (opts.assignedOnly && opts.uid) {
       filtered = filtered.filter((c) => c.assigned_to.includes(opts.uid!));

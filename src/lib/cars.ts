@@ -57,7 +57,19 @@ function normalizeCar(snap: DocumentData): Car {
     image_url: data.image_url || '',
     additional_images: data.additional_images || [],
     condition: data.condition || 'used',
-    is_featured: data.is_featured || false,
+    // قبل الفصل: is_featured كان يُستخدم لـ «مفحوصة». لو is_inspected مش موجود
+    // نعتبر is_featured القديم = مفحوصة، والمميزة = false عشان الشارات ما تتلخبطش.
+    ...((): { is_featured: boolean; is_inspected: boolean } => {
+      const hasInspectedField = data.is_inspected !== undefined && data.is_inspected !== null;
+      if (hasInspectedField) {
+        return {
+          is_featured: !!data.is_featured,
+          is_inspected: !!data.is_inspected,
+        };
+      }
+      const legacyInspected = !!data.is_featured || data.priority === 'arabyatna';
+      return { is_featured: false, is_inspected: legacyInspected };
+    })(),
     inspector_name: typeof data.inspector_name === 'string' ? data.inspector_name : '',
     inspector_phone: typeof data.inspector_phone === 'string' ? data.inspector_phone : '',
     owner_name: typeof data.owner_name === 'string' ? data.owner_name : '',

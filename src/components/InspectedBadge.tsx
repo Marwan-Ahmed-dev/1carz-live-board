@@ -9,7 +9,7 @@ interface InspectedBadgeProps {
 }
 
 /**
- * علامة الاعتماد — سيارة مفحوصة (بدل شارة مميز).
+ * علامة الاعتماد — سيارة مفحوصة (مستقلة عن شارة مميز).
  */
 export function InspectedBadge({ size = 'sm', className = '' }: InspectedBadgeProps) {
   const dim = size === 'md' ? 72 : 52;
@@ -20,7 +20,7 @@ export function InspectedBadge({ size = 'sm', className = '' }: InspectedBadgePr
       aria-label="سيارة مفحوصة"
     >
       <Image
-        src="/badges/certified.jpg"
+        src="/badges/certified.png"
         alt="مفحوصة — علامة الاعتماد"
         width={dim}
         height={dim}

@@ -32,8 +32,8 @@ export default function CarsBoardPage() {
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
-  /** أدمن: عربياتي فقط | كل العربيات المنشورة من كل الأدمنز */
-  const [adminScope, setAdminScope] = useState<'mine' | 'all'>('mine');
+  /** أدمن: سيارات تم فحصها | كل السيارات */
+  const [adminScope, setAdminScope] = useState<'inspected' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // المجموعات اللي اليوزر عضو فيها (للمسوّق فقط)
@@ -88,15 +88,18 @@ export default function CarsBoardPage() {
     uid: user?.uid,
     publicOnly: isGuest,
     marketerFilter,
-    createdByUid: isAdmin && user && adminScope === 'mine' ? user.uid : null,
     minPrice,
     maxPrice,
   });
 
   const visibleCars = useMemo(() => {
-    if (!searchQuery.trim()) return cars;
-    return cars.filter((c) => titleMatchesSearchQuery(c.title, searchQuery));
-  }, [cars, searchQuery]);
+    let list = cars;
+    if (isAdmin && adminScope === 'inspected') {
+      list = list.filter((c) => !!c.is_inspected || c.priority === 'arabyatna');
+    }
+    if (!searchQuery.trim()) return list;
+    return list.filter((c) => titleMatchesSearchQuery(c.title, searchQuery));
+  }, [cars, searchQuery, isAdmin, adminScope]);
 
   const groups = useMemo(() => groupByPriority(visibleCars), [visibleCars]);
   const totalCount = visibleCars.length;
@@ -148,14 +151,14 @@ export default function CarsBoardPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setAdminScope('mine')}
+              onClick={() => setAdminScope('inspected')}
               className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                adminScope === 'mine'
+                adminScope === 'inspected'
                   ? 'bg-accent-yellow text-text-primary'
                   : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
               }`}
             >
-              عربياتي
+              سيارات تم فحصها
             </button>
             <button
               type="button"
@@ -166,7 +169,7 @@ export default function CarsBoardPage() {
                   : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
               }`}
             >
-              كل العربيات
+              كل السيارات
             </button>
           </div>
         )}
@@ -227,7 +230,15 @@ export default function CarsBoardPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {PRIORITY_ORDER.map((p) => {
+              {/* عربيات priority=arabyatna تظهر بدون سكشن «سيارات مفحوصة» */}
+              {groups.arabyatna && groups.arabyatna.length > 0 && (
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+                  {groups.arabyatna.map((car) => (
+                    <CarCard key={car.id} car={car} />
+                  ))}
+                </div>
+              )}
+              {PRIORITY_ORDER.filter((p) => p !== 'arabyatna').map((p) => {
                 const list = groups[p];
                 if (!list || list.length === 0) return null;
                 return (

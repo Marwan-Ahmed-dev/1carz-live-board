@@ -124,7 +124,10 @@ export interface Car {
   image_url: string; // رابط الصورة الرئيسية
   additional_images: string[]; // صور إضافية (بحد أقصى 29 صورة إضافية، الإجمالي 30)
   condition: CarCondition; // جودة العربية
-  is_featured: boolean; // مفحوصة — تعرض علامة الاعتماد
+  /** مميزة — شارة النجمة */
+  is_featured: boolean;
+  /** مفحوصة — علامة الاعتماد (CERTIFIED). مستقلة عن is_featured */
+  is_inspected?: boolean;
   inspector_name: string;
   inspector_phone: string;
   owner_name: string;

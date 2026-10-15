@@ -19,6 +19,7 @@ import {
   Phone,
   Edit3,
   Trash2,
+  Star,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCar, deleteCar } from '@/lib/cars';
@@ -396,10 +397,18 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                     </button>
                   </div>
                 )}
-                {/* علامة الاعتماد — سيارة مفحوصة */}
-                {(car.is_featured || car.priority === 'arabyatna') && (
-                  <div className="absolute bottom-3 right-3 z-10">
-                    <InspectedBadge size="md" />
+                {/* شارات: مميز و/أو مفحوصة — ممكن الاتنين مع بعض */}
+                {(car.is_featured || car.is_inspected || car.priority === 'arabyatna') && (
+                  <div className="absolute bottom-3 right-3 z-10 flex flex-col items-end gap-2">
+                    {car.is_featured && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
+                        <Star size={14} fill="currentColor" />
+                        مميز
+                      </span>
+                    )}
+                    {(car.is_inspected || car.priority === 'arabyatna') && (
+                      <InspectedBadge size="md" />
+                    )}
                   </div>
                 )}
                 {/* عداد الصور */}
