@@ -47,7 +47,8 @@ const IMG = {
 export default function LandingPage() {
   const router = useRouter();
   const { user, loading: authLoading, needsOnboarding, isAdmin, isSource } = useAuth();
-  useRevealOnScroll();
+  const showLanding = !authLoading && !user;
+  useRevealOnScroll(showLanding);
 
   useEffect(() => {
     if (authLoading) return;

@@ -79,6 +79,12 @@ button,
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* متخليش عناصر اللاندينج تفضل مختفية لو الأنيميشن اتقصّرت */
+  .land-fade-up,
+  .land-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* إصلاح scroll bar */
@@ -225,7 +231,7 @@ select:focus {
   100% { transform: scale(1.14) translate3d(-1.5%, 1%, 0); }
 }
 @keyframes land-fade-up {
-  from { opacity: 0; transform: translate3d(0, 28px, 0); }
+  from { opacity: 0.2; transform: translate3d(0, 20px, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes land-fade-in {
@@ -250,9 +256,9 @@ select:focus {
   animation: land-kenburns 22s ease-in-out infinite alternate;
   will-change: transform;
 }
+/* المحتوى ظاهر افتراضيًا — الأنيميشن تحسين مش شرط ظهور */
 .land-fade-up {
-  opacity: 0;
-  animation: land-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
 }
 .land-delay-1 { animation-delay: 0.12s; }
 .land-delay-2 { animation-delay: 0.28s; }
@@ -261,18 +267,29 @@ select:focus {
 .land-delay-5 { animation-delay: 0.76s; }
 
 .land-reveal {
-  opacity: 0;
-  transform: translate3d(0, 36px, 0);
-  transition:
-    opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.land-reveal.is-in {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .land-fade-up {
+    animation: land-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .land-reveal {
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.7s ease;
+  }
+  .land-reveal:not(.is-in) {
+    transform: translate3d(0, 16px, 0);
+    opacity: 0.92;
+  }
+  .land-reveal.is-in {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
 }
 
 .land-brand-shine {
+  color: #fff;
   background-image: linear-gradient(
     110deg,
     #fff 0%,
@@ -284,9 +301,18 @@ select:focus {
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
-  animation: land-shine 4.5s ease-in-out infinite;
 }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .land-brand-shine {
+    color: transparent;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .land-brand-shine {
+    animation: land-shine 4.5s ease-in-out infinite;
+  }
+}
+
 .land-float {
   animation: land-float 5s ease-in-out infinite;
 }
