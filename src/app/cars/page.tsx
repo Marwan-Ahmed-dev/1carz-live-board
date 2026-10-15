@@ -32,7 +32,7 @@ export default function CarsBoardPage() {
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
-  /** أدمن: سيارات تم فحصها | كل السيارات */
+  /** أدمن: سياراتنا | كل السيارات */
   const [adminScope, setAdminScope] = useState<'inspected' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -158,7 +158,7 @@ export default function CarsBoardPage() {
                   : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
               }`}
             >
-              سيارات تم فحصها
+              سياراتنا
             </button>
             <button
               type="button"

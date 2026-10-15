@@ -85,7 +85,7 @@ export function useCars(opts: UseCarsOptions = {}) {
     }
     if (opts.priority && opts.priority !== 'all') {
       if (opts.priority === 'arabyatna') {
-        // فلتر «سيارات مفحوصة»: is_inspected أو priority القديم
+        // فلتر «سيارات تم فحصها»: is_inspected أو priority القديم
         filtered = filtered.filter(
           (c) => !!c.is_inspected || c.priority === 'arabyatna'
         );

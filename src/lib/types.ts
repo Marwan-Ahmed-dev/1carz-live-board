@@ -11,7 +11,7 @@ export type FirestoreTs = Timestamp | null;
 
 /**
  * أولويات عرض العربيات
- * - arabyatna: سيارات مفحوصة
+ * - arabyatna: سيارات تم فحصها
  * - top: قصوى (أعلى مستوى)
  * - high: عالية
  * - medium: متوسطة

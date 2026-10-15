@@ -97,7 +97,7 @@ export default function AdminDashboardPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard
-          label="سيارات مفحوصة"
+          label="سيارات تم فحصها"
           value={counts.arabyatna}
           accent="yellow"
           icon={<Heart size={20} />}
