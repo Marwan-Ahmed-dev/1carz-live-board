@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import { Cairo, Inter } from 'next/font/google';
 import { AppProviders } from '@/components/AppProviders';
+import { MetaPixel } from '@/components/MetaPixel';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import './globals.css';
 
@@ -79,6 +81,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="1CARZ" />
       </head>
       <body className="font-arabic">
+        <Suspense fallback={null}>
+          <MetaPixel />
+        </Suspense>
         <ServiceWorkerRegister />
         <AppProviders>{children}</AppProviders>
       </body>

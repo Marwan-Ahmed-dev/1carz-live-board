@@ -6,13 +6,14 @@
 // nosniff + DENY framing + strict-origin referrer + minimal Permissions-Policy
 const CSP_HEADER = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  // Meta Pixel (fbevents.js) + Next inline
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net",
   "style-src 'self' 'unsafe-inline'",
-  // Firebase Storage + Google profile pics + Firebase Auth avatars
-  "img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com",
+  // Firebase Storage + Google profile pics + Meta Pixel noscript beacon
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://www.facebook.com https://*.facebook.com",
   "font-src 'self' data:",
-  // Firebase Auth/Firestore/App Check + Storage uploads (incl. wss for legacy RTDB)
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://identitytoolkit.googleapis.com",
+  // Firebase + Meta Pixel network
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://identitytoolkit.googleapis.com https://connect.facebook.net https://www.facebook.com https://*.facebook.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
