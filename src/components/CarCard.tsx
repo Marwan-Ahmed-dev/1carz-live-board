@@ -3,10 +3,11 @@
 import { memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Star, Car as CarIcon, Eye, MapPin, Phone } from 'lucide-react';
+import { Car as CarIcon, Eye, MapPin, Phone } from 'lucide-react';
 import { Car as CarType } from '@/lib/types';
 import { formatPrice } from '@/lib/format';
 import { CopyButton } from '@/components/CopyButton';
+import { InspectedBadge } from '@/components/InspectedBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -91,12 +92,9 @@ function CarCardInner({ car }: CarCardProps) {
       }}
       className="relative flex flex-col h-full bg-bg-card rounded-xl sm:rounded-2xl overflow-hidden shadow-soft border border-border-soft cursor-pointer transition-shadow hover:shadow-medium"
     >
-      {isFeatured && (
-        <div className="absolute z-10 top-1.5 right-1.5 sm:top-2 sm:right-2">
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-accent-yellow text-text-primary text-[10px] sm:text-xs font-bold shadow-soft">
-            <Star size={10} fill="currentColor" className="sm:w-3 sm:h-3" />
-            مميز
-          </span>
+      {(isFeatured || car.priority === 'arabyatna') && (
+        <div className="absolute z-10 top-1 right-1 sm:top-1.5 sm:right-1.5">
+          <InspectedBadge size="sm" />
         </div>
       )}
 

@@ -3,11 +3,17 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { KeyRound, LogIn, ShoppingBag, Phone, Mail } from 'lucide-react';
+import { KeyRound, LogIn, ShoppingBag, Phone, Mail, MapPin, Facebook } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingState } from '@/components/LoadingState';
-import { COMPANY_EMAIL, COMPANY_PHONE, COMPANY_WHATSAPP } from '@/lib/site';
+import {
+  COMPANY_EMAIL,
+  COMPANY_PHONE,
+  COMPANY_WHATSAPP,
+  COMPANY_FACEBOOK,
+  COMPANY_MAPS,
+} from '@/lib/site';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -102,21 +108,39 @@ export default function LandingPage() {
             تواصل معنا
           </h2>
           <p className="text-text-secondary text-sm">
-            للتواصل أو بيع عربيتك — خطوة واحدة عبر واتساب، بدون استمارات طويلة.
+            للتواصل أو بيع عربيتك — واتساب، فيسبوك، أو زيارتنا على الخريطة.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <a
               href={COMPANY_WHATSAPP}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold"
+              className="inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold"
             >
               <Phone size={16} />
               واتساب <span dir="ltr">{COMPANY_PHONE}</span>
             </a>
             <a
+              href={COMPANY_FACEBOOK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-bold"
+            >
+              <Facebook size={16} />
+              فيسبوك
+            </a>
+            <a
+              href={COMPANY_MAPS}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-border-soft text-text-primary text-sm font-bold"
+            >
+              <MapPin size={16} />
+              الموقع على الخريطة
+            </a>
+            <a
               href={`mailto:${COMPANY_EMAIL}`}
-              className="flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-border-soft text-text-primary text-sm font-bold"
+              className="inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-border-soft text-text-primary text-sm font-bold"
             >
               <Mail size={16} />
               {COMPANY_EMAIL}

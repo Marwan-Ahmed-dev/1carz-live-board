@@ -6,7 +6,7 @@ import { PRIORITY_LABELS, PRIORITY_ORDER } from '@/lib/priority';
 interface PriorityButtonsProps {
   current: PriorityFilter;
   onChange: (filter: PriorityFilter) => void;
-  /** للضيف: الكل + عربياتنا فقط */
+  /** للضيف: الكل + سيارات مفحوصة فقط */
   guestMode?: boolean;
 }
 

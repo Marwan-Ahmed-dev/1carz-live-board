@@ -11,7 +11,7 @@ export type FirestoreTs = Timestamp | null;
 
 /**
  * أولويات عرض العربيات
- * - arabyatna: عربياتنا
+ * - arabyatna: سيارات مفحوصة
  * - top: قصوى (أعلى مستوى)
  * - high: عالية
  * - medium: متوسطة
@@ -124,7 +124,7 @@ export interface Car {
   image_url: string; // رابط الصورة الرئيسية
   additional_images: string[]; // صور إضافية (بحد أقصى 29 صورة إضافية، الإجمالي 30)
   condition: CarCondition; // جودة العربية
-  is_featured: boolean; // مميزة (تعرض badge "مميز")
+  is_featured: boolean; // مفحوصة — تعرض علامة الاعتماد
   inspector_name: string;
   inspector_phone: string;
   owner_name: string;

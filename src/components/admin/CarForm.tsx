@@ -568,8 +568,8 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         />
         <Star size={18} className={isFeatured ? 'text-admin-accent' : 'text-admin-text-muted'} fill={isFeatured ? 'currentColor' : 'none'} />
         <div className="flex-1">
-          <div className="text-sm font-bold text-admin-text">عربية مميزة</div>
-          <div className="text-xs text-admin-text-muted">تعرض شارة "مميز" على البطاقة</div>
+          <div className="text-sm font-bold text-admin-text">سيارة مفحوصة</div>
+          <div className="text-xs text-admin-text-muted">تعرض علامة الاعتماد على البطاقة وصفحة التفاصيل</div>
         </div>
       </label>
 

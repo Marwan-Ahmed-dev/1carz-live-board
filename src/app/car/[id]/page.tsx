@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   Calendar,
-  Star,
   Shield,
   Car as CarIcon,
   Loader2,
@@ -32,6 +31,7 @@ import { Lightbox } from '@/components/Lightbox';
 import { formatPrice, formatRelativeDate, formatFullDate } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
 import { StatusBadge } from '@/components/StatusBadge';
+import { InspectedBadge } from '@/components/InspectedBadge';
 import { ConfirmDialog, useConfirm } from '@/components/ConfirmDialog';
 
 const CONDITION_META: Record<CarCondition, string> = {
@@ -396,13 +396,10 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                     </button>
                   </div>
                 )}
-                {/* Badge "مميز" */}
-                {car.is_featured && (
+                {/* علامة الاعتماد — سيارة مفحوصة */}
+                {(car.is_featured || car.priority === 'arabyatna') && (
                   <div className="absolute bottom-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-yellow text-text-primary text-sm font-bold shadow-medium">
-                      <Star size={14} fill="currentColor" />
-                      مميز
-                    </span>
+                    <InspectedBadge size="md" />
                   </div>
                 )}
                 {/* عداد الصور */}

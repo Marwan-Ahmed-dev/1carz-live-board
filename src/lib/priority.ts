@@ -3,7 +3,7 @@ import { Priority, PriorityFilter } from './types';
 export const PRIORITY_ORDER: Priority[] = ['arabyatna', 'top', 'high', 'medium', 'low'];
 
 export const PRIORITY_LABELS: Record<Priority, string> = {
-  arabyatna: 'عربياتنا',
+  arabyatna: 'سيارات مفحوصة',
   top: 'قصوى',
   high: 'عالية',
   medium: 'متوسطة',
@@ -11,7 +11,7 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
 };
 
 export const PRIORITY_SECTION_LABELS: Record<Priority, string> = {
-  arabyatna: 'عربياتنا',
+  arabyatna: 'سيارات مفحوصة',
   top: 'أولوية قصوى',
   high: 'أولوية عالية',
   medium: 'أولوية متوسطة',
