@@ -35,13 +35,14 @@ import {
   PLAY_STORE_URL,
 } from '@/lib/site';
 
+/** صور محلية — CSP كان بيمنع Unsplash فكانت الأماكن فاضية */
 const IMG = {
-  hero: 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1800&q=80',
-  showroom: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80',
-  keys: 'https://images.unsplash.com/photo-1489824904134-891ab64532f1?auto=format&fit=crop&w=1200&q=80',
-  handshake: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1200&q=80',
-  night: 'https://images.unsplash.com/photo-1542362567-b07e54358753?auto=format&fit=crop&w=1200&q=80',
-  garage: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=1200&q=80',
+  hero: '/landing/hero.jpg',
+  showroom: '/landing/showroom.jpg',
+  keys: '/landing/keys.jpg',
+  handshake: '/landing/deal.jpg',
+  night: '/landing/night.jpg',
+  garage: '/landing/garage.jpg',
 };
 
 export default function LandingPage() {
@@ -120,10 +121,17 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="relative min-h-[100svh] flex items-end sm:items-center pt-24 pb-16">
         <div className="absolute inset-0 overflow-hidden">
-          <div
-            className="land-hero-bg absolute inset-[-4%] bg-cover bg-center"
-            style={{ backgroundImage: `url(${IMG.hero})` }}
-          />
+          <div className="land-hero-bg absolute inset-[-4%]">
+            <Image
+              src={IMG.hero}
+              alt="1Carz — سيارات"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover"
+              unoptimized
+            />
+          </div>
           <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0c] via-[#0c0c0c]/60 to-[#0c0c0c]/40" />
           <div className="absolute inset-0 bg-gradient-to-l from-[#0c0c0c]/85 via-transparent to-transparent" />
           <div className="land-grain absolute inset-0" />
@@ -216,9 +224,17 @@ export default function LandingPage() {
           </div>
           <div className="land-reveal order-1 lg:order-2 relative">
             <div className="relative aspect-[4/3] rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-              <div className="absolute inset-0 bg-cover bg-center land-float" style={{ backgroundImage: `url(${IMG.showroom})`, animationDuration: '7s' }} />
+              <Image
+                src={IMG.showroom}
+                alt="عربية فاخرة — عروض 1Carz"
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover land-float"
+                style={{ animationDuration: '7s' }}
+                unoptimized
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-              <p className="absolute bottom-5 right-5 left-5 text-sm font-bold text-white/90">
+              <p className="absolute bottom-5 right-5 left-5 text-sm font-bold text-white/90 z-[1]">
                 عروض حقيقية · صور واضحة · تفاصيل كافية قبل ما تنزل تعاين
               </p>
             </div>
@@ -281,12 +297,16 @@ export default function LandingPage() {
                 className="land-reveal group relative overflow-hidden rounded-3xl border border-white/10 min-h-[320px]"
                 style={{ transitionDelay: `${i * 90}ms` }}
               >
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-[1.4s] group-hover:scale-110"
-                  style={{ backgroundImage: `url(${card.img})` }}
+                <Image
+                  src={card.img}
+                  alt={card.t}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover transition-transform duration-[1.4s] group-hover:scale-110"
+                  unoptimized
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/10" />
-                <div className="absolute bottom-0 p-6 space-y-2">
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/10 z-[1]" />
+                <div className="absolute bottom-0 p-6 space-y-2 z-[2]">
                   <h3 className="text-2xl font-black text-white">{card.t}</h3>
                   <p className="text-white/75 text-sm leading-relaxed">{card.d}</p>
                 </div>
@@ -394,14 +414,19 @@ export default function LandingPage() {
               </a>
             </div>
             <div className="land-reveal flex-1 flex justify-center lg:justify-end">
-              <div className="relative w-full max-w-sm aspect-[4/5] rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-1 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-                <div
-                  className="h-full w-full rounded-[1.85rem] bg-cover bg-center"
-                  style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(12,12,12,0.1), rgba(12,12,12,0.75)), url(${IMG.night})`,
-                  }}
-                />
-                <div className="absolute bottom-6 inset-x-6 rounded-2xl bg-black/55 backdrop-blur-md border border-white/15 px-4 py-3">
+              <div className="relative w-full max-w-sm aspect-[4/5] rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-1 shadow-[0_30px_80px_rgba(0,0,0,0.45)] overflow-hidden">
+                <div className="relative h-full w-full rounded-[1.85rem] overflow-hidden">
+                  <Image
+                    src={IMG.night}
+                    alt="تطبيق 1Carz على الموبايل"
+                    fill
+                    sizes="(max-width: 1024px) 90vw, 380px"
+                    className="object-cover"
+                    unoptimized
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                </div>
+                <div className="absolute bottom-6 inset-x-6 rounded-2xl bg-black/55 backdrop-blur-md border border-white/15 px-4 py-3 z-[1]">
                   <p className="text-accent-yellow text-xs font-bold mb-0.5">1Carz App</p>
                   <p className="text-white text-sm font-extrabold">سوق العربيات… في إيدك</p>
                 </div>
