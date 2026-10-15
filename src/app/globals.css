@@ -218,3 +218,90 @@ select:focus {
   font-family: var(--font-inter), sans-serif;
   font-weight: 700;
 }
+
+/* ─── Landing page motion ─── */
+@keyframes land-kenburns {
+  0% { transform: scale(1.05) translate3d(0, 0, 0); }
+  100% { transform: scale(1.14) translate3d(-1.5%, 1%, 0); }
+}
+@keyframes land-fade-up {
+  from { opacity: 0; transform: translate3d(0, 28px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes land-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes land-shine {
+  0% { background-position: 120% 50%; }
+  100% { background-position: -20% 50%; }
+}
+@keyframes land-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -10px, 0); }
+}
+@keyframes land-pulse-ring {
+  0% { transform: scale(0.92); opacity: 0.55; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+.land-hero-bg {
+  animation: land-kenburns 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.land-fade-up {
+  opacity: 0;
+  animation: land-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.land-delay-1 { animation-delay: 0.12s; }
+.land-delay-2 { animation-delay: 0.28s; }
+.land-delay-3 { animation-delay: 0.44s; }
+.land-delay-4 { animation-delay: 0.6s; }
+.land-delay-5 { animation-delay: 0.76s; }
+
+.land-reveal {
+  opacity: 0;
+  transform: translate3d(0, 36px, 0);
+  transition:
+    opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.land-reveal.is-in {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.land-brand-shine {
+  background-image: linear-gradient(
+    110deg,
+    #fff 0%,
+    #fff 38%,
+    #fcd34d 48%,
+    #fff 58%,
+    #fff 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: land-shine 4.5s ease-in-out infinite;
+}
+.land-float {
+  animation: land-float 5s ease-in-out infinite;
+}
+.land-pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid rgba(252, 211, 77, 0.55);
+  animation: land-pulse-ring 2.4s ease-out infinite;
+}
+
+.land-grain {
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+}

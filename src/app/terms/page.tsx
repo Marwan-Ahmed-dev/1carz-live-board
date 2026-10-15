@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { SITE_NAME, SITE_URL, COMPANY_EMAIL, COMPANY_PHONE } from '@/lib/site';
+import { SITE_NAME, SITE_URL, COMPANY_PHONE, COMPANY_WHATSAPP } from '@/lib/site';
+import { SiteLegalChrome } from '@/components/SiteLegalChrome';
 
 export const metadata: Metadata = {
   title: `الشروط والأحكام | ${SITE_NAME}`,
@@ -10,12 +10,9 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-bg-primary">
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6 text-text-secondary text-sm leading-relaxed">
-        <Link href="/" className="text-text-primary font-bold hover:underline">
-          ← 1CARZ
-        </Link>
-        <h1 className="text-2xl font-extrabold text-text-primary">الشروط والأحكام</h1>
+    <SiteLegalChrome>
+      <div className="max-w-3xl mx-auto px-4 py-10 space-y-6 text-text-secondary text-sm leading-relaxed">
+        <h1 className="text-3xl font-black text-text-primary">الشروط والأحكام</h1>
         <p>آخر تحديث: أكتوبر 2026</p>
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-text-primary">1. قبول الشروط</h2>
@@ -45,17 +42,19 @@ export default function TermsPage() {
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-text-primary">5. التواصل</h2>
           <p>
-            للاستفسارات:{' '}
-            <a className="text-accent-yellow-hover font-bold" href={`mailto:${COMPANY_EMAIL}`}>
-              {COMPANY_EMAIL}
-            </a>{' '}
-            · واتساب{' '}
-            <span dir="ltr" className="font-bold text-text-primary">
-              {COMPANY_PHONE}
-            </span>
+            للاستفسارات تواصل عبر واتساب{' '}
+            <a
+              className="text-accent-yellow-hover font-bold"
+              href={COMPANY_WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span dir="ltr">{COMPANY_PHONE}</span>
+            </a>
+            .
           </p>
         </section>
-      </main>
-    </div>
+      </div>
+    </SiteLegalChrome>
   );
 }

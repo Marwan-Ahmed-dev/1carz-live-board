@@ -30,7 +30,8 @@ export const metadata: Metadata = {
     default: SITE_NAME,
     template: `%s | ${SITE_NAME}`,
   },
-  description: 'لوحة العربيات الحية - 1CARZ',
+  description:
+    '1CARZ — منصة مصرية لتسويق وبيع السيارات. تصفّح اللوحة الحية، سيارات تم فحصها، وحمّل التطبيق من Google Play.',
   alternates: { canonical: '/' },
   manifest: '/manifest.json?v=8',
   applicationName: SITE_NAME,
