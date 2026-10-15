@@ -13,9 +13,6 @@ declare global {
   }
 }
 
-/**
- * Meta Pixel base code — PageView على كل صفحة + SPA navigations.
- */
 export function MetaPixel() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,7 +39,6 @@ fbq('track', 'PageView');
         `}
       </Script>
       <noscript>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           height="1"
           width="1"

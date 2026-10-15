@@ -13,6 +13,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { PriorityFilter } from '@/lib/types';
 import { PRIORITY_ACCENTS, PRIORITY_LABELS, PRIORITY_ORDER, PRIORITY_SECTION_LABELS } from '@/lib/priority';
 import { subscribeToGroups } from '@/lib/groups';
+import { titleMatchesSearchQuery } from '@/lib/brandAliases';
+import { Search } from 'lucide-react';
 
 /**
  * المسوّق = أي حساب مسجّل مش أدمن ومش معاين ومش source.
@@ -32,6 +34,7 @@ export default function CarsBoardPage() {
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
   /** أدمن: عربياتي فقط | كل العربيات المنشورة من كل الأدمنز */
   const [adminScope, setAdminScope] = useState<'mine' | 'all'>('mine');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // المجموعات اللي اليوزر عضو فيها (للمسوّق فقط)
   const [marketerGroupUids, setMarketerGroupUids] = useState<string[]>([]);
@@ -90,8 +93,13 @@ export default function CarsBoardPage() {
     maxPrice,
   });
 
-  const groups = useMemo(() => groupByPriority(cars), [cars]);
-  const totalCount = cars.length;
+  const visibleCars = useMemo(() => {
+    if (!searchQuery.trim()) return cars;
+    return cars.filter((c) => titleMatchesSearchQuery(c.title, searchQuery));
+  }, [cars, searchQuery]);
+
+  const groups = useMemo(() => groupByPriority(visibleCars), [visibleCars]);
+  const totalCount = visibleCars.length;
 
   if (authLoading) {
     return (
@@ -163,6 +171,20 @@ export default function CarsBoardPage() {
           </div>
         )}
 
+        <div className="relative">
+          <Search
+            size={16}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+          />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ابحث بالماركة أو الموديل (عربي أو إنجليزي)…"
+            className="w-full pr-9 pl-3 py-2.5 rounded-xl bg-bg-card border border-border-soft text-sm text-text-primary placeholder:text-text-muted"
+          />
+        </div>
+
         <PriceFilter
           onApply={(min, max) => {
             setMinPrice(min);
@@ -183,13 +205,15 @@ export default function CarsBoardPage() {
 
         {!loading && !error && totalCount === 0 && (
           <EmptyState
-            title="لا توجد عربيات حالياً"
+            title={searchQuery.trim() ? 'لا نتائج لهذا البحث' : 'لا توجد عربيات حالياً'}
             description={
-              isMarketer
-                ? 'لا توجد عربيات مخصصة لك أو لمجموعتك بعد. تواصل مع الأدمن.'
-                : priorityFilter === 'all'
-                  ? 'سيتم إضافة عربيات جديدة قريباً. تابعنا!'
-                  : `لا توجد عربيات بمستوى ${PRIORITY_LABELS[priorityFilter]} حالياً`
+              searchQuery.trim()
+                ? 'جرّب اسم الماركة بالعربي أو الإنجليزي (مثل: مرسيدس / Mercedes)'
+                : isMarketer
+                  ? 'لا توجد عربيات مخصصة لك أو لمجموعتك بعد. تواصل مع الأدمن.'
+                  : priorityFilter === 'all'
+                    ? 'سيتم إضافة عربيات جديدة قريباً. تابعنا!'
+                    : `لا توجد عربيات بمستوى ${PRIORITY_LABELS[priorityFilter]} حالياً`
             }
           />
         )}

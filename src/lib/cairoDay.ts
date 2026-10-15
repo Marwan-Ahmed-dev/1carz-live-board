@@ -22,6 +22,12 @@ export function startOfCairoDay(now = new Date()): Date {
   return new Date(hi);
 }
 
+/** بداية يوم أمس بتوقيت القاهرة */
+export function startOfCairoYesterday(now = new Date()): Date {
+  const todayStart = startOfCairoDay(now);
+  return startOfCairoDay(new Date(todayStart.getTime() - 12 * 3600_000));
+}
+
 export function formatCairoTodayLabel(now = new Date()): string {
   return new Intl.DateTimeFormat('ar-EG', {
     timeZone: CAIRO_TZ,

@@ -13,7 +13,7 @@ import {
 import { auth, db } from './firebase';
 import { BuyerLead, DEFAULT_DAILY_BUYER_LIMIT } from './types';
 import { digitsOnly, validateBuyerPhone } from './phone';
-import { cairoDateKey, startOfCairoDay } from './cairoDay';
+import { cairoDateKey, startOfCairoDay, startOfCairoYesterday } from './cairoDay';
 import { logger } from './logger';
 
 const BUYER_LEADS = 'buyer_leads';
@@ -29,6 +29,8 @@ function normalizeLead(id: string, data: Record<string, unknown>): BuyerLead {
     marketer_uid: typeof data.marketer_uid === 'string' ? data.marketer_uid : '',
     marketer_name: typeof data.marketer_name === 'string' ? data.marketer_name : null,
     marketer_phone: typeof data.marketer_phone === 'string' ? data.marketer_phone : null,
+    car_id: typeof data.car_id === 'string' ? data.car_id : null,
+    car_title: typeof data.car_title === 'string' ? data.car_title : null,
     created_at: (data.created_at as Timestamp) || null,
   };
 }
@@ -50,6 +52,9 @@ export interface AddBuyerLeadInput {
   marketerName?: string | null;
   marketerPhone?: string | null;
   dailyLimit?: number;
+  /** مطلوب — التسجيل من صفحة عربية محددة فقط */
+  carId: string;
+  carTitle: string;
 }
 
 /**
@@ -86,6 +91,12 @@ export async function addBuyerLead(input: AddBuyerLeadInput): Promise<string> {
   const description = (input.description || '').trim();
   if (!description) throw new Error('الوصف مطلوب');
 
+  const carId = (input.carId || '').trim();
+  const carTitle = (input.carTitle || '').trim();
+  if (!carId || !carTitle) {
+    throw new Error('لازم تسجّل المشتري من صفحة عربية محددة');
+  }
+
   const limit =
     typeof input.dailyLimit === 'number' && input.dailyLimit > 0
       ? Math.floor(input.dailyLimit)
@@ -112,6 +123,8 @@ export async function addBuyerLead(input: AddBuyerLeadInput): Promise<string> {
       marketer_uid: user.uid,
       marketer_name: input.marketerName || null,
       marketer_phone: input.marketerPhone || null,
+      car_id: carId,
+      car_title: carTitle,
       created_at: serverTimestamp(),
     });
 
@@ -158,6 +171,32 @@ export function subscribeToTodaysBuyerLeads(
   callback: (leads: BuyerLead[]) => void
 ): () => void {
   return subscribeToBuyerLeadsSince(startOfCairoDay(), callback);
+}
+
+/**
+ * مشترين أمس فقط (من بداية أمس القاهرة لبداية النهاردة).
+ */
+export function subscribeToYesterdaysBuyerLeads(
+  callback: (leads: BuyerLead[]) => void
+): () => void {
+  const yesterdayStart = startOfCairoYesterday();
+  const todayStart = startOfCairoDay();
+  const q = query(
+    collection(db, BUYER_LEADS),
+    where('created_at', '>=', Timestamp.fromDate(yesterdayStart)),
+    where('created_at', '<', Timestamp.fromDate(todayStart)),
+    orderBy('created_at', 'desc')
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => normalizeLead(d.id, d.data() as Record<string, unknown>)));
+    },
+    (err) => {
+      logger.error('buyer_leads yesterday subscription error:', err);
+      callback([]);
+    }
+  );
 }
 
 export function subscribeToLast30DaysBuyerLeads(

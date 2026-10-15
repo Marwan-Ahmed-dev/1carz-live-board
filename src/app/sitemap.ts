@@ -1,28 +1,43 @@
 import type { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/site';
 
-/**
- * ✅ L21 — Dynamic sitemap for 1CARZ LIVE BOARD.
- *
- * Public routes only — admin/, api/, car/[id], buyers/* are intentionally
- * excluded (they need auth or are user-specific). Adjust `SITE_URL` if the
- * canonical domain changes.
- */
-const SITE_URL = 'https://1carz-pwa.vercel.app';
-
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
-  const routes = [
+  const staticRoutes = [
     '',
-    '/login',
-    '/onboarding',
     '/cars',
+    '/privacy',
+    '/terms',
     '/3arabyatna',
   ];
 
-  return routes.map((path) => ({
+  const entries: MetadataRoute.Sitemap = staticRoutes.map((path) => ({
     url: `${SITE_URL}${path}`,
     lastModified: now,
-    changeFrequency: path === '' || path === '/cars' ? 'hourly' : 'daily',
-    priority: path === '' ? 1.0 : path === '/cars' ? 0.9 : 0.7,
+    changeFrequency: path === '' || path === '/cars' ? 'hourly' : 'weekly',
+    priority: path === '' ? 1 : path === '/cars' ? 0.9 : 0.6,
   }));
+
+  try {
+    const { getAdminDb } = await import('@/lib/firebaseAdmin');
+    const snap = await getAdminDb()
+      .collection('cars')
+      .orderBy('created_at', 'desc')
+      .limit(200)
+      .get();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const updated = data.updated_at?.toDate?.() || data.created_at?.toDate?.() || now;
+      entries.push({
+        url: `${SITE_URL}/car/${doc.id}`,
+        lastModified: updated instanceof Date ? updated : now,
+        changeFrequency: 'daily',
+        priority: 0.8,
+      });
+    }
+  } catch {
+    // Build/runtime without admin credentials — static routes only
+  }
+
+  return entries;
 }

@@ -171,7 +171,7 @@ export interface AppUser {
   last_seen: FirestoreTs;
 }
 
-/** تسجيل مشتري من المسوّق */
+/** تسجيل مشتري / معاينة من المسوّق (مرتبط بعربية) */
 export interface BuyerLead {
   id: string;
   name: string;
@@ -180,6 +180,9 @@ export interface BuyerLead {
   marketer_uid: string;
   marketer_name: string | null;
   marketer_phone: string | null;
+  /** العربية اللي اتسجّل منها المشتري */
+  car_id?: string | null;
+  car_title?: string | null;
   created_at: FirestoreTs;
 }
 

@@ -48,7 +48,8 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   // بنداؤه consistent في كل الـ renders. الحل: destructure مباشرة.
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAdmin, isInspector, loading: authLoading, needsOnboarding } = useAuth();
+  const { user, isAdmin, isInspector, isSource, loading: authLoading, needsOnboarding } = useAuth();
+  const isMarketer = !!user && !isAdmin && !isInspector && !isSource;
   const { showToast } = useToast();
   const { confirm, dialogProps } = useConfirm();
   const [car, setCar] = useState<CarType | null>(null);
@@ -131,6 +132,28 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     setActiveImageIdx(0);
   }, [car?.id]);
 
+  // Meta Pixel + GA: ViewContent على صفحة العربية
+  useEffect(() => {
+    if (!car?.id) return;
+    if (typeof window !== 'undefined' && typeof window.fbq === 'function') {
+      window.fbq('track', 'ViewContent', {
+        content_ids: [car.id],
+        content_name: car.title,
+        content_type: 'product',
+        value: car.price,
+        currency: 'EGP',
+      });
+    }
+    const gtag = (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag;
+    if (typeof gtag === 'function') {
+      gtag('event', 'view_item', {
+        items: [{ item_id: car.id, item_name: car.title, price: car.price }],
+        currency: 'EGP',
+        value: car.price,
+      });
+    }
+  }, [car?.id, car?.title, car?.price]);
+
   // قائمة كل الصور (الرئيسية + الإضافية)
   const allImages = useMemo(
     () => (car ? [car.image_url, ...(car.additional_images || [])].filter(Boolean) : []),
@@ -142,14 +165,43 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
     ? `🚗 ${car.title}\n💰 السعر: ${formatPrice(car.price)} ج.م${car.description ? `\n\n${car.description}` : ''}\n\nمن تطبيق 1CARZ`
     : 'عربية من تطبيق 1CARZ';
   const [shareUrl, setShareUrl] = useState('');
+  const [sharing, setSharing] = useState(false);
   useEffect(() => {
     setShareUrl(window.location.href);
   }, [id]);
-  // H21: useMemo عشان ما نعيد الـ encodeURIComponent في كل render
-  const whatsappShareUrl = useMemo(
-    () => `https://wa.me/?text=${encodeURIComponent(shareMessage + (shareUrl ? `\n${shareUrl}` : ''))}`,
-    [shareMessage, shareUrl]
-  );
+
+  const handleShare = async () => {
+    if (!car || sharing) return;
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    const payload = `${shareMessage}\n${url}`.trim();
+    setSharing(true);
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: car.title,
+            text: shareMessage,
+            url,
+          });
+          showToast('تم فتح المشاركة', 'success');
+          return;
+        } catch (err: unknown) {
+          const name = err instanceof Error ? err.name : '';
+          if (name === 'AbortError') return;
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+        showToast('تم نسخ الرابط — يمكنك مشاركته في أي تطبيق', 'success');
+        return;
+      }
+      showToast('انسخ الرابط من شريط العنوان', 'error');
+    } catch {
+      showToast('تعذرت المشاركة', 'error');
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const handleDownloadImages = async () => {
     if (!car || allImages.length === 0 || downloading || downloadingOne !== null) return;
@@ -277,6 +329,17 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                   حذف
                 </button>
               </div>
+            )}
+
+            {isMarketer && car.id && (
+              <button
+                type="button"
+                onClick={() => router.push(`/buyers/new?carId=${encodeURIComponent(car.id!)}`)}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold transition-colors"
+              >
+                <UserRound size={16} />
+                تسجيل مشتري / معاينة
+              </button>
             )}
 
             {/* Image Gallery */}
@@ -442,17 +505,16 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
                 <h1 className="text-2xl sm:text-3xl font-bold text-text-primary flex-1">
                   {car.title}
                 </h1>
-                {/* زر مشاركة WhatsApp */}
-                <a
-                  href={whatsappShareUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition-colors flex-shrink-0"
-                  aria-label="مشاركة عبر واتساب"
-                  title="مشاركة عبر واتساب"
+                <button
+                  type="button"
+                  onClick={() => void handleShare()}
+                  disabled={sharing}
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-bg-primary hover:bg-bg-card-hover text-text-primary border border-border-soft transition-colors flex-shrink-0 disabled:opacity-50"
+                  aria-label="مشاركة الرابط"
+                  title="مشاركة الرابط"
                 >
                   <Share2 size={18} />
-                </a>
+                </button>
               </div>
               <div className="price-display text-3xl sm:text-4xl text-accent-yellow-hover" dir="ltr">
                 {formatPrice(car.price)} <span className="text-lg font-medium text-text-secondary">ج.م</span>

@@ -6,14 +6,14 @@
 // nosniff + DENY framing + strict-origin referrer + minimal Permissions-Policy
 const CSP_HEADER = [
   "default-src 'self'",
-  // Meta Pixel (fbevents.js) + Next inline
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net",
+  // Meta Pixel + Google Analytics + Next inline
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com",
   "style-src 'self' 'unsafe-inline'",
-  // Firebase Storage + Google profile pics + Meta Pixel noscript beacon
-  "img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://www.facebook.com https://*.facebook.com",
+  // Firebase Storage + Google profile pics + Meta/GA beacons
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://www.facebook.com https://*.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
   "font-src 'self' data:",
-  // Firebase + Meta Pixel network
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://identitytoolkit.googleapis.com https://connect.facebook.net https://www.facebook.com https://*.facebook.com",
+  // Firebase + Meta Pixel + GA
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://identitytoolkit.googleapis.com https://connect.facebook.net https://www.facebook.com https://*.facebook.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

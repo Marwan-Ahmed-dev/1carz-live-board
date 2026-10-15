@@ -20,7 +20,6 @@ export function Header({ showUsername = true }: HeaderProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const { confirm, dialogProps } = useConfirm();
   const rolesReady = !authLoading;
-  const isMarketer = rolesReady && !!user && !isAdmin && !isInspector && !isSource;
   const showGuestBack = rolesReady && !user && pathname !== '/';
   const showGuestLogin = rolesReady && !user;
 
@@ -94,15 +93,7 @@ export function Header({ showUsername = true }: HeaderProps) {
               <span>دخول</span>
             </button>
           )}
-          {isMarketer && (
-            <button
-              onClick={() => router.push('/buyers/new')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-medium transition-colors cursor-pointer"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">إضافة مشتري</span>
-            </button>
-          )}
+          {/* إضافة مشتري/معاينة من صفحة تفاصيل العربية فقط */}
           {rolesReady && isSource && !isAdmin && (
             <button
               onClick={() => router.push('/market')}

@@ -196,3 +196,35 @@ const BRAND_ALIASES: Record<string, readonly string[]> = {
 export function getBrandAliases(label: string): readonly string[] | undefined {
   return BRAND_ALIASES[label] ?? BRAND_ALIASES[label.toLowerCase()];
 }
+
+function norm(s: string): string {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[ًٌٍَُِّْـ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * بحث مرن لأسماء العربيات: عنوان مباشر أو alias عربي/إنجليزي للماركة.
+ * مثال: "مرسيدس" يطابق عنوان فيه "Mercedes".
+ */
+export function titleMatchesSearchQuery(title: string, query: string): boolean {
+  const q = norm(query);
+  if (!q) return true;
+  const hay = norm(title);
+  if (hay.includes(q)) return true;
+
+  for (const [canonical, aliases] of Object.entries(BRAND_ALIASES)) {
+    const c = norm(canonical);
+    const aliasHit = aliases.some((a) => {
+      const an = norm(a);
+      return an.includes(q) || q.includes(an);
+    });
+    const canonicalHit = c.includes(q) || q.includes(c);
+    if ((aliasHit || canonicalHit) && (hay.includes(c) || aliases.some((a) => hay.includes(norm(a))))) {
+      return true;
+    }
+  }
+  return false;
+}

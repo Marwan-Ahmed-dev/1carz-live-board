@@ -3,12 +3,11 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { KeyRound, LogIn, ShoppingBag } from 'lucide-react';
+import { KeyRound, LogIn, ShoppingBag, Phone, Mail } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingState } from '@/components/LoadingState';
-
-const SELL_WHATSAPP = 'https://wa.me/201080945697';
+import { COMPANY_EMAIL, COMPANY_PHONE, COMPANY_WHATSAPP } from '@/lib/site';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -85,19 +84,46 @@ export default function LandingPage() {
               اشتري عربية
             </Link>
             <a
-              href={SELL_WHATSAPP}
+              href={COMPANY_WHATSAPP}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 w-full py-3.5 rounded-full bg-white hover:bg-bg-card text-text-primary text-base font-extrabold shadow-medium transition-colors"
             >
               <KeyRound size={20} />
-              بيع عربية
+              بيع عربية — واتساب
             </a>
           </div>
         </div>
       </section>
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8 space-y-8">
+        <section className="space-y-3 rounded-2xl border border-border-soft bg-bg-card p-4">
+          <h2 className="text-xl font-extrabold text-text-primary border-b-2 border-accent-yellow inline-block pb-1">
+            تواصل معنا
+          </h2>
+          <p className="text-text-secondary text-sm">
+            للتواصل أو بيع عربيتك — خطوة واحدة عبر واتساب، بدون استمارات طويلة.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <a
+              href={COMPANY_WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-yellow hover:bg-accent-yellow-hover text-text-primary text-sm font-bold"
+            >
+              <Phone size={16} />
+              واتساب <span dir="ltr">{COMPANY_PHONE}</span>
+            </a>
+            <a
+              href={`mailto:${COMPANY_EMAIL}`}
+              className="flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-border-soft text-text-primary text-sm font-bold"
+            >
+              <Mail size={16} />
+              {COMPANY_EMAIL}
+            </a>
+          </div>
+        </section>
+
         <section className="space-y-3">
           <h2 className="text-xl font-extrabold text-text-primary border-b-2 border-accent-yellow inline-block pb-1">
             من نحن
@@ -138,6 +164,16 @@ export default function LandingPage() {
             <BrandLogo size={48} rounded={false} className="rounded-2xl" />
           </div>
         </div>
+
+        <footer className="flex flex-wrap items-center justify-center gap-3 text-xs text-text-muted pt-2 border-t border-border-soft">
+          <Link href="/privacy" className="hover:text-text-primary">
+            سياسة الخصوصية
+          </Link>
+          <span>·</span>
+          <Link href="/terms" className="hover:text-text-primary">
+            الشروط والأحكام
+          </Link>
+        </footer>
       </main>
     </div>
   );

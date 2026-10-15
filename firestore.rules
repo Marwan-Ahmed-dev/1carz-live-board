@@ -120,12 +120,17 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.resource.data.marketer_uid == request.auth.uid
                     && request.resource.data.keys().hasAll([
-                      'name', 'phone', 'description', 'marketer_uid', 'created_at'
+                      'name', 'phone', 'description', 'marketer_uid',
+                      'car_id', 'car_title', 'created_at'
                     ])
                     && request.resource.data.name is string
                     && request.resource.data.phone is string
                     && request.resource.data.phone.size() == 11
                     && request.resource.data.description is string
+                    && request.resource.data.car_id is string
+                    && request.resource.data.car_id.size() > 0
+                    && request.resource.data.car_title is string
+                    && request.resource.data.car_title.size() > 0
                     && request.resource.data.created_at == request.time;
       allow read: if isAdmin()
                   || (isSignedIn() && resource.data.marketer_uid == request.auth.uid);

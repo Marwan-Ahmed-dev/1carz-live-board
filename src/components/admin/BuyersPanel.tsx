@@ -6,6 +6,7 @@ import { BuyerLead } from '@/lib/types';
 import {
   subscribeToLast30DaysBuyerLeads,
   subscribeToTodaysBuyerLeads,
+  subscribeToYesterdaysBuyerLeads,
 } from '@/lib/buyers';
 import { digitsOnly } from '@/lib/phone';
 import { toJsDate } from '@/lib/cairoDay';
@@ -13,6 +14,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { EmptyState } from '@/components/EmptyState';
 
 const PAGE_SIZE = 10;
+type BuyersTab = 'today' | 'yesterday' | 'all';
 
 type MarketerGroup = {
   key: string;
@@ -40,8 +42,9 @@ function groupKey(lead: BuyerLead): string {
 }
 
 export function BuyersPanel() {
-  const [tab, setTab] = useState<'today' | 'all'>('today');
+  const [tab, setTab] = useState<BuyersTab>('today');
   const [todayLeads, setTodayLeads] = useState<BuyerLead[]>([]);
+  const [yesterdayLeads, setYesterdayLeads] = useState<BuyerLead[]>([]);
   const [allLeads, setAllLeads] = useState<BuyerLead[]>([]);
   const [search, setSearch] = useState('');
   const [visible, setVisible] = useState(PAGE_SIZE);
@@ -49,9 +52,11 @@ export function BuyersPanel() {
 
   useEffect(() => {
     const unsubToday = subscribeToTodaysBuyerLeads(setTodayLeads);
+    const unsubYesterday = subscribeToYesterdaysBuyerLeads(setYesterdayLeads);
     const unsubAll = subscribeToLast30DaysBuyerLeads(setAllLeads);
     return () => {
       unsubToday();
+      unsubYesterday();
       unsubAll();
     };
   }, []);
@@ -62,7 +67,8 @@ export function BuyersPanel() {
     setExpandedKey(null);
   }, [tab]);
 
-  const source = tab === 'today' ? todayLeads : allLeads;
+  const source =
+    tab === 'today' ? todayLeads : tab === 'yesterday' ? yesterdayLeads : allLeads;
   // M28: debounce search — الـ user list filter ما يعملش على كل ضغطة
   const debouncedSearch = useDebouncedValue(search, 250);
 
@@ -115,14 +121,15 @@ export function BuyersPanel() {
         </div>
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-admin-text">بيانات المشترين</h3>
-          <p className="text-xs text-admin-text-muted">تسجيلات المسوّقين — اليوم وآخر 30 يوم</p>
+          <p className="text-xs text-admin-text-muted">تسجيلات المسوّقين — اليوم وأمس وآخر 30 يوم</p>
         </div>
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-3 flex-wrap">
         {(
           [
             { key: 'today' as const, label: 'اليوم' },
+            { key: 'yesterday' as const, label: 'أمس' },
             { key: 'all' as const, label: 'الكل' },
           ] as const
         ).map((opt) => (
@@ -168,7 +175,9 @@ export function BuyersPanel() {
               ? 'مفيش نتائج للبحث ده'
               : tab === 'today'
                 ? 'لسه مفيش مشترين النهاردة'
-                : 'مفيش تسجيلات في آخر 30 يوم'
+                : tab === 'yesterday'
+                  ? 'مفيش مشترين مسجّلين أمس'
+                  : 'مفيش تسجيلات في آخر 30 يوم'
           }
           description={
             search
@@ -224,6 +233,12 @@ export function BuyersPanel() {
                             {lead.phone || '—'}
                           </span>
                         </div>
+                        {lead.car_title ? (
+                          <div className="text-sm text-admin-text">
+                            <span className="text-admin-text-muted">العربية: </span>
+                            <span className="font-bold">{lead.car_title}</span>
+                          </div>
+                        ) : null}
                         {lead.description ? (
                           <div className="text-sm text-admin-text">
                             <span className="text-admin-text-muted">الوصف: </span>

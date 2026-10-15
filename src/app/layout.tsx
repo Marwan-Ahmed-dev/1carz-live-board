@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import { Suspense } from 'react';
 import { Cairo, Inter } from 'next/font/google';
 import { AppProviders } from '@/components/AppProviders';
+import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import { MetaPixel } from '@/components/MetaPixel';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { SITE_NAME, SITE_URL } from '@/lib/site';
 import './globals.css';
 
 // خط عربي: Cairo
@@ -23,10 +25,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: '1CARZ LIVE BOARD',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
   description: 'لوحة العربيات الحية - 1CARZ',
+  alternates: { canonical: '/' },
   manifest: '/manifest.json?v=8',
-  applicationName: '1CARZ LIVE BOARD',
+  applicationName: SITE_NAME,
   appleWebApp: {
     capable: false,
     statusBarStyle: 'default',
@@ -38,6 +45,10 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
@@ -81,6 +92,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="1CARZ" />
       </head>
       <body className="font-arabic">
+        <GoogleAnalytics />
         <Suspense fallback={null}>
           <MetaPixel />
         </Suspense>
