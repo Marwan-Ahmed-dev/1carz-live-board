@@ -6,4 +6,4 @@ Disallow: /buyers/
 Disallow: /onboarding
 Disallow: /login
 
-Sitemap: /sitemap.xml
+Sitemap: https://1carz.com/sitemap.xml
