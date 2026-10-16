@@ -58,11 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Set role + user together so header never flashes the wrong button
         setUser(fbUser);
         setUserData(data);
+        // Claim-only — never trust users/{uid}.role for privileged UI gates
         setIsAdmin(adminFlag);
-        setIsInspector(inspectorFlag || data?.role === 'inspector');
-        // Prefer custom claim (rules source of truth); user-doc role is fallback
-        // until existing source accounts re-login after claim backfill.
-        setIsSource(sourceFlag || data?.role === 'source');
+        setIsInspector(inspectorFlag);
+        setIsSource(sourceFlag);
       } catch (err) {
         logger.error('AuthProvider: failed to load user data', err);
         if (cancelled || thisGen !== generation) return;

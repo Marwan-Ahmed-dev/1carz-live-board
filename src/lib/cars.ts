@@ -19,6 +19,7 @@ import {
   Timestamp,
   QueryConstraint,
   DocumentData,
+  documentId,
   writeBatch,
   limit,
   getCountFromServer,
@@ -31,59 +32,104 @@ import { PRIORITY_ORDER } from './priority';
 import { logger } from './logger';
 
 const CARS_COLLECTION = 'cars';
-/** Owner PII — staff-only collection (never on public cars/{id}) */
+/** Owner PII — staff-only (never on public cars/{id}) */
 const CAR_PRIVATE_COLLECTION = 'car_private';
+/** Inspector contact — signed-in users only (never public) */
+const CAR_CONTACT_COLLECTION = 'car_contact';
 
-async function currentUserIsStaff(): Promise<boolean> {
+type AccessLevel = 'guest' | 'signed_in' | 'staff';
+
+type ClaimsCache = { uid: string; role: string | undefined; at: number };
+let claimsCache: ClaimsCache | null = null;
+const CLAIMS_TTL_MS = 5 * 60 * 1000;
+
+async function getCachedRole(forceRefresh = false): Promise<string | undefined> {
   const u = auth.currentUser;
-  if (!u) return false;
+  if (!u) {
+    claimsCache = null;
+    return undefined;
+  }
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    claimsCache &&
+    claimsCache.uid === u.uid &&
+    now - claimsCache.at < CLAIMS_TTL_MS
+  ) {
+    return claimsCache.role;
+  }
+  const token = await u.getIdTokenResult(forceRefresh);
+  const role = typeof token.claims.role === 'string' ? token.claims.role : undefined;
+  claimsCache = { uid: u.uid, role, at: now };
+  return role;
+}
+
+async function getAccessLevel(): Promise<AccessLevel> {
+  const u = auth.currentUser;
+  if (!u) return 'guest';
   try {
-    // Force refresh so admin/inspector claims are never stale after role changes
-    const token = await u.getIdTokenResult(true);
-    return token.claims.role === 'admin' || token.claims.role === 'inspector';
+    const role = await getCachedRole(false);
+    if (role === 'admin' || role === 'inspector') return 'staff';
+    return 'signed_in';
   } catch {
-    return false;
+    return 'signed_in';
   }
 }
 
-async function fetchOwnerContacts(
+async function fetchDocsByIds(
+  collectionName: string,
   ids: string[]
-): Promise<Map<string, { owner_name: string; owner_phone: string }>> {
-  const map = new Map<string, { owner_name: string; owner_phone: string }>();
-  const unique = Array.from(new Set(ids.filter((id): id is string => typeof id === 'string' && !!id)));
-  // Prefer per-doc get — more reliable with security rules than collection `in` queries
-  for (let i = 0; i < unique.length; i += 20) {
-    const chunk = unique.slice(i, i + 20);
-    const snaps = await Promise.all(chunk.map((id) => getDoc(doc(db, CAR_PRIVATE_COLLECTION, id))));
-    snaps.forEach((snap, idx) => {
-      if (!snap.exists()) return;
-      const data = snap.data();
-      map.set(chunk[idx], {
-        owner_name: typeof data.owner_name === 'string' ? data.owner_name : '',
-        owner_phone: typeof data.owner_phone === 'string' ? data.owner_phone : '',
+): Promise<Map<string, DocumentData>> {
+  const map = new Map<string, DocumentData>();
+  const unique = Array.from(
+    new Set(ids.filter((id): id is string => typeof id === 'string' && !!id))
+  );
+  for (let i = 0; i < unique.length; i += 30) {
+    const chunk = unique.slice(i, i + 30);
+    if (chunk.length === 0) continue;
+    try {
+      const q = query(collection(db, collectionName), where(documentId(), 'in', chunk));
+      const snap = await getDocs(q);
+      snap.docs.forEach((d) => map.set(d.id, d.data()));
+    } catch {
+      // Fallback if `in` on documentId is rejected
+      const snaps = await Promise.all(
+        chunk.map((id) => getDoc(doc(db, collectionName, id)))
+      );
+      snaps.forEach((snap, idx) => {
+        if (snap.exists()) map.set(chunk[idx], snap.data());
       });
-    });
+    }
   }
   return map;
 }
 
-function mergeOwnerContacts(
-  cars: Car[],
-  contacts: Map<string, { owner_name: string; owner_phone: string }>
-): Car[] {
+async function attachPrivateContacts(cars: Car[]): Promise<Car[]> {
+  if (cars.length === 0) return cars;
+  const access = await getAccessLevel();
+  if (access === 'guest') return cars;
+
+  const ids = cars.map((c) => c.id || '');
+  const contactMap = await fetchDocsByIds(CAR_CONTACT_COLLECTION, ids);
+  let ownerMap = new Map<string, DocumentData>();
+  if (access === 'staff') {
+    ownerMap = await fetchDocsByIds(CAR_PRIVATE_COLLECTION, ids);
+  }
+
   return cars.map((c) => {
     if (!c.id) return c;
-    const p = contacts.get(c.id);
-    if (!p) return c;
-    return { ...c, owner_name: p.owner_name, owner_phone: p.owner_phone };
+    const contact = contactMap.get(c.id);
+    const owner = ownerMap.get(c.id);
+    return {
+      ...c,
+      inspector_name:
+        typeof contact?.inspector_name === 'string' ? contact.inspector_name : '',
+      inspector_phone:
+        typeof contact?.inspector_phone === 'string' ? contact.inspector_phone : '',
+      owner_name: typeof owner?.owner_name === 'string' ? owner.owner_name : '',
+      owner_phone: typeof owner?.owner_phone === 'string' ? owner.owner_phone : '',
+    };
   });
-}
-
-async function attachOwnerContactsIfStaff(cars: Car[]): Promise<Car[]> {
-  if (cars.length === 0) return cars;
-  if (!(await currentUserIsStaff())) return cars;
-  const contacts = await fetchOwnerContacts(cars.map((c) => c.id || ''));
-  return mergeOwnerContacts(cars, contacts);
 }
 
 async function writeCarPrivate(
@@ -96,6 +142,22 @@ async function writeCarPrivate(
     {
       owner_name: ownerName,
       owner_phone: ownerPhone,
+      updated_at: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+async function writeCarContact(
+  carId: string,
+  inspectorName: string,
+  inspectorPhone: string
+): Promise<void> {
+  await setDoc(
+    doc(db, CAR_CONTACT_COLLECTION, carId),
+    {
+      inspector_name: inspectorName,
+      inspector_phone: inspectorPhone,
       updated_at: serverTimestamp(),
     },
     { merge: true }
@@ -142,9 +204,9 @@ function normalizeCar(snap: DocumentData): Car {
       const legacyInspected = !!data.is_featured || data.priority === 'arabyatna';
       return { is_featured: false, is_inspected: legacyInspected };
     })(),
-    inspector_name: typeof data.inspector_name === 'string' ? data.inspector_name : '',
-    inspector_phone: typeof data.inspector_phone === 'string' ? data.inspector_phone : '',
-    // Owner PII never comes from public cars/{id} — only car_private for staff
+    // Inspector + owner PII never come from public cars/{id}
+    inspector_name: '',
+    inspector_phone: '',
     owner_name: '',
     owner_phone: '',
     inspection_location:
@@ -164,8 +226,8 @@ function normalizeCar(snap: DocumentData): Car {
  */
 export async function fetchAllCustomers(): Promise<Car[]> {
   const ref = collection(db, CARS_COLLECTION);
-  const snap = await getDocs(ref);
-  return attachOwnerContactsIfStaff(snap.docs.map(normalizeCar));
+  const snap = await getDocs(query(ref, limit(200)));
+  return attachPrivateContacts(snap.docs.map(normalizeCar));
 }
 
 /**
@@ -173,9 +235,9 @@ export async function fetchAllCustomers(): Promise<Car[]> {
  */
 export async function fetchAllCars(): Promise<Car[]> {
   const ref = collection(db, CARS_COLLECTION);
-  const q = query(ref, orderBy('created_at', 'desc'));
+  const q = query(ref, orderBy('created_at', 'desc'), limit(200));
   const snap = await getDocs(q);
-  return attachOwnerContactsIfStaff(snap.docs.map(normalizeCar));
+  return attachPrivateContacts(snap.docs.map(normalizeCar));
 }
 
 /**
@@ -185,7 +247,7 @@ export async function fetchCar(id: string): Promise<Car | null> {
   const ref = doc(db, CARS_COLLECTION, id);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  const [car] = await attachOwnerContactsIfStaff([normalizeCar(snap)]);
+  const [car] = await attachPrivateContacts([normalizeCar(snap)]);
   return car;
 }
 
@@ -230,6 +292,8 @@ export async function addCar(input: NewCarInput): Promise<string> {
     '';
   const ownerName = (input.owner_name || '').trim();
   const ownerPhone = (input.owner_phone || '').trim();
+  const inspectorName = (input.inspector_name || '').trim();
+  const inspectorPhone = (input.inspector_phone || '').trim();
 
   const data: Record<string, unknown> = {
     ...input,
@@ -237,8 +301,6 @@ export async function addCar(input: NewCarInput): Promise<string> {
     price: priceNum,
     description: desc,
     assigned_to: assignedTo,
-    inspector_name: (input.inspector_name || '').trim(),
-    inspector_phone: (input.inspector_phone || '').trim(),
     inspection_location: (input.inspection_location || '').trim(),
     ...(creatorUid ? { created_by_uid: creatorUid } : {}),
     // H14: optimistic concurrency — كل عربية بتبدأ بـ version=1
@@ -246,15 +308,20 @@ export async function addCar(input: NewCarInput): Promise<string> {
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
   };
-  // Owner PII → car_private فقط (مش على cars العامة اللي الضيف بيقرأها)
+  // PII → private collections only (never on public cars)
   delete data.owner_name;
   delete data.owner_phone;
+  delete data.inspector_name;
+  delete data.inspector_phone;
   if (input.status === 'reserved') data.reserved_at = serverTimestamp();
   if (input.status === 'sold') data.sold_at = serverTimestamp();
   delete (data as { code?: string }).code;
   const docRef = await addDoc(ref, data);
   try {
-    await writeCarPrivate(docRef.id, ownerName, ownerPhone);
+    await Promise.all([
+      writeCarPrivate(docRef.id, ownerName, ownerPhone),
+      writeCarContact(docRef.id, inspectorName, inspectorPhone),
+    ]);
   } catch (err) {
     try {
       await deleteDoc(docRef);
@@ -321,11 +388,15 @@ export async function updateCar(
       version: prevVersion + 1, // bump version atomically
       updated_at: serverTimestamp(),
     };
-    // Owner PII ما تتكتبش على cars العامة — امسح أي قيمة قديمة + شيلها من الـ payload
+    // PII never on public cars — strip + delete leftover fields
     delete payload.owner_name;
     delete payload.owner_phone;
+    delete payload.inspector_name;
+    delete payload.inspector_phone;
     payload.owner_name = deleteField();
     payload.owner_phone = deleteField();
+    payload.inspector_name = deleteField();
+    payload.inspector_phone = deleteField();
 
     // تطبيع assigned_to زي addCar — فاضي/غلط → ['all']
     if ('assigned_to' in updates) {
@@ -371,6 +442,32 @@ export async function updateCar(
         updated_at: serverTimestamp(),
       });
     }
+
+    const hasInspectorUpdate =
+      typeof updates.inspector_name === 'string' ||
+      typeof updates.inspector_phone === 'string';
+    if (hasInspectorUpdate) {
+      const contactRef = doc(db, CAR_CONTACT_COLLECTION, id);
+      const contactSnap = await tx.get(contactRef);
+      const prev = contactSnap.exists() ? contactSnap.data() || {} : {};
+      const nextName =
+        typeof updates.inspector_name === 'string'
+          ? updates.inspector_name.trim()
+          : typeof prev.inspector_name === 'string'
+            ? prev.inspector_name
+            : '';
+      const nextPhone =
+        typeof updates.inspector_phone === 'string'
+          ? updates.inspector_phone.trim()
+          : typeof prev.inspector_phone === 'string'
+            ? prev.inspector_phone
+            : '';
+      tx.set(contactRef, {
+        inspector_name: nextName,
+        inspector_phone: nextPhone,
+        updated_at: serverTimestamp(),
+      });
+    }
   });
 }
 
@@ -394,13 +491,18 @@ export async function deleteCar(id: string): Promise<void> {
     logger.warn('[deleteCar] storage cleanup failed (non-fatal):', err);
   }
 
-  // 2) حذف الـ public doc + private contacts
+  // 2) حذف الـ public doc + private/contact docs
   const ref = doc(db, CARS_COLLECTION, id);
   await deleteDoc(ref);
   try {
     await deleteDoc(doc(db, CAR_PRIVATE_COLLECTION, id));
   } catch (err) {
     logger.warn('[deleteCar] car_private cleanup failed (non-fatal):', err);
+  }
+  try {
+    await deleteDoc(doc(db, CAR_CONTACT_COLLECTION, id));
+  } catch (err) {
+    logger.warn('[deleteCar] car_contact cleanup failed (non-fatal):', err);
   }
 
   // 3) H15 doc: نترك buyer_leads + copy_events زي ما هم لو موجودين
@@ -676,9 +778,11 @@ export function subscribeToCars(
       ])
     : null;
 
+  let generation = 0;
   return onSnapshot(
     q,
     (snap) => {
+      const myGen = ++generation;
       void (async () => {
         let cars = snap.docs.map(normalizeCar);
         if (marketerAllowed) {
@@ -688,11 +792,11 @@ export function subscribeToCars(
           cars.sort((a, b) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
         }
         try {
-          // Staff بس اللي يقدروا يجيبوا أرقام المالك من car_private
-          cars = await attachOwnerContactsIfStaff(cars);
+          cars = await attachPrivateContacts(cars);
         } catch (err) {
-          logger.error('[subscribeToCars] owner enrich failed (showing cars without owner PII):', err);
+          logger.error('[subscribeToCars] contact enrich failed:', err);
         }
+        if (myGen !== generation) return;
         callback(cars);
       })().catch((err) => {
         logger.error('[subscribeToCars] enrich error:', err);
@@ -731,20 +835,25 @@ export function subscribeToCar(
   onError?: (err: Error) => void
 ): () => void {
   const ref = doc(db, CARS_COLLECTION, id);
+  let generation = 0;
   return onSnapshot(
     ref,
     (snap) => {
+      const myGen = ++generation;
       void (async () => {
         if (!snap.exists()) {
-          callback(null);
+          if (myGen === generation) callback(null);
           return;
         }
-        const [car] = await attachOwnerContactsIfStaff([normalizeCar(snap)]);
-        callback(car);
-      })().catch((err) => {
-        logger.error('Car subscription enrich error:', err);
-        onError?.(err instanceof Error ? err : new Error(String(err)));
-      });
+        try {
+          const [car] = await attachPrivateContacts([normalizeCar(snap)]);
+          if (myGen === generation) callback(car);
+        } catch (err) {
+          logger.error('Car subscription enrich error:', err);
+          if (myGen === generation) callback(normalizeCar(snap));
+          onError?.(err instanceof Error ? err : new Error(String(err)));
+        }
+      })();
     },
     (err) => {
       logger.error('Car subscription error:', err);

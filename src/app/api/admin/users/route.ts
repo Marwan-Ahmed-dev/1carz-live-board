@@ -141,9 +141,9 @@ export async function POST(req: NextRequest) {
       });
       uid = record.uid;
       // Custom claims مطلوبة للـ Firestore rules (admin/inspector/source).
-      // source لازم claim — ممنوع الاعتماد على users/{uid}.role لوحده.
       if (role === 'admin' || role === 'inspector' || role === 'source') {
-        await auth.setCustomUserClaims(uid, { role });
+        const existing = (await auth.getUser(uid)).customClaims || {};
+        await auth.setCustomUserClaims(uid, { ...existing, role });
       }
 
       const userRef = db.collection('users').doc(uid);

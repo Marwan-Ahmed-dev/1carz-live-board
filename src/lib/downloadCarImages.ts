@@ -194,7 +194,11 @@ function nextImageProxyUrl(imageUrl: string): string {
   return `/_next/image?${params.toString()}`;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+  init: RequestInit = {}
+): Promise<Response> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -203,9 +207,22 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
       credentials: 'omit',
       cache: 'no-store',
       signal: controller.signal,
+      ...init,
     });
   } finally {
     window.clearTimeout(timer);
+  }
+}
+
+async function authHeader(): Promise<HeadersInit> {
+  try {
+    const { auth } = await import('./firebase');
+    const user = auth.currentUser;
+    if (!user) return {};
+    const token = await user.getIdToken();
+    return { Authorization: `Bearer ${token}` };
+  } catch {
+    return {};
   }
 }
 
@@ -217,8 +234,11 @@ async function blobFromResponse(res: Response): Promise<Blob> {
 }
 
 async function fetchImageBlob(url: string): Promise<Blob> {
+  const headers = await authHeader();
   try {
-    return await blobFromResponse(await fetchWithTimeout(proxyImageUrl(url), FETCH_TIMEOUT_MS));
+    return await blobFromResponse(
+      await fetchWithTimeout(proxyImageUrl(url), FETCH_TIMEOUT_MS, { headers })
+    );
   } catch {
     /* fall through */
   }

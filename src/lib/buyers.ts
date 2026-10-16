@@ -1,24 +1,18 @@
 import {
   Timestamp,
-  doc,
+  collection,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
   where,
   getCountFromServer,
-  runTransaction,
-  collection,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { BuyerLead, DEFAULT_DAILY_BUYER_LIMIT } from './types';
-import { digitsOnly, validateBuyerPhone } from './phone';
-import { cairoDateKey, startOfCairoDay, startOfCairoYesterday } from './cairoDay';
+import { BuyerLead } from './types';
+import { startOfCairoDay, startOfCairoYesterday } from './cairoDay';
 import { logger } from './logger';
 
 const BUYER_LEADS = 'buyer_leads';
-// Path: daily_buyer_counts/{uid}/days/{cairoDate} — server-side enforced cap
-const DAILY_COUNTS = 'daily_buyer_counts';
 
 function normalizeLead(id: string, data: Record<string, unknown>): BuyerLead {
   return {
@@ -51,99 +45,39 @@ export interface AddBuyerLeadInput {
   description: string;
   marketerName?: string | null;
   marketerPhone?: string | null;
+  /** Ignored — limit enforced server-side from users/{uid}.daily_buyer_limit */
   dailyLimit?: number;
-  /** مطلوب — التسجيل من صفحة عربية محددة فقط */
   carId: string;
   carTitle: string;
 }
 
-/**
- * إضافة lead مع التحقق الذرّي (atomic) من الحد اليومي.
- *
- * قبل: count → validate → addDoc — سباق (race) بين طلبين متزامنين
- * كان بيسمح بتجاوز الحد. ده كان Client-side فقط وممكن يتخطى بـ devtools.
- *
- * بعد: نستخدم Firestore runTransaction عشان:
- *   1) نقرأ عدّاد اليوم (daily_buyer_counts/{uid}/days/{cairoDate})
- *   2) لو >= الحد → throw
- *   3) وإلا نكتب lead جديد + نزيد العداد
- * كل ده في transaction واحد → مفيش race condition.
- *
- * الـ Firestore security rules مش هتعرف تعمل العدّاد ده بسهولة من غير
- * Cloud Function — لكن الـ transaction كافي قوي: حتى لو حد عمل
- * bypass للـ client-side check، الـ transaction هيلفّ على نفس الـ doc
- * فيتعارض مع نفسه.
- *
- * Additionally، لو الحد اتجاوز، الـ `daily_buyer_counts` doc نفسه هيفضل
- * متاح للأدمن عشان يقدر يعمل reset يدوي لو لزم.
- */
+/** Create via Admin API — Firestore rules deny client creates (no limit bypass). */
 export async function addBuyerLead(input: AddBuyerLeadInput): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error('يجب تسجيل الدخول');
 
-  const name = (input.name || '').trim();
-  if (name.length < 2) throw new Error('اسم المشتري مطلوب');
-
-  const phoneErr = validateBuyerPhone(input.phone);
-  if (phoneErr) throw new Error(phoneErr);
-  const phone = digitsOnly(input.phone);
-
-  const description = (input.description || '').trim();
-  if (!description) throw new Error('الوصف مطلوب');
-
-  const carId = (input.carId || '').trim();
-  const carTitle = (input.carTitle || '').trim();
-  if (!carId || !carTitle) {
-    throw new Error('لازم تسجّل المشتري من صفحة عربية محددة');
-  }
-
-  const limit =
-    typeof input.dailyLimit === 'number' && input.dailyLimit > 0
-      ? Math.floor(input.dailyLimit)
-      : DEFAULT_DAILY_BUYER_LIMIT;
-
-  const dayKey = cairoDateKey();
-  const counterRef = doc(db, DAILY_COUNTS, user.uid, 'days', dayKey);
-  const leadsRef = collection(db, BUYER_LEADS);
-
-  // Atomic transaction: read counter → validate → bump counter → create lead.
-  return runTransaction(db, async (tx) => {
-    const counterSnap = await tx.get(counterRef);
-    const used = counterSnap.exists() ? Number(counterSnap.data()?.count || 0) : 0;
-
-    if (used >= limit) {
-      throw new Error(`وصلت للحد اليومي (${limit} مشترين). حاول بكرة أو كلّم الأدمن.`);
-    }
-
-    const newLeadRef = doc(leadsRef);
-    tx.set(newLeadRef, {
-      name,
-      phone,
-      description,
-      marketer_uid: user.uid,
-      marketer_name: input.marketerName || null,
-      marketer_phone: input.marketerPhone || null,
-      car_id: carId,
-      car_title: carTitle,
-      created_at: serverTimestamp(),
-    });
-
-    // Server timestamp isn't allowed inside transaction (it's an
-    // unresolved sentinel). We write a numeric updated_at instead
-    // and keep the counter minimal — the dayKey itself bounds the day.
-    tx.set(
-      counterRef,
-      {
-        count: used + 1,
-        uid: user.uid,
-        day: dayKey,
-        updated_at: Timestamp.now(),
-      },
-      { merge: true }
-    );
-
-    return newLeadRef.id;
+  const token = await user.getIdToken();
+  const res = await fetch('/api/buyers', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: input.name,
+      phone: input.phone,
+      description: input.description,
+      carId: input.carId,
+      carTitle: input.carTitle,
+      marketerName: input.marketerName ?? null,
+      marketerPhone: input.marketerPhone ?? null,
+    }),
   });
+
+  const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+  if (!res.ok) throw new Error(data.error || 'فشل تسجيل المشتري');
+  if (!data.id) throw new Error('فشل تسجيل المشتري');
+  return data.id;
 }
 
 export function subscribeToBuyerLeadsSince(
@@ -173,9 +107,6 @@ export function subscribeToTodaysBuyerLeads(
   return subscribeToBuyerLeadsSince(startOfCairoDay(), callback);
 }
 
-/**
- * مشترين أمس فقط (من بداية أمس القاهرة لبداية النهاردة).
- */
 export function subscribeToYesterdaysBuyerLeads(
   callback: (leads: BuyerLead[]) => void
 ): () => void {

@@ -1,8 +1,9 @@
 /**
- * One-time migration (safe to re-run):
- * Move owner_name / owner_phone off public cars/{id} into car_private/{id}.
+ * Migrate PII off public cars/{id}:
+ * - owner_* → car_private/{id}
+ * - inspector_* → car_contact/{id}
+ * Also backfills source custom claims (merge).
  *
- * Usage (from repo root, with .env.local containing Admin credentials):
  *   node scripts/migrate-car-owner-private.mjs
  */
 import { readFileSync, existsSync } from 'node:fs';
@@ -14,8 +15,7 @@ import { getAuth } from 'firebase-admin/auth';
 function loadEnvLocal() {
   const path = resolve(process.cwd(), '.env.local');
   if (!existsSync(path)) return;
-  const text = readFileSync(path, 'utf8');
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const eq = trimmed.indexOf('=');
@@ -39,9 +39,7 @@ const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 if (!projectId || !clientEmail || !privateKey) {
-  console.error(
-    'Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY in .env.local'
-  );
+  console.error('Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY');
   process.exit(1);
 }
 
@@ -54,9 +52,9 @@ const auth = getAuth();
 
 async function main() {
   const carsSnap = await db.collection('cars').get();
-  let moved = 0;
+  let ownersMoved = 0;
+  let inspectorsMoved = 0;
   let cleaned = 0;
-  let skipped = 0;
   let sourceClaims = 0;
 
   let batch = db.batch();
@@ -72,35 +70,57 @@ async function main() {
     const data = carDoc.data();
     const ownerName = typeof data.owner_name === 'string' ? data.owner_name : '';
     const ownerPhone = typeof data.owner_phone === 'string' ? data.owner_phone : '';
+    const inspectorName = typeof data.inspector_name === 'string' ? data.inspector_name : '';
+    const inspectorPhone = typeof data.inspector_phone === 'string' ? data.inspector_phone : '';
     const hasOwnerKeys = 'owner_name' in data || 'owner_phone' in data;
+    const hasInspectorKeys = 'inspector_name' in data || 'inspector_phone' in data;
 
-    if (!hasOwnerKeys && !ownerName && !ownerPhone) {
-      skipped += 1;
-      continue;
+    if (hasOwnerKeys || ownerName || ownerPhone) {
+      const privateRef = db.collection('car_private').doc(carDoc.id);
+      const privateSnap = await privateRef.get();
+      const prev = privateSnap.exists ? privateSnap.data() || {} : {};
+      batch.set(
+        privateRef,
+        {
+          owner_name:
+            ownerName || (typeof prev.owner_name === 'string' ? prev.owner_name : ''),
+          owner_phone:
+            ownerPhone || (typeof prev.owner_phone === 'string' ? prev.owner_phone : ''),
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      ops += 1;
+      ownersMoved += 1;
     }
 
-    const privateRef = db.collection('car_private').doc(carDoc.id);
-    const privateSnap = await privateRef.get();
-    const prev = privateSnap.exists ? privateSnap.data() || {} : {};
+    if (hasInspectorKeys || inspectorName || inspectorPhone) {
+      const contactRef = db.collection('car_contact').doc(carDoc.id);
+      const contactSnap = await contactRef.get();
+      const prev = contactSnap.exists ? contactSnap.data() || {} : {};
+      batch.set(
+        contactRef,
+        {
+          inspector_name:
+            inspectorName ||
+            (typeof prev.inspector_name === 'string' ? prev.inspector_name : ''),
+          inspector_phone:
+            inspectorPhone ||
+            (typeof prev.inspector_phone === 'string' ? prev.inspector_phone : ''),
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      ops += 1;
+      inspectorsMoved += 1;
+    }
 
-    batch.set(
-      privateRef,
-      {
-        owner_name:
-          ownerName || (typeof prev.owner_name === 'string' ? prev.owner_name : ''),
-        owner_phone:
-          ownerPhone || (typeof prev.owner_phone === 'string' ? prev.owner_phone : ''),
-        updated_at: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-    ops += 1;
-    moved += 1;
-
-    if (hasOwnerKeys) {
+    if (hasOwnerKeys || hasInspectorKeys) {
       batch.update(carDoc.ref, {
         owner_name: FieldValue.delete(),
         owner_phone: FieldValue.delete(),
+        inspector_name: FieldValue.delete(),
+        inspector_phone: FieldValue.delete(),
         updated_at: FieldValue.serverTimestamp(),
       });
       ops += 1;
@@ -112,16 +132,42 @@ async function main() {
 
   await commit();
 
+  // Ensure every car has car_contact from existing private path if still on cars was empty
+  // (inspectors already moved above). Also backfill contact from cars that only had
+  // inspector in UI historically — already handled.
+
   const usersSnap = await db.collection('users').where('role', '==', 'source').get();
   for (const userDoc of usersSnap.docs) {
     try {
       const user = await auth.getUser(userDoc.id);
       if (user.customClaims?.role !== 'source') {
-        await auth.setCustomUserClaims(userDoc.id, { role: 'source' });
+        await auth.setCustomUserClaims(userDoc.id, {
+          ...(user.customClaims || {}),
+          role: 'source',
+        });
         sourceClaims += 1;
       }
     } catch (err) {
       console.warn('source claim skip', userDoc.id, err?.message || err);
+    }
+  }
+
+  // Also ensure inspector/admin users with doc role have claims (merge)
+  for (const role of ['admin', 'inspector']) {
+    const snap = await db.collection('users').where('role', '==', role).get();
+    for (const userDoc of snap.docs) {
+      try {
+        const user = await auth.getUser(userDoc.id);
+        if (user.customClaims?.role !== role) {
+          await auth.setCustomUserClaims(userDoc.id, {
+            ...(user.customClaims || {}),
+            role,
+          });
+          sourceClaims += 1;
+        }
+      } catch (err) {
+        console.warn(role, 'claim skip', userDoc.id, err?.message || err);
+      }
     }
   }
 
@@ -130,10 +176,10 @@ async function main() {
       {
         ok: true,
         totalCars: carsSnap.size,
-        moved,
+        ownersMoved,
+        inspectorsMoved,
         cleaned,
-        skipped,
-        sourceClaims,
+        claimsUpdated: sourceClaims,
       },
       null,
       2

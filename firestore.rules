@@ -16,7 +16,6 @@ service cloud.firestore {
     }
 
     function isSource() {
-      // Claim-only — never trust users/{uid}.role (self-writable hole)
       return isAdmin() || (isSignedIn() && request.auth.token.role == 'source');
     }
 
@@ -53,7 +52,10 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isSignedIn()
                     && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.keys().hasAll(['uid', 'username'])
+                    && request.resource.data.keys().hasOnly(['uid', 'username', 'created_at'])
+                    && request.resource.data.username is string
+                    && request.resource.data.username.size() > 0
+                    && request.resource.data.username.size() <= 40
                     && !exists(/databases/$(database)/documents/usernames/$(name));
       allow update: if isAdmin();
       allow delete: if isAdmin()
@@ -66,89 +68,76 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Public car listings — MUST NOT contain owner_name / owner_phone
+    // Public listings â€” must NOT contain owner_* or inspector_* PII
     match /cars/{carId} {
       allow list, get: if true;
       allow create, update: if isStaff()
-        && !request.resource.data.keys().hasAny(['owner_name', 'owner_phone']);
+        && !request.resource.data.keys().hasAny([
+          'owner_name', 'owner_phone', 'inspector_name', 'inspector_phone'
+        ]);
       allow delete: if isStaff();
     }
 
-    // Owner PII — staff only
+    // Owner PII â€” staff only
     match /car_private/{carId} {
       allow read: if isStaff();
       allow create, update: if isStaff()
         && request.resource.data.keys().hasOnly(['owner_name', 'owner_phone', 'updated_at'])
         && request.resource.data.owner_name is string
-        && request.resource.data.owner_phone is string;
+        && request.resource.data.owner_name.size() <= 120
+        && request.resource.data.owner_phone is string
+        && request.resource.data.owner_phone.size() <= 40;
+      allow delete: if isStaff();
+    }
+
+    // Inspector contact â€” signed-in users only (not guests)
+    match /car_contact/{carId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff()
+        && request.resource.data.keys().hasOnly(['inspector_name', 'inspector_phone', 'updated_at'])
+        && request.resource.data.inspector_name is string
+        && request.resource.data.inspector_name.size() <= 120
+        && request.resource.data.inspector_phone is string
+        && request.resource.data.inspector_phone.size() <= 40;
       allow delete: if isStaff();
     }
 
     match /copy_events/{eventId} {
       allow create: if isSignedIn()
                     && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.created_at == request.time;
+                    && request.resource.data.created_at == request.time
+                    && request.resource.data.keys().hasOnly([
+                      'uid', 'username', 'email', 'carId', 'created_at'
+                    ])
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() <= 320
+                    && (request.resource.data.username == null
+                        || (request.resource.data.username is string
+                            && request.resource.data.username.size() <= 40))
+                    && (request.resource.data.carId == null
+                        || (request.resource.data.carId is string
+                            && request.resource.data.carId.size() <= 128));
       allow read: if isStaff();
       allow update, delete: if false;
     }
 
+    // Creates only via Admin SDK (/api/buyers) â€” enforces daily limit server-side
     match /buyer_leads/{leadId} {
-      allow create: if isSignedIn()
-                    && request.resource.data.marketer_uid == request.auth.uid
-                    && request.resource.data.keys().hasAll([
-                      'name', 'phone', 'description', 'marketer_uid',
-                      'car_id', 'car_title', 'created_at'
-                    ])
-                    && request.resource.data.name is string
-                    && request.resource.data.phone is string
-                    && request.resource.data.phone.size() == 11
-                    && request.resource.data.description is string
-                    && request.resource.data.car_id is string
-                    && request.resource.data.car_id.size() > 0
-                    && request.resource.data.car_title is string
-                    && request.resource.data.car_title.size() > 0
-                    && request.resource.data.created_at == request.time;
+      allow create: if false;
       allow read: if isAdmin()
                   || (isSignedIn() && resource.data.marketer_uid == request.auth.uid);
       allow update, delete: if isAdmin();
     }
 
-    // Cap daily buyer counter: +1 only, never above users/{uid}.daily_buyer_limit
-    function buyerDailyLimit(uid) {
-      return exists(/databases/$(database)/documents/users/$(uid))
-        && get(/databases/$(database)/documents/users/$(uid)).data.daily_buyer_limit is number
-        ? get(/databases/$(database)/documents/users/$(uid)).data.daily_buyer_limit
-        : 5;
-    }
-
-    function validBuyerCountWrite(uid) {
-      return isSignedIn()
-        && request.auth.uid == uid
-        && request.resource.data.keys().hasAll(['count', 'uid', 'day'])
-        && request.resource.data.count is number
-        && request.resource.data.uid == uid
-        && request.resource.data.day is string
-        && request.resource.data.count >= 1
-        && request.resource.data.count <= buyerDailyLimit(uid)
-        && (
-          (request.method == 'create' && request.resource.data.count == 1)
-          || (request.method == 'update'
-              && request.resource.data.count == resource.data.count + 1
-              && request.resource.data.day == resource.data.day)
-        );
-    }
-
     match /daily_buyer_counts/{uid} {
       allow get, list: if isAdmin()
                        || (isSignedIn() && request.auth.uid == uid);
-      allow create, update: if validBuyerCountWrite(uid);
-      allow delete: if isAdmin();
+      // Counter writes only via Admin SDK (/api/buyers). Clients cannot bump counters.
+      allow create, update, delete: if false;
       match /days/{dayKey} {
         allow get, list: if isAdmin()
                          || (isSignedIn() && request.auth.uid == uid);
-        allow create, update: if validBuyerCountWrite(uid)
-                              && request.resource.data.day == dayKey;
-        allow delete: if isAdmin();
+        allow create, update, delete: if false;
       }
     }
 
@@ -163,16 +152,21 @@ service cloud.firestore {
                     ])
                     && request.resource.data.brand is string
                     && request.resource.data.brand.size() > 0
+                    && request.resource.data.brand.size() <= 80
                     && request.resource.data.model is string
                     && request.resource.data.model.size() > 0
+                    && request.resource.data.model.size() <= 80
                     && request.resource.data.year is int
                     && request.resource.data.year >= 1900
                     && request.resource.data.year <= 2100
                     && request.resource.data.trim is string
+                    && request.resource.data.trim.size() <= 80
                     && request.resource.data.paint_condition is string
+                    && request.resource.data.paint_condition.size() <= 80
                     && request.resource.data.mileage_km is int
                     && request.resource.data.mileage_km >= 0
                     && request.resource.data.maintenance is string
+                    && request.resource.data.maintenance.size() <= 500
                     && request.resource.data.price_egp is int
                     && request.resource.data.price_egp > 0
                     && request.resource.data.recorded_by_uid == request.auth.uid

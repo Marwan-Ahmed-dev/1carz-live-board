@@ -24,30 +24,36 @@ function loadEnvLocal() {
 }
 
 loadEnvLocal();
-
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
 if (!getApps().length) {
   initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
 }
-
 const db = getFirestore();
 const cars = await db.collection('cars').get();
-let withOwner = 0;
+let withPii = 0;
 for (const d of cars.docs) {
   const data = d.data();
-  if ('owner_name' in data || 'owner_phone' in data) withOwner += 1;
+  if (
+    'owner_name' in data ||
+    'owner_phone' in data ||
+    'inspector_name' in data ||
+    'inspector_phone' in data
+  ) {
+    withPii += 1;
+  }
 }
 const priv = await db.collection('car_private').get();
+const contact = await db.collection('car_contact').get();
 console.log(
   JSON.stringify(
     {
       totalCars: cars.size,
-      carsStillWithOwnerFields: withOwner,
+      carsStillWithPiiFields: withPii,
       privateDocs: priv.size,
-      privateWithPhone: priv.docs.filter((d) => !!d.data().owner_phone).length,
+      contactDocs: contact.size,
+      contactWithPhone: contact.docs.filter((d) => !!d.data().inspector_phone).length,
     },
     null,
     2
