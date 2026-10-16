@@ -330,7 +330,7 @@ export default function LandingPage() {
           <div className="land-reveal flex justify-center">
             <div className="land-float relative w-56 h-56 sm:w-72 sm:h-72">
               <Image
-                src="/badges/certified.jpg"
+                src="/badges/certified.jpg?v=2"
                 alt="تم فحصها — علامة الاعتماد"
                 fill
                 className="object-contain drop-shadow-[0_20px_60px_rgba(34,197,94,0.35)]"

@@ -20,7 +20,7 @@ export function InspectedBadge({ size = 'sm', className = '' }: InspectedBadgePr
       aria-label="تم فحصها"
     >
       <Image
-        src="/badges/certified.jpg"
+        src="/badges/certified.jpg?v=2"
         alt="تم فحصها"
         width={dim}
         height={dim}
