@@ -128,6 +128,11 @@ export interface Car {
   is_featured: boolean;
   /** مفحوصة — علامة الاعتماد (CERTIFIED). مستقلة عن is_featured */
   is_inspected?: boolean;
+  /** Structured vehicle fields for Meta Automotive catalog (optional on legacy docs) */
+  make?: string;
+  model?: string;
+  year?: number;
+  mileage_km?: number;
   inspector_name: string;
   inspector_phone: string;
   owner_name: string;

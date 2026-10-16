@@ -211,6 +211,13 @@ function normalizeCar(snap: DocumentData): Car {
     owner_phone: '',
     inspection_location:
       typeof data.inspection_location === 'string' ? data.inspection_location : '',
+    make: typeof data.make === 'string' ? data.make : '',
+    model: typeof data.model === 'string' ? data.model : '',
+    year: typeof data.year === 'number' && Number.isFinite(data.year) ? data.year : undefined,
+    mileage_km:
+      typeof data.mileage_km === 'number' && Number.isFinite(data.mileage_km)
+        ? data.mileage_km
+        : undefined,
     created_by_uid: typeof data.created_by_uid === 'string' ? data.created_by_uid : '',
     assigned_to: assignedTo,
     created_at: data.created_at || null,
@@ -302,6 +309,16 @@ export async function addCar(input: NewCarInput): Promise<string> {
     description: desc,
     assigned_to: assignedTo,
     inspection_location: (input.inspection_location || '').trim(),
+    make: (input.make || '').trim(),
+    model: (input.model || '').trim(),
+    year:
+      typeof input.year === 'number' && Number.isFinite(input.year)
+        ? Math.floor(input.year)
+        : null,
+    mileage_km:
+      typeof input.mileage_km === 'number' && Number.isFinite(input.mileage_km)
+        ? Math.floor(input.mileage_km)
+        : null,
     ...(creatorUid ? { created_by_uid: creatorUid } : {}),
     // H14: optimistic concurrency — كل عربية بتبدأ بـ version=1
     version: 1,

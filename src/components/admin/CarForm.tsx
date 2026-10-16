@@ -12,6 +12,8 @@ import { UserAssignmentSelector } from './UserAssignmentSelector';
 import { useToast } from '@/hooks/useToast';
 import { formatPriceInput, parsePriceInput } from '@/lib/format';
 import { STATUS_OPTIONS, getStatusMeta } from '@/lib/carStatus';
+import { BRANDS } from '@/lib/carBrands';
+import { getModelsForBrand } from '@/lib/carsCatalog';
 
 interface CarFormProps {
   /** عربية موجودة (للـ edit) */
@@ -66,6 +68,14 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const { showToast } = useToast();
 
   const [carTitle, setCarTitle] = useState(initial?.title || '');
+  const [make, setMake] = useState(initial?.make || '');
+  const [model, setModel] = useState(initial?.model || '');
+  const [year, setYear] = useState(
+    initial?.year ? String(initial.year) : ''
+  );
+  const [mileageKm, setMileageKm] = useState(
+    typeof initial?.mileage_km === 'number' ? String(initial.mileage_km) : ''
+  );
   const [inspectorName, setInspectorName] = useState(initial?.inspector_name || '');
   const [inspectorPhone, setInspectorPhone] = useState(initial?.inspector_phone || '');
   const [ownerName, setOwnerName] = useState(initial?.owner_name || '');
@@ -190,6 +200,16 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
   const validate = (): string | null => {
     if (!carTitle.trim()) return 'عنوان العربية مطلوب';
     if (carTitle.length > 100) return 'العنوان يجب ألا يزيد عن 100 حرف';
+    if (!make.trim()) return 'الماركة مطلوبة (لإعلانات فيسبوك)';
+    if (!model.trim()) return 'الموديل مطلوب (لإعلانات فيسبوك)';
+    const yearNum = Number(year);
+    if (!Number.isFinite(yearNum) || yearNum < 1980 || yearNum > 2100) {
+      return 'سنة الصنع غير صالحة';
+    }
+    const mileageNum = Number(String(mileageKm).replace(/[,\s]/g, ''));
+    if (!Number.isFinite(mileageNum) || mileageNum < 0 || mileageNum > 2_000_000) {
+      return 'عداد الكيلومترات غير صالح';
+    }
     if (!inspectorName.trim()) return 'اسم المعاين مطلوب';
     const inspectorPhoneErr = validatePhone(inspectorPhone);
     if (inspectorPhoneErr) return `رقم المعاين: ${inspectorPhoneErr}`;
@@ -232,6 +252,10 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
         condition,
         is_featured: isFeatured,
         is_inspected: isInspected,
+        make: make.trim(),
+        model: model.trim(),
+        year: Math.floor(Number(year)),
+        mileage_km: Math.floor(Number(String(mileageKm).replace(/[,\s]/g, ''))),
         inspector_name: inspectorName.trim(),
         inspector_phone: inspectorPhone.trim(),
         owner_name: ownerName.trim(),
@@ -391,6 +415,95 @@ export function CarForm({ initial, onSave, title, submitLabel = 'حفظ' }: CarF
           className="w-full px-3 py-2.5 rounded-xl bg-admin-card border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
           required
         />
+      </div>
+
+      <div className="bg-admin-card border border-admin-border rounded-2xl p-4 space-y-3">
+        <label className="block text-sm font-bold text-admin-text-muted">
+          بيانات الإعلان (فيسبوك) <span className="text-red-400">*</span>
+        </label>
+        <p className="text-xs text-admin-text-muted">
+          الماركة والموديل والسنة والعداد مطلوبة لكتالوج إعلانات العربيات على فيسبوك
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="make" className="block text-xs font-bold text-admin-text-muted mb-1">
+              الماركة
+            </label>
+            <input
+              id="make"
+              type="text"
+              list="car-make-list"
+              value={make}
+              onChange={(e) => setMake(e.target.value)}
+              placeholder="Hyundai"
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
+              required
+            />
+            <datalist id="car-make-list">
+              {BRANDS.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.nameAr ? `${b.name} — ${b.nameAr}` : b.name}
+                </option>
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="model" className="block text-xs font-bold text-admin-text-muted mb-1">
+              الموديل
+            </label>
+            <input
+              id="model"
+              type="text"
+              list="car-model-list"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="Tucson"
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50"
+              required
+            />
+            <datalist id="car-model-list">
+              {(getModelsForBrand(make) || []).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="year" className="block text-xs font-bold text-admin-text-muted mb-1">
+              سنة الصنع
+            </label>
+            <input
+              id="year"
+              type="number"
+              inputMode="numeric"
+              min={1980}
+              max={2100}
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              placeholder="2022"
+              dir="ltr"
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-left"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="mileage" className="block text-xs font-bold text-admin-text-muted mb-1">
+              العداد (كم)
+            </label>
+            <input
+              id="mileage"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={2000000}
+              value={mileageKm}
+              onChange={(e) => setMileageKm(e.target.value)}
+              placeholder="85000"
+              dir="ltr"
+              className="w-full px-3 py-2.5 rounded-xl bg-admin-bg border border-admin-border text-admin-text placeholder:text-admin-text-muted focus:border-admin-accent/50 text-left"
+              required
+            />
+          </div>
+        </div>
       </div>
 
       <div className="bg-admin-card border border-admin-border rounded-2xl p-4 space-y-3">

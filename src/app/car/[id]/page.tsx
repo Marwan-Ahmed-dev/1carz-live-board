@@ -137,10 +137,11 @@ export default function CarDetailPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (!car?.id) return;
     if (typeof window !== 'undefined' && typeof window.fbq === 'function') {
+      // content_ids must match Meta Vehicles catalog vehicle_id (= Firestore car id)
       window.fbq('track', 'ViewContent', {
         content_ids: [car.id],
         content_name: car.title,
-        content_type: 'product',
+        content_type: 'vehicle',
         value: car.price,
         currency: 'EGP',
       });
