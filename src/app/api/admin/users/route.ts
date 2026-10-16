@@ -140,9 +140,9 @@ export async function POST(req: NextRequest) {
         disabled: false,
       });
       uid = record.uid;
-      // Custom claims بنحطها على الأدمن/المعاين فقط (الـ Firestore rules بتقرأها).
-      // 'source' مش محتاج claim — التحقق من الصلاحبة بيتم client-side على الـ user doc.
-      if (role === 'admin' || role === 'inspector') {
+      // Custom claims مطلوبة للـ Firestore rules (admin/inspector/source).
+      // source لازم claim — ممنوع الاعتماد على users/{uid}.role لوحده.
+      if (role === 'admin' || role === 'inspector' || role === 'source') {
         await auth.setCustomUserClaims(uid, { role });
       }
 
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
       });
       // user.role='user' ↔ مسوّق (الـ fallback التاريخي كان daily_buyer_limit > 0).
       // is_marketer بنكتبه explicit عشان الـ visibility model الجديد يعتمد عليه أولاً.
-      // 'source' role: بيتخزن في users/{uid}.role بس — مفيش custom claim ومفيش marketer flag.
+      // 'source' role: users/{uid}.role + custom claim (rules بتقرأ الـ claim).
       batch.set(userRef, {
         uid,
         email,

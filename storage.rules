@@ -2,36 +2,16 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    function isAdmin() {
-      return request.auth != null && request.auth.token.role == 'admin';
-    }
-
     function isStaff() {
       return request.auth != null &&
         (request.auth.token.role == 'admin' || request.auth.token.role == 'inspector');
     }
 
     match /cars/{carId}/{fileName} {
-      // Download URLs with tokens still work for <img>. Listing a folder
-      // must not be public — that leaked unpublished photos by car id.
       allow get: if true;
       allow list: if isStaff();
-
-      // Writes: tied to Firestore lookup of the car document so an inspector
-      // (or any signed-in staff member) can ONLY write files under cars
-      // they're assigned to (or cars assigned to 'all'). Without this check
-      // a malicious inspector could overwrite another team's car photos.
-      // Also enforce a 10 MB size cap per file as a basic abuse mitigation.
-      allow write: if isAdmin() || (
-        request.auth != null &&
-        firestore.exists(/databases/(default)/documents/cars/$(carId)) &&
-        firestore.get(/databases/(default)/documents/cars/$(carId)).data.assigned_to.hasAny(
-          [request.auth.uid, 'all']
-        ) &&
-        request.resource.size < 10 * 1024 * 1024
-      );
-
-      // حذف صور العربية: أي staff (أدمن/معاينة) عشان حذف العربية من التفاصيل يشتغل
+      allow create, update: if isStaff()
+        && request.resource.size < 10 * 1024 * 1024;
       allow delete: if isStaff();
     }
   }

@@ -49,16 +49,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled || thisGen !== generation) return;
         const data = await getUserData(fbUser.uid);
         if (cancelled || thisGen !== generation) return;
-        const { isAdmin: adminFlag, isInspector: inspectorFlag } = await refreshClaims();
+        const {
+          isAdmin: adminFlag,
+          isInspector: inspectorFlag,
+          isSource: sourceFlag,
+        } = await refreshClaims();
         if (cancelled || thisGen !== generation) return;
         // Set role + user together so header never flashes the wrong button
         setUser(fbUser);
         setUserData(data);
         setIsAdmin(adminFlag);
         setIsInspector(inspectorFlag || data?.role === 'inspector');
-        // Source role is stored only on the user doc (no custom claim) — read it
-        // from userData. Source accounts are created by admin via /admin/users.
-        setIsSource(data?.role === 'source');
+        // Prefer custom claim (rules source of truth); user-doc role is fallback
+        // until existing source accounts re-login after claim backfill.
+        setIsSource(sourceFlag || data?.role === 'source');
       } catch (err) {
         logger.error('AuthProvider: failed to load user data', err);
         if (cancelled || thisGen !== generation) return;

@@ -254,20 +254,23 @@ export async function checkIsAdmin(user: User | null): Promise<boolean> {
   return tokenResult.claims?.role === 'admin';
 }
 
-export async function refreshClaims(): Promise<{ isAdmin: boolean; isInspector: boolean }> {
+export async function refreshClaims(): Promise<{
+  isAdmin: boolean;
+  isInspector: boolean;
+  isSource: boolean;
+}> {
   const user = auth.currentUser;
-  if (!user) return { isAdmin: false, isInspector: false };
+  if (!user) return { isAdmin: false, isInspector: false, isSource: false };
   const tokenResult = await user.getIdTokenResult(true);
   const role = tokenResult.claims?.role;
-  return { isAdmin: role === 'admin', isInspector: role === 'inspector' };
+  return {
+    isAdmin: role === 'admin',
+    isInspector: role === 'inspector',
+    isSource: role === 'source',
+  };
 }
 
-/**
- * 'source' role lives on the user doc (users/{uid}.role), not on the custom
- * claim — لأن الـ source role مش بنستخدمه في Firestore rules (الـ rules
- * بتقرأه من الـ claim لو احتاجنا server-side gate، بس الحفظ الحالية بتكتفي
- * بـ field داتا). الدالة دي بتحضّر الـ future custom-claim mapping لو احتجنا.
- */
+/** Prefer Auth custom claim; user-doc role is legacy fallback for UI only. */
 export function isSourceRole(role: AccountRole | string | null | undefined): boolean {
   return role === 'source';
 }
@@ -285,7 +288,7 @@ export async function createUserByAdmin(params: {
    * - admin: ادمن — له لوحة التحكم الكاملة.
    * - user : مسوّق (الـ default). بيتكتب له is_marketer=true + daily_buyer_limit.
    * - inspector: معاين — بيتكتب له custom claim.
-   * - source: مصدر للسجل السعري — بيدخل /market/* بس. مفيش custom claim.
+   * - source: مصدر للسجل السعري — بيدخل /market/* بس + custom claim.
    */
   role?: AccountRole;
   groupId?: string;

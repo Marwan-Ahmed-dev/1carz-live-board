@@ -48,6 +48,8 @@ logs/
 
 # Firebase service account key (NEVER commit)
 scripts/serviceAccountKey.json
+scripts/serviceAccountKey*.json
+scripts/*serviceAccount*
 
 # Old/disabled logs and build artifacts (don't pollute repo)
 *.bak.disabled

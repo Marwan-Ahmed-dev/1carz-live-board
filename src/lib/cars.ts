@@ -7,6 +7,7 @@ import {
   getDoc,
   getDocs,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   deleteField,
@@ -30,6 +31,77 @@ import { PRIORITY_ORDER } from './priority';
 import { logger } from './logger';
 
 const CARS_COLLECTION = 'cars';
+/** Owner PII — staff-only collection (never on public cars/{id}) */
+const CAR_PRIVATE_COLLECTION = 'car_private';
+
+async function currentUserIsStaff(): Promise<boolean> {
+  const u = auth.currentUser;
+  if (!u) return false;
+  try {
+    // Force refresh so admin/inspector claims are never stale after role changes
+    const token = await u.getIdTokenResult(true);
+    return token.claims.role === 'admin' || token.claims.role === 'inspector';
+  } catch {
+    return false;
+  }
+}
+
+async function fetchOwnerContacts(
+  ids: string[]
+): Promise<Map<string, { owner_name: string; owner_phone: string }>> {
+  const map = new Map<string, { owner_name: string; owner_phone: string }>();
+  const unique = Array.from(new Set(ids.filter((id): id is string => typeof id === 'string' && !!id)));
+  // Prefer per-doc get — more reliable with security rules than collection `in` queries
+  for (let i = 0; i < unique.length; i += 20) {
+    const chunk = unique.slice(i, i + 20);
+    const snaps = await Promise.all(chunk.map((id) => getDoc(doc(db, CAR_PRIVATE_COLLECTION, id))));
+    snaps.forEach((snap, idx) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      map.set(chunk[idx], {
+        owner_name: typeof data.owner_name === 'string' ? data.owner_name : '',
+        owner_phone: typeof data.owner_phone === 'string' ? data.owner_phone : '',
+      });
+    });
+  }
+  return map;
+}
+
+function mergeOwnerContacts(
+  cars: Car[],
+  contacts: Map<string, { owner_name: string; owner_phone: string }>
+): Car[] {
+  return cars.map((c) => {
+    if (!c.id) return c;
+    const p = contacts.get(c.id);
+    if (!p) return c;
+    return { ...c, owner_name: p.owner_name, owner_phone: p.owner_phone };
+  });
+}
+
+async function attachOwnerContactsIfStaff(cars: Car[]): Promise<Car[]> {
+  if (cars.length === 0) return cars;
+  if (!(await currentUserIsStaff())) return cars;
+  const contacts = await fetchOwnerContacts(cars.map((c) => c.id || ''));
+  return mergeOwnerContacts(cars, contacts);
+}
+
+async function writeCarPrivate(
+  carId: string,
+  ownerName: string,
+  ownerPhone: string
+): Promise<void> {
+  await setDoc(
+    doc(db, CAR_PRIVATE_COLLECTION, carId),
+    {
+      owner_name: ownerName,
+      owner_phone: ownerPhone,
+      updated_at: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
 
 /**
  * تحويل Timestamp من Firestore إلى Date في الكائن
@@ -72,8 +144,9 @@ function normalizeCar(snap: DocumentData): Car {
     })(),
     inspector_name: typeof data.inspector_name === 'string' ? data.inspector_name : '',
     inspector_phone: typeof data.inspector_phone === 'string' ? data.inspector_phone : '',
-    owner_name: typeof data.owner_name === 'string' ? data.owner_name : '',
-    owner_phone: typeof data.owner_phone === 'string' ? data.owner_phone : '',
+    // Owner PII never comes from public cars/{id} — only car_private for staff
+    owner_name: '',
+    owner_phone: '',
     inspection_location:
       typeof data.inspection_location === 'string' ? data.inspection_location : '',
     created_by_uid: typeof data.created_by_uid === 'string' ? data.created_by_uid : '',
@@ -92,7 +165,7 @@ function normalizeCar(snap: DocumentData): Car {
 export async function fetchAllCustomers(): Promise<Car[]> {
   const ref = collection(db, CARS_COLLECTION);
   const snap = await getDocs(ref);
-  return snap.docs.map(normalizeCar);
+  return attachOwnerContactsIfStaff(snap.docs.map(normalizeCar));
 }
 
 /**
@@ -102,7 +175,7 @@ export async function fetchAllCars(): Promise<Car[]> {
   const ref = collection(db, CARS_COLLECTION);
   const q = query(ref, orderBy('created_at', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.map(normalizeCar);
+  return attachOwnerContactsIfStaff(snap.docs.map(normalizeCar));
 }
 
 /**
@@ -112,7 +185,8 @@ export async function fetchCar(id: string): Promise<Car | null> {
   const ref = doc(db, CARS_COLLECTION, id);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  return normalizeCar(snap);
+  const [car] = await attachOwnerContactsIfStaff([normalizeCar(snap)]);
+  return car;
 }
 
 /**
@@ -154,6 +228,9 @@ export async function addCar(input: NewCarInput): Promise<string> {
     (typeof input.created_by_uid === 'string' && input.created_by_uid) ||
     auth.currentUser?.uid ||
     '';
+  const ownerName = (input.owner_name || '').trim();
+  const ownerPhone = (input.owner_phone || '').trim();
+
   const data: Record<string, unknown> = {
     ...input,
     title,
@@ -162,8 +239,6 @@ export async function addCar(input: NewCarInput): Promise<string> {
     assigned_to: assignedTo,
     inspector_name: (input.inspector_name || '').trim(),
     inspector_phone: (input.inspector_phone || '').trim(),
-    owner_name: (input.owner_name || '').trim(),
-    owner_phone: (input.owner_phone || '').trim(),
     inspection_location: (input.inspection_location || '').trim(),
     ...(creatorUid ? { created_by_uid: creatorUid } : {}),
     // H14: optimistic concurrency — كل عربية بتبدأ بـ version=1
@@ -171,10 +246,23 @@ export async function addCar(input: NewCarInput): Promise<string> {
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
   };
+  // Owner PII → car_private فقط (مش على cars العامة اللي الضيف بيقرأها)
+  delete data.owner_name;
+  delete data.owner_phone;
   if (input.status === 'reserved') data.reserved_at = serverTimestamp();
   if (input.status === 'sold') data.sold_at = serverTimestamp();
   delete (data as { code?: string }).code;
   const docRef = await addDoc(ref, data);
+  try {
+    await writeCarPrivate(docRef.id, ownerName, ownerPhone);
+  } catch (err) {
+    try {
+      await deleteDoc(docRef);
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
   return docRef.id;
 }
 
@@ -233,6 +321,12 @@ export async function updateCar(
       version: prevVersion + 1, // bump version atomically
       updated_at: serverTimestamp(),
     };
+    // Owner PII ما تتكتبش على cars العامة — امسح أي قيمة قديمة + شيلها من الـ payload
+    delete payload.owner_name;
+    delete payload.owner_phone;
+    payload.owner_name = deleteField();
+    payload.owner_phone = deleteField();
+
     // تطبيع assigned_to زي addCar — فاضي/غلط → ['all']
     if ('assigned_to' in updates) {
       const raw = updates.assigned_to;
@@ -252,6 +346,31 @@ export async function updateCar(
       if (updates.status === 'sold') payload.sold_at = serverTimestamp();
     }
     tx.update(ref, payload);
+
+    const hasOwnerUpdate =
+      typeof updates.owner_name === 'string' || typeof updates.owner_phone === 'string';
+    if (hasOwnerUpdate) {
+      const privateRef = doc(db, CAR_PRIVATE_COLLECTION, id);
+      const privateSnap = await tx.get(privateRef);
+      const prev = privateSnap.exists() ? privateSnap.data() || {} : {};
+      const nextName =
+        typeof updates.owner_name === 'string'
+          ? updates.owner_name.trim()
+          : typeof prev.owner_name === 'string'
+            ? prev.owner_name
+            : '';
+      const nextPhone =
+        typeof updates.owner_phone === 'string'
+          ? updates.owner_phone.trim()
+          : typeof prev.owner_phone === 'string'
+            ? prev.owner_phone
+            : '';
+      tx.set(privateRef, {
+        owner_name: nextName,
+        owner_phone: nextPhone,
+        updated_at: serverTimestamp(),
+      });
+    }
   });
 }
 
@@ -275,9 +394,14 @@ export async function deleteCar(id: string): Promise<void> {
     logger.warn('[deleteCar] storage cleanup failed (non-fatal):', err);
   }
 
-  // 2) حذف الـ doc نفسه
+  // 2) حذف الـ public doc + private contacts
   const ref = doc(db, CARS_COLLECTION, id);
   await deleteDoc(ref);
+  try {
+    await deleteDoc(doc(db, CAR_PRIVATE_COLLECTION, id));
+  } catch (err) {
+    logger.warn('[deleteCar] car_private cleanup failed (non-fatal):', err);
+  }
 
   // 3) H15 doc: نترك buyer_leads + copy_events زي ما هم لو موجودين
   // الإشارة في الـ Car.marketer_uids / copy_events.carId بتفضل موجودة لكن
@@ -555,14 +679,25 @@ export function subscribeToCars(
   return onSnapshot(
     q,
     (snap) => {
-      let cars = snap.docs.map(normalizeCar);
-      if (marketerAllowed) {
-        cars = cars.filter(
-          (c) => Array.isArray(c.assigned_to) && c.assigned_to.some((id) => marketerAllowed.has(id))
-        );
-        cars.sort((a, b) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
-      }
-      callback(cars);
+      void (async () => {
+        let cars = snap.docs.map(normalizeCar);
+        if (marketerAllowed) {
+          cars = cars.filter(
+            (c) => Array.isArray(c.assigned_to) && c.assigned_to.some((id) => marketerAllowed.has(id))
+          );
+          cars.sort((a, b) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
+        }
+        try {
+          // Staff بس اللي يقدروا يجيبوا أرقام المالك من car_private
+          cars = await attachOwnerContactsIfStaff(cars);
+        } catch (err) {
+          logger.error('[subscribeToCars] owner enrich failed (showing cars without owner PII):', err);
+        }
+        callback(cars);
+      })().catch((err) => {
+        logger.error('[subscribeToCars] enrich error:', err);
+        filters.onError?.(err instanceof Error ? err : new Error(String(err)));
+      });
     },
     (err) => {
       logger.error('[subscribeToCars] error:', err);
@@ -599,7 +734,17 @@ export function subscribeToCar(
   return onSnapshot(
     ref,
     (snap) => {
-      callback(snap.exists() ? normalizeCar(snap) : null);
+      void (async () => {
+        if (!snap.exists()) {
+          callback(null);
+          return;
+        }
+        const [car] = await attachOwnerContactsIfStaff([normalizeCar(snap)]);
+        callback(car);
+      })().catch((err) => {
+        logger.error('Car subscription enrich error:', err);
+        onError?.(err instanceof Error ? err : new Error(String(err)));
+      });
     },
     (err) => {
       logger.error('Car subscription error:', err);
