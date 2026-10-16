@@ -2,14 +2,17 @@
 
 ## Feed URL
 
-After setting `META_VEHICLE_FEED_KEY` in Vercel env and redeploying:
+Paste this into Meta Commerce Manager → Vehicles catalog → Scheduled feed:
 
 ```
-https://1carz.com/api/meta/vehicle-feed?key=YOUR_SECRET
+https://1carz.com/api/meta/vehicle-feed?key=oh0s5by1pr8kaq24wlc79ij3utfdm6nx
 ```
+
+Opening the path **without** `?key=...` returns `401 unauthorized` (expected).
 
 - Returns UTF-8 CSV of **active** cars only (sold/reserved/inactive drop out automatically).
 - `vehicle_id` = Firestore car document id (same as Pixel `content_ids`).
+- Optional: set `META_VEHICLE_FEED_KEY` in Vercel to override the key, then update the URL.
 
 ## Customer checklist (Commerce Manager / Ads)
 

@@ -52,21 +52,25 @@ function absoluteUrl(url: string): string {
 }
 
 /**
+ * Default feed key when META_VEHICLE_FEED_KEY env is missing (e.g. before
+ * Vercel env is wired). Override via env in production when possible.
+ * URL: https://1carz.com/api/meta/vehicle-feed?key=<secret>
+ */
+const FALLBACK_FEED_KEY = 'oh0s5by1pr8kaq24wlc79ij3utfdm6nx';
+
+/**
  * Scheduled feed for Meta Commerce Manager → Vehicles catalog.
- * Auth: META_VEHICLE_FEED_KEY query param (required in production).
- *
- * Example: https://1carz.com/api/meta/vehicle-feed?key=YOUR_SECRET
+ * Auth: `key` query param must match META_VEHICLE_FEED_KEY (or fallback).
  */
 export async function GET(req: NextRequest) {
   try {
-    const expected = (process.env.META_VEHICLE_FEED_KEY || '').trim();
+    const expected = (process.env.META_VEHICLE_FEED_KEY || FALLBACK_FEED_KEY).trim();
     const key = (req.nextUrl.searchParams.get('key') || '').trim();
-    if (!expected) {
-      logger.error('[vehicle-feed] META_VEHICLE_FEED_KEY is not set');
-      return NextResponse.json({ error: 'feed not configured' }, { status: 503 });
-    }
     if (!key || key !== expected) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'unauthorized', hint: 'Add ?key=YOUR_META_VEHICLE_FEED_KEY' },
+        { status: 401 }
+      );
     }
 
     const db = getAdminDb();
