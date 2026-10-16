@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    '1Carz — منصة مصرية لتسويق وبيع السيارات. تصفّح العروض، سيارات تم فحصها، وحمّل التطبيق من Google Play.',
+    '1Carz — منصة مصرية لتسويق وبيع السيارات. تصفّح العروض وسيارات تم فحصها بثقة.',
   alternates: { canonical: '/' },
   manifest: '/manifest.json?v=9',
   applicationName: SITE_NAME,

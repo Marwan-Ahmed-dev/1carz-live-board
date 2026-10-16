@@ -11,7 +11,6 @@ import {
   Phone,
   MapPin,
   Facebook,
-  Smartphone,
   ShieldCheck,
   Sparkles,
   Eye,
@@ -32,7 +31,6 @@ import {
   COMPANY_WHATSAPP,
   COMPANY_FACEBOOK,
   COMPANY_MAPS,
-  PLAY_STORE_URL,
 } from '@/lib/site';
 
 /** صور محلية — CSP كان بيمنع Unsplash فكانت الأماكن فاضية */
@@ -41,7 +39,6 @@ const IMG = {
   showroom: '/landing/showroom.jpg',
   keys: '/landing/keys.jpg',
   handshake: '/landing/deal.jpg',
-  night: '/landing/night.jpg',
   garage: '/landing/garage.jpg',
 };
 
@@ -94,7 +91,6 @@ export default function LandingPage() {
             <a href="#about" className="hover:text-white transition-colors">من نحن</a>
             <a href="#how" className="hover:text-white transition-colors">إزاي بنشتغل</a>
             <a href="#inspected" className="hover:text-white transition-colors">تم فحصها</a>
-            <a href="#app" className="hover:text-white transition-colors">التطبيق</a>
             <a href="#contact" className="hover:text-white transition-colors">تواصل</a>
             <Link href="/privacy" className="hover:text-white transition-colors">الخصوصية</Link>
             <Link href="/terms" className="hover:text-white transition-colors">الشروط</Link>
@@ -169,15 +165,6 @@ export default function LandingPage() {
               <KeyRound size={20} />
               بيع عربيتك معانا
             </a>
-            <a
-              href={PLAY_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-[#00C853]/15 hover:bg-[#00C853]/25 border border-[#00C853]/40 text-[#7DFFB3] text-base font-extrabold transition-transform hover:-translate-y-0.5"
-            >
-              <Smartphone size={20} />
-              حمّل تطبيق 1Carz
-            </a>
           </div>
         </div>
       </section>
@@ -219,7 +206,7 @@ export default function LandingPage() {
             <ul className="space-y-3 text-sm sm:text-base text-white/75">
               <li className="flex gap-2"><ShieldCheck className="text-accent-yellow flex-shrink-0 mt-0.5" size={18} /> شفافية في السعر والحالة ومكان المعاينة</li>
               <li className="flex gap-2"><Sparkles className="text-accent-yellow flex-shrink-0 mt-0.5" size={18} /> سيارات مميزة وسيارات تم فحصها بشارات واضحة</li>
-              <li className="flex gap-2"><Eye className="text-accent-yellow flex-shrink-0 mt-0.5" size={18} /> متابعة لحظية للعروض الجديدة على الويب والتطبيق</li>
+              <li className="flex gap-2"><Eye className="text-accent-yellow flex-shrink-0 mt-0.5" size={18} /> متابعة لحظية للعروض الجديدة على الموقع</li>
             </ul>
           </div>
           <div className="land-reveal order-1 lg:order-2 relative">
@@ -343,7 +330,7 @@ export default function LandingPage() {
           <div className="land-reveal flex justify-center">
             <div className="land-float relative w-56 h-56 sm:w-72 sm:h-72">
               <Image
-                src="/badges/certified.png"
+                src="/badges/certified.jpg"
                 alt="تم فحصها — علامة الاعتماد"
                 fill
                 className="object-contain drop-shadow-[0_20px_60px_rgba(34,197,94,0.35)]"
@@ -376,63 +363,6 @@ export default function LandingPage() {
               <p className="text-white/65 text-sm sm:text-base leading-relaxed">{b.body}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* App */}
-      <section id="app" className="relative py-20 sm:py-28 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(252,211,77,0.18),transparent_55%)]" />
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="land-reveal flex flex-col lg:flex-row lg:items-center gap-10 lg:gap-16">
-            <div className="flex-1 space-y-5">
-              <p className="text-accent-yellow text-xs font-bold tracking-[0.3em] uppercase">تطبيق 1Carz</p>
-              <h2 className="text-3xl sm:text-5xl font-black text-white leading-tight">
-                العربيات في جيبك… تحديثات أول بأول
-              </h2>
-              <p className="text-white/65 text-base sm:text-lg leading-relaxed max-w-lg">
-                حمّل تطبيق 1Carz من Google Play وتصفّح العروض، تابع العربيات الجديدة، وخليك أقرب للصفقة وأنت على الطريق.
-              </p>
-              <ul className="space-y-2 text-sm text-white/70">
-                <li>• تصفّح سريع للوحة العربيات</li>
-                <li>• متابعة العروض والسيارات التي تم فحصها</li>
-                <li>• تجربة موبايل أسهل من المتصفح</li>
-              </ul>
-              <a
-                href={PLAY_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="land-float inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-white text-[#0c0c0c] font-extrabold text-base hover:bg-accent-yellow transition-colors shadow-[0_16px_50px_rgba(0,0,0,0.35)]"
-              >
-                <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-[#0c0c0c] text-accent-yellow">
-                  <Smartphone size={22} />
-                </span>
-                <span className="text-right leading-tight">
-                  <span className="block text-[11px] font-bold text-black/55">حمّل من</span>
-                  <span className="block text-lg">Google Play</span>
-                </span>
-                <ArrowLeft size={18} className="opacity-50" />
-              </a>
-            </div>
-            <div className="land-reveal flex-1 flex justify-center lg:justify-end">
-              <div className="relative w-full max-w-sm aspect-[4/5] rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-1 shadow-[0_30px_80px_rgba(0,0,0,0.45)] overflow-hidden">
-                <div className="relative h-full w-full rounded-[1.85rem] overflow-hidden">
-                  <Image
-                    src={IMG.night}
-                    alt="تطبيق 1Carz على الموبايل"
-                    fill
-                    sizes="(max-width: 1024px) 90vw, 380px"
-                    className="object-cover"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                </div>
-                <div className="absolute bottom-6 inset-x-6 rounded-2xl bg-black/55 backdrop-blur-md border border-white/15 px-4 py-3 z-[1]">
-                  <p className="text-accent-yellow text-xs font-bold mb-0.5">1Carz App</p>
-                  <p className="text-white text-sm font-extrabold">سوق العربيات… في إيدك</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -499,9 +429,6 @@ export default function LandingPage() {
               <Link href="/terms" className="text-white/70 hover:text-accent-yellow underline underline-offset-4 decoration-white/20 hover:decoration-accent-yellow transition-colors">
                 الشروط والأحكام
               </Link>
-              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-accent-yellow transition-colors">
-                Google Play
-              </a>
             </div>
             <p className="text-xs text-white/35">© {new Date().getFullYear()} 1Carz</p>
           </div>

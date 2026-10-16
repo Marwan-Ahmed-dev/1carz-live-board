@@ -166,7 +166,7 @@ export async function deleteUserByAdmin(target: AppUser): Promise<void> {
     if (typeof data?.error === 'string' && data.error) message = data.error;
   } catch {
     if (res.status === 404) {
-      message = 'حذف الحساب غير متاح على هذا الإصدار من التطبيق';
+      message = 'حذف الحساب غير متاح حالياً';
     }
   }
   throw new Error(message);

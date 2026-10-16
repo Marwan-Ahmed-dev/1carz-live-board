@@ -6,7 +6,6 @@ import { watchAuth, ensureUserDoc, getUserData, refreshClaims } from '@/lib/auth
 import { AppUser } from '@/lib/types';
 import { AuthContext, type UseAuthResult } from '@/hooks/useAuth';
 import { ToastProvider } from '@/hooks/useToast';
-import { ShortcutPromptHost } from '@/components/ShortcutPromptHost';
 import { initAppCheck } from '@/lib/firebase';
 import { logger } from '@/lib/logger';
 
@@ -101,10 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <ToastProvider>
-        {children}
-        <ShortcutPromptHost />
-      </ToastProvider>
+      <ToastProvider>{children}</ToastProvider>
     </AuthProvider>
   );
 }

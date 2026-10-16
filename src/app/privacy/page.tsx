@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-text-primary">1. من نحن</h2>
           <p>
-            1CARZ منصة لتسويق وعرض السيارات في مصر. عند استخدامك للموقع أو التطبيق،
+            1CARZ منصة لتسويق وعرض السيارات في مصر. عند استخدامك للموقع،
             نجمع بيانات لازمة لتشغيل الخدمة وتحسينها.
           </p>
         </section>

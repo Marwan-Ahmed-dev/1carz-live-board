@@ -72,10 +72,10 @@ export function AdminHeader() {
             <button
               onClick={() => router.push('/cars')}
               className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-admin-bg hover:bg-admin-border text-admin-text text-sm font-medium transition-colors"
-              title="العودة للتطبيق"
+              title="العودة للوحة العربيات"
             >
               <Car size={16} />
-              <span>التطبيق</span>
+              <span>العربيات</span>
             </button>
             <button
               onClick={handleLogout}

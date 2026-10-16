@@ -32,8 +32,8 @@ export default function CarsBoardPage() {
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
-  /** أدمن: سياراتنا | كل السيارات */
-  const [adminScope, setAdminScope] = useState<'inspected' | 'all'>('all');
+  /** أدمن: سياراتي (اللي رفعها) | كل السيارات */
+  const [adminScope, setAdminScope] = useState<'mine' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // المجموعات اللي اليوزر عضو فيها (للمسوّق فقط)
@@ -94,12 +94,12 @@ export default function CarsBoardPage() {
 
   const visibleCars = useMemo(() => {
     let list = cars;
-    if (isAdmin && adminScope === 'inspected') {
-      list = list.filter((c) => !!c.is_inspected || c.priority === 'arabyatna');
+    if (isAdmin && adminScope === 'mine' && user?.uid) {
+      list = list.filter((c) => c.created_by_uid === user.uid);
     }
     if (!searchQuery.trim()) return list;
     return list.filter((c) => titleMatchesSearchQuery(c.title, searchQuery));
-  }, [cars, searchQuery, isAdmin, adminScope]);
+  }, [cars, searchQuery, isAdmin, adminScope, user?.uid]);
 
   const groups = useMemo(() => groupByPriority(visibleCars), [visibleCars]);
   const totalCount = visibleCars.length;
@@ -151,14 +151,14 @@ export default function CarsBoardPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setAdminScope('inspected')}
+              onClick={() => setAdminScope('mine')}
               className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                adminScope === 'inspected'
+                adminScope === 'mine'
                   ? 'bg-accent-yellow text-text-primary'
                   : 'bg-bg-card border border-border-soft text-text-secondary hover:text-text-primary'
               }`}
             >
-              سياراتنا
+              سياراتي
             </button>
             <button
               type="button"
